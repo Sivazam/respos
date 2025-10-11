@@ -1,0 +1,18 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import ManagerMenuPage from './pages/manager/MenuPage';
+import ManagerPOSPage from './pages/manager/POSPage';
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/manager/menu" element={<ManagerMenuPage />} />
+        <Route path="/manager/pos" element={<ManagerPOSPage />} />
+        <Route path="/" element={<div><h1>Home</h1><p>Navigation works!</p></div>} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;

@@ -1,0 +1,127 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "sales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "inventory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "inventory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "category",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "returns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "saleId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "returns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tables",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tables",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "name",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tables",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "locationId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

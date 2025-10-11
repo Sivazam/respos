@@ -1,0 +1,9 @@
+{
+  "name": "ForkFlow POS",
+  "short_name": "MHF POS",
+  "description": "Point of Sale system for ForkFlow",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#15803d"
+}

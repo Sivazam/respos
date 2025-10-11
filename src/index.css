@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-slideInUp {
+  animation: slideInUp 0.3s ease-out;
+}
+
+/* Improved focus styles for accessibility */
+:focus {
+  outline: 2px solid rgba(21, 128, 61, 0.5);
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .modal-content {
+    width: 95%;
+    max-height: 90vh;
+  }
+}
+
+/* Prevent text selection on buttons */
+button {
+  user-select: none;
+}
+
+/* Improve tap targets on mobile */
+@media (max-width: 640px) {
+  button, 
+  a, 
+  input[type="checkbox"], 
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

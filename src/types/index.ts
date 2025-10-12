@@ -59,7 +59,7 @@ export interface RestaurantSettings {
     cgst: number;
     sgst: number;
   };
-  orderTypes: ('dinein' | 'takeaway')[];
+  orderTypes: ('dinein' | 'delivery')[];
   features: {
     tableManagement: boolean;
     onlineOrders: boolean;
@@ -232,16 +232,22 @@ export interface Order {
   id: string;
   locationId: string; // Required - every order belongs to a location
   tableIds: string[]; // Support multiple tables for large groups
+  tableNames: string[]; // Human-readable table names
   staffId: string; // Staff who created the order
+  staffName: string; // Staff display name
   orderType: 'dinein' | 'delivery'; // Changed takeaway to delivery
   orderNumber: string; // Sequential order number per location
   items: OrderItem[];
   status: 'temporary' | 'ongoing' | 'transferred' | 'settled'; // Complete order status flow
   totalAmount: number;
   subtotal: number;
+  tax: number;
   gstAmount: number;
+  total: number;
+  discount: { type: 'percentage' | 'fixed'; amount: number };
   isFinalOrder: boolean; // true = final order after "Go for Bill", false = temporary orders
   paymentMethod?: 'cash' | 'card' | 'upi'; // Only for settled orders
+  paymentStatus: 'pending' | 'paid' | 'refunded';
   createdAt: Date;
   updatedAt: Date;
   settledAt?: Date; // When payment was settled
@@ -250,6 +256,15 @@ export interface Order {
   customerPhone?: string; // For delivery orders
   deliveryAddress?: string; // For delivery orders
   orderMode?: 'zomato' | 'swiggy' | 'in-store'; // For delivery orders
+  specialInstructions?: string;
+  estimatedTime?: Date;
+  completedAt?: Date;
+  statusHistory: Array<{
+    status: string;
+    timestamp: any;
+    updatedBy: string;
+    note?: string;
+  }>;
 }
 
 export interface OrderItem {
@@ -266,6 +281,7 @@ export interface OrderItem {
 export interface OrderFormData {
   tableIds: string[];
   orderType: 'dinein' | 'delivery';
+  orderMode?: 'zomato' | 'swiggy' | 'in-store';
   items: OrderItem[];
   customerName?: string;
   customerPhone?: string;
@@ -396,7 +412,7 @@ export interface Receipt {
   contactNumber: string;
   email: string;
   tableNumber?: string;
-  orderType?: 'dinein' | 'takeaway';
+  orderType?: 'dinein' | 'delivery';
   customerName?: string;
 }
 

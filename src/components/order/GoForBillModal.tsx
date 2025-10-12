@@ -28,22 +28,98 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
   if (!isOpen || !order) return null;
 
   const handleTransferToManager = async () => {
-    if (!currentUser || !order) return;
+    console.log('🔍 Transfer function called - checking prerequisites...');
+    console.log('👤 Current user object:', currentUser);
+    console.log('📋 Order object:', order);
+    
+    if (!currentUser) {
+      console.error('❌ Cannot transfer: currentUser is null or undefined');
+      toast.error('Cannot transfer: User not authenticated. Please log in again.');
+      return;
+    }
 
+    if (!order) {
+      console.error('❌ Cannot transfer: order is null or undefined');
+      toast.error('Cannot transfer: Order information missing');
+      return;
+    }
+
+    if (!currentUser.uid) {
+      console.error('❌ Cannot transfer: currentUser.uid is undefined', { 
+        currentUser: {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          role: currentUser.role
+        }
+      });
+      toast.error('Cannot transfer: User ID not available. Please log in again.');
+      return;
+    }
+
+    console.log('🚀 Starting transfer process for order:', order);
+    console.log('👤 Current user:', currentUser);
+    console.log('📋 Order details:', {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      tableIds: order.tableIds,
+      totalAmount: order.totalAmount
+    });
+    
     setIsProcessing(true);
 
     try {
+      // Check localStorage before transfer
+      console.log('🔍 Checking localStorage before transfer...');
+      const beforeKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('temp_order_') || key.startsWith('manager_pending_'))) {
+          beforeKeys.push(key);
+          console.log(`  - ${key}: ${localStorage.getItem(key)?.substring(0, 100)}...`);
+        }
+      }
+
       // Transfer order to manager's pending orders
-      await transferOrderToManager(order.id, currentUser.id);
+      console.log('📤 Calling transferOrderToManager with order ID:', order.id, 'and staff ID:', currentUser.uid);
+      
+      try {
+        const result = await transferOrderToManager(order.id, currentUser.uid);
+        console.log('✅ Transfer function completed successfully:', result);
+      } catch (transferError) {
+        console.error('❌ Transfer function failed:', transferError);
+        throw transferError;
+      }
+
+      // Check localStorage after transfer
+      console.log('🔍 Checking localStorage after transfer...');
+      const afterKeys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('temp_order_') || key.startsWith('manager_pending_'))) {
+          afterKeys.push(key);
+          console.log(`  - ${key}: ${localStorage.getItem(key)?.substring(0, 100)}...`);
+        }
+      }
+
+      // Compare before and after
+      const newKeys = afterKeys.filter(key => !beforeKeys.includes(key));
+      console.log('🆕 New keys created:', newKeys);
+      
+      if (newKeys.length === 0) {
+        console.warn('⚠️ No new keys were created during transfer!');
+      }
 
       // Release the tables after successful transfer
       if (order.tableIds && order.tableIds.length > 0) {
+        console.log('🪑 Releasing tables:', order.tableIds);
         for (const tableId of order.tableIds) {
           try {
             await releaseTable(tableId);
-            console.log(`Successfully released table ${tableId} after transfer`);
+            console.log(`✅ Successfully released table ${tableId} after transfer`);
           } catch (error) {
-            console.error(`Failed to release table ${tableId}:`, error);
+            console.error(`❌ Failed to release table ${tableId}:`, error);
           }
         }
       }
@@ -52,13 +128,20 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
       
       // Call success callback
       if (onSuccess) {
+        console.log('📞 Calling success callback');
         onSuccess();
       }
 
-      onClose();
+      console.log('✅ Transfer process completed successfully');
+      
+      // Wait a bit before closing to ensure all operations complete
+      setTimeout(() => {
+        onClose();
+      }, 500);
+      
     } catch (error) {
-      console.error('Error transferring order to manager:', error);
-      toast.error('Failed to transfer order to manager');
+      console.error('❌ Error transferring order to manager:', error);
+      toast.error(`Failed to transfer order: ${error.message || 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }

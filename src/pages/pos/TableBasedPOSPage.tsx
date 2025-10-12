@@ -18,7 +18,7 @@ import toast from 'react-hot-toast';
 
 interface TableBasedPOSPageProps {
   // This component handles table-based POS functionality
-} // eslint-disable-line @typescript-eslint/no-empty-object-type
+}  
 
 const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
   const navigate = useNavigate();
@@ -36,13 +36,12 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
     updateItemQuantity,
     clearTemporaryOrder,
     clearCurrentOrder,
-    setTemporaryOrder,
     calculateTotals,
     getTableNames,
     createPartialOrder,
     checkForExistingOrder,
     updateOrderMode,
-    loadFromLocalStorage,
+    loadOrderIntoCart,
   } = useTemporaryOrder();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,66 +57,60 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
     orderId?: string; // Add order ID for loading specific order
   };
 
-  // Load specific order by ID
-  const loadOrderById = (orderId: string): TemporaryOrder | null => {
-    try {
-      // First try to load from the specific order key
-      const specificOrderKey = `temp_order_${orderId}`;
-      const specificOrderData = localStorage.getItem(specificOrderKey);
-      
-      if (specificOrderData) {
-        const order = JSON.parse(specificOrderData);
-        return {
-          ...order,
-          createdAt: new Date(order.createdAt),
-          sessionStartedAt: new Date(order.sessionStartedAt),
-          updatedAt: new Date(order.updatedAt),
-        };
-      }
-      
-      // Fallback to main localStorage
-      const mainOrder = loadFromLocalStorage();
-      if (mainOrder && mainOrder.id === orderId) {
-        return mainOrder;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error loading order by ID:', error);
-      return null;
-    }
-  };
-
   // Initialize temporary order when component mounts
   useEffect(() => {
-    if (orderContext && !isTemporaryOrderActive) {
+    console.log('🔍 POS Page - orderContext:', orderContext);
+    console.log('🔍 POS Page - isTemporaryOrderActive:', isTemporaryOrderActive);
+    console.log('🔍 POS Page - current temporaryOrder:', temporaryOrder);
+    
+    if (orderContext) {
       const initializeOrder = async () => {
         try {
+          console.log('🚀 Starting order initialization with context:', orderContext);
+          
+          // Always clear any existing order first to prevent stale data
+          if (isTemporaryOrderActive || temporaryOrder) {
+            console.log('🧹 Clearing existing order before initialization...');
+            clearCurrentOrder();
+            // Wait a moment for the state to update
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
           let existingOrder = null;
           
           // If we have a specific order ID, try to load it first
           if (orderContext.orderId) {
-            existingOrder = loadOrderById(orderContext.orderId);
-            console.log('Loaded order by ID:', existingOrder);
+            console.log('📦 Loading order by ID:', orderContext.orderId);
+            existingOrder = await loadOrderIntoCart(orderContext.orderId);
+            console.log('✅ Loaded order by ID into cart:', existingOrder);
           }
           
           // If no specific order found, check for existing order on tables
           if (!existingOrder) {
+            console.log('🔍 No order loaded by ID, checking for existing order on tables:', orderContext.tableIds);
             existingOrder = await checkForExistingOrder(orderContext.tableIds);
-            console.log('Found existing order by table:', existingOrder);
+            console.log('🔍 Found existing order by table:', existingOrder);
+            
+            if (existingOrder) {
+              // Load the existing order into the cart using the new function
+              console.log('📦 Loading existing order into cart:', existingOrder.id);
+              await loadOrderIntoCart(existingOrder.id);
+            }
           }
           
           if (existingOrder) {
-            // Load the existing order into the state
-            console.log('Loading existing order:', existingOrder);
-            setTemporaryOrder(existingOrder);
-            
             // Set order mode if it's a delivery order
             if (existingOrder.orderType === 'delivery' && existingOrder.orderMode) {
+              console.log('🔧 Setting order mode for delivery:', existingOrder.orderMode);
               setOrderMode(existingOrder.orderMode);
             }
           } else {
             // Start a new temporary order with order mode for delivery
+            console.log('🆕 Starting new temporary order with:', {
+              tableIds: orderContext.tableIds,
+              orderType: orderContext.orderType,
+              orderMode: orderContext.orderType === 'delivery' ? orderMode : undefined
+            });
             await startTemporaryOrder(
               orderContext.tableIds, 
               orderContext.orderType, 
@@ -125,39 +118,13 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
             );
           }
         } catch (error) {
-          console.error('Failed to initialize order:', error);
+          console.error('❌ Failed to initialize order:', error);
         }
       };
+      
       initializeOrder();
     }
-  }, [orderContext, isTemporaryOrderActive, checkForExistingOrder, startTemporaryOrder, orderMode, loadOrderById]);
-
-  // Additional effect to handle order editing specifically
-  useEffect(() => {
-    if (orderContext && isTemporaryOrderActive && temporaryOrder) {
-      // If we have a temporary order but it doesn't match the context, reload it
-      const orderMatches = temporaryOrder.tableIds.some(tableId => 
-        orderContext.tableIds.includes(tableId)
-      );
-      
-      if (!orderMatches) {
-        const loadCorrectOrder = async () => {
-          try {
-            const existingOrder = await checkForExistingOrder(orderContext.tableIds);
-            if (existingOrder) {
-              setTemporaryOrder(existingOrder);
-              if (existingOrder.orderType === 'delivery' && existingOrder.orderMode) {
-                setOrderMode(existingOrder.orderMode);
-              }
-            }
-          } catch (error) {
-            console.error('Failed to reload correct order:', error);
-          }
-        };
-        loadCorrectOrder();
-      }
-    }
-  }, [orderContext, isTemporaryOrderActive, temporaryOrder, checkForExistingOrder]);
+  }, [orderContext]); // Remove other dependencies to prevent re-initialization loops
 
   // Update order mode when it changes for delivery orders
   useEffect(() => {
@@ -222,7 +189,11 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
         
         // Navigate to pending orders page
         console.log('Navigating to pending orders...');
-        navigate('/staff/pending-orders');
+        if (orderContext?.fromLocation) {
+          navigate(orderContext.fromLocation);
+        } else {
+          navigate('/staff/pending-orders');
+        }
       } catch (error) {
         console.error('Failed to place partial order:', error);
         toast.error('Failed to create partial order. Please try again.');
@@ -261,14 +232,26 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
 
   // Handle save changes for edited orders
   const handleSaveChanges = async () => {
-    if (temporaryOrder && temporaryOrder.items.length > 0 && isEditingOrder) {
+    if (temporaryOrder && temporaryOrder.items.length > 0 && isEditingOrder && currentUser) {
       try {
         console.log('Saving changes to order:', temporaryOrder);
         
         // Show loading toast
         const loadingToast = toast.loading('Saving changes...');
         
-        // Update the existing order in localStorage
+        // Import OrderService dynamically to avoid circular imports
+        const { OrderService } = await import('../../services/orderService');
+        const orderService = OrderService.getInstance();
+        
+        // Update the order in database using OrderService
+        await orderService.updateOrderItems(
+          temporaryOrder.id,
+          temporaryOrder.items,
+          currentUser.uid
+        );
+        console.log('✅ Order updated in database');
+        
+        // Update the existing order in localStorage as backup
         const updatedOrder = {
           ...temporaryOrder,
           updatedAt: new Date(),
@@ -303,7 +286,7 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
         if (orderContext?.fromLocation) {
           navigate(orderContext.fromLocation);
         } else {
-          navigate('/manager/pending-orders');
+          navigate('/staff/pending-orders');
         }
       } catch (error) {
         console.error('Failed to save changes:', error);

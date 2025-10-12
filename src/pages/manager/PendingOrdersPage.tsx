@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Receipt, 
@@ -51,28 +51,32 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<PendingOrder | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PendingOrder | null>(null);
+  
 
   // Load transferred orders from localStorage
-  useEffect(() => {
-    const loadPendingOrders = async () => {
+  const loadPendingOrders = useCallback(async () => {
       try {
         setLoading(true);
         
+        console.log('🔍 Loading manager pending orders...');
         const orders: PendingOrder[] = [];
         
         // Load all manager pending orders from localStorage
+        console.log('📦 Checking localStorage for manager_pending_ keys...');
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key && key.startsWith('manager_pending_')) {
             try {
+              console.log(`📋 Found manager order key: ${key}`);
               const orderData = JSON.parse(localStorage.getItem(key) || '{}');
+              console.log(`📄 Order data for ${key}:`, orderData);
               
               const tableNames = orderData.tableIds.map((tableId: string) => {
                 const foundTable = tables.find(t => t.id === tableId);
                 return foundTable?.name || `Table ${tableId}`;
               });
 
-              orders.push({
+              const order = {
                 id: orderData.id,
                 orderNumber: orderData.orderNumber,
                 tableIds: orderData.tableIds,
@@ -82,69 +86,46 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 status: orderData.status,
                 createdAt: new Date(orderData.createdAt),
                 updatedAt: new Date(orderData.updatedAt),
-                staffId: orderData.staffId,
-                transferredAt: orderData.transferredAt ? new Date(orderData.transferredAt) : undefined,
-                transferredBy: orderData.transferredBy,
-                orderType: orderData.orderType || 'dinein'
-              });
+                staffId: orderData.staffId
+              };
+
+              orders.push(order);
+              console.log(`✅ Added order ${order.orderNumber} to manager pending list`);
             } catch (error) {
-              console.error(`Failed to parse order ${key}:`, error);
+              console.error(`❌ Failed to load order from ${key}:`, error);
             }
-          }
-        }
-
-        // Also load ongoing orders from occupied tables (for orders created by manager)
-        const occupiedTables = tables.filter(table => 
-          table.status === 'occupied' && table.currentOrderId
-        );
-
-        for (const table of occupiedTables) {
-          try {
-            // Check if this is a manager-created order
-            const orderKey = `temp_order_${table.currentOrderId}`;
-            const orderData = localStorage.getItem(orderKey);
-            
-            if (orderData) {
-              const parsedOrder = JSON.parse(orderData);
-              
-              // Only include if it's an ongoing order created by manager
-              if (parsedOrder.status === 'ongoing' && parsedOrder.staffId === currentUser?.uid) {
-                const tableNames = parsedOrder.tableIds.map((tableId: string) => {
-                  const foundTable = tables.find(t => t.id === tableId);
-                  return foundTable?.name || `Table ${tableId}`;
-                });
-
-                orders.push({
-                  id: parsedOrder.id,
-                  orderNumber: parsedOrder.orderNumber,
-                  tableIds: parsedOrder.tableIds,
-                  tableNames,
-                  items: parsedOrder.items,
-                  totalAmount: parsedOrder.totalAmount,
-                  status: 'ongoing',
-                  createdAt: new Date(parsedOrder.createdAt),
-                  updatedAt: new Date(parsedOrder.updatedAt),
-                  staffId: parsedOrder.staffId,
-                  orderType: parsedOrder.orderType || 'dinein'
-                });
-              }
-            }
-          } catch (error) {
-            console.error(`Failed to load order for table ${table.id}:`, error);
           }
         }
 
         setPendingOrders(orders);
+        console.log('📊 Total manager orders found:', orders.length);
+        console.log('📋 Manager pending orders:', orders);
       } catch (error) {
         console.error('Failed to load pending orders:', error);
         toast.error('Failed to load pending orders');
       } finally {
         setLoading(false);
       }
-    };
+    }, [tables]);
 
+  // Manual refresh function
+  const refreshOrders = () => {
+    console.log('🔄 Manual refresh triggered');
     loadPendingOrders();
-  }, [tables, currentUser?.uid]);
+  };
+
+  // Load pending orders on component mount and when tables change
+  useEffect(() => {
+    loadPendingOrders();
+    
+    // Set up periodic refresh every 30 seconds
+    const interval = setInterval(() => {
+      console.log('⏰ Periodic refresh triggered');
+      loadPendingOrders();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [loadPendingOrders]);
 
   // Filter orders
   const filteredOrders = pendingOrders.filter(order => {
@@ -159,12 +140,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
 
   // Handle continue order (only for manager-created ongoing orders)
   const handleContinueOrder = (order: PendingOrder) => {
-    navigate('/manager/pos', { 
+    navigate('/pos', { 
       state: {
         orderType: order.orderType,
         tableIds: order.tableIds,
         isOngoing: true,
-        fromLocation: '/manager/pending-orders'
+        fromLocation: '/manager/pending-orders',
+        orderId: order.id // Pass the order ID for loading the correct order
       }
     });
   };
@@ -382,6 +364,15 @@ const ManagerPendingOrdersPage: React.FC = () => {
           
           <div className="flex gap-2">
             <button
+              onClick={refreshOrders}
+              className="px-4 py-2 rounded-lg font-medium transition-colors bg-green-100 text-green-800 hover:bg-green-200 flex items-center gap-2"
+              title="Refresh orders"
+            >
+              <span>🔄</span>
+              Refresh
+            </button>
+            
+            <button
               onClick={() => setSelectedStatus('all')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 selectedStatus === 'all'
@@ -471,7 +462,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {order.status === 'ongoing' && (
+                    {(order.status === 'ongoing' || order.status === 'transferred') && (
                       <Button
                         onClick={() => handleContinueOrder(order)}
                         variant="outline"
@@ -522,31 +513,34 @@ const ManagerPendingOrdersPage: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && orderToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-200">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Cancel Order</h3>
+              <h3 className="text-xl font-bold text-gray-900">Cancel Order</h3>
               <button
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setOrderToDelete(null);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
               >
                 <X size={20} />
               </button>
             </div>
             
             <div className="mb-6">
-              <p className="text-gray-600 mb-2">
-                Are you sure you want to cancel this order?
-              </p>
-              <div className="bg-gray-50 rounded p-3">
-                <p className="font-medium">{orderToDelete.orderNumber}</p>
-                <p className="text-sm text-gray-600">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle className="text-red-500" size={20} />
+                <p className="text-gray-700 font-medium">
+                  Are you sure you want to cancel this order?
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <p className="font-semibold text-gray-900 mb-1">{orderToDelete.orderNumber}</p>
+                <p className="text-sm text-gray-600 mb-2">
                   {orderToDelete.tableNames.join(', ')} • {orderToDelete.items.length} items
                 </p>
-                <p className="text-sm font-medium text-red-600">
+                <p className="text-lg font-bold text-red-600">
                   ₹{orderToDelete.totalAmount.toFixed(2)}
                 </p>
               </div>
@@ -559,13 +553,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
                   setOrderToDelete(null);
                 }}
                 variant="outline"
-                className="flex-1"
+                className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
               >
                 No, Keep Order
               </Button>
               <Button
                 onClick={confirmDeleteOrder}
-                className="flex-1 bg-red-600 hover:bg-red-700"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium"
               >
                 Yes, Cancel Order
               </Button>

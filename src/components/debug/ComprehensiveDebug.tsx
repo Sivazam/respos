@@ -6,6 +6,7 @@ import { useCategories } from '../../contexts/CategoryContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { useLocations } from '../../contexts/LocationContext';
 import { useFranchises } from '../../contexts/FranchiseContext';
+import TestPartialOrder from './TestPartialOrder';
 
 const ComprehensiveDebug: React.FC = () => {
   const { currentUser } = useAuth();
@@ -121,6 +122,14 @@ const ComprehensiveDebug: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Partial Order Test */}
+          <div className="mb-3 p-2 bg-indigo-50 rounded">
+            <strong className="text-xs">🧪 Partial Order Test</strong>
+            <div className="mt-2">
+              <TestPartialOrder />
+            </div>
           </div>
         </>
       )}

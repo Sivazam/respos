@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import Button from '../ui/Button';
 import OrderTypeSelection from './OrderTypeSelection';
@@ -11,6 +11,7 @@ interface StartOrderButtonProps {
 const StartOrderButton: React.FC<StartOrderButtonProps> = ({ className = '' }) => {
   const [showOrderTypeModal, setShowOrderTypeModal] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleStartOrder = () => {
     setShowOrderTypeModal(true);
@@ -19,11 +20,16 @@ const StartOrderButton: React.FC<StartOrderButtonProps> = ({ className = '' }) =
   const handleOrderTypeSelect = (orderType: 'dinein' | 'delivery', isOngoing: boolean = false) => {
     setShowOrderTypeModal(false);
     
+    // Determine if we're in manager context
+    const isManager = location.pathname.startsWith('/manager');
+    const fromLocation = isManager ? '/manager' : '/staff';
+    
     // Navigate to table selection with order type and ongoing status
     navigate('/select-table', { 
       state: { 
         orderType, 
-        isOngoing 
+        isOngoing,
+        fromLocation
       } 
     });
   };

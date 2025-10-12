@@ -13,9 +13,12 @@
     "features:validate": "node scripts/feature-manager.js validate"
   },
   "dependencies": {
+    "@types/escpos": "^2.5.5",
     "chart.js": "^4.4.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.3.1",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-usb": "^3.0.0-alpha.4",
     "firebase": "^10.9.0",
     "firebase-tools": "^14.19.1",
     "lucide-react": "^0.344.0",

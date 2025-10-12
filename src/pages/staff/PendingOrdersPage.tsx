@@ -16,6 +16,7 @@ import {
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useTables } from '../../contexts/TableContext';
 import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
+import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplayContext';
 import { OrderItem } from '../../types';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -23,6 +24,7 @@ import { Card } from '../../components/ui/card';
 import GoForBillModal from '../../components/order/GoForBillModal';
 import ViewOrderModal from '../../components/order/ViewOrderModal';
 import toast from 'react-hot-toast';
+import { OrderService } from '../../services/orderService';
 
 interface PendingOrder {
   id: string;
@@ -31,7 +33,7 @@ interface PendingOrder {
   tableNames: string[];
   items: OrderItem[];
   totalAmount: number;
-  status: 'ongoing' | 'ready';
+  status: 'temporary' | 'ongoing';
   createdAt: Date;
   updatedAt: Date;
   staffId: string;
@@ -41,130 +43,32 @@ const StaffPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { tables, releaseTable } = useTables();
   const { loadFromLocalStorage } = useTemporaryOrder();
+  const { temporaryOrders, loading: contextLoading } = useTemporaryOrdersDisplay();
   
-  const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'ongoing' | 'ready'>('all');
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'temporary' | 'ongoing'>('all');
   const [showGoForBill, setShowGoForBill] = useState(false);
   const [showViewOrder, setShowViewOrder] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<PendingOrder | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState<PendingOrder | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<any>(null);
 
-  // Load pending orders
-  useEffect(() => {
-    const loadPendingOrders = async () => {
-      try {
-        setLoading(true);
-        
-        // Get all occupied tables
-        const occupiedTables = tables.filter(table => 
-          table.status === 'occupied' && table.currentOrderId
-        );
-
-        // For each occupied table, try to load the order
-        const orders: PendingOrder[] = [];
-        
-        // First, check all localStorage keys for temp_order_*
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('temp_order_')) {
-            try {
-              const orderData = localStorage.getItem(key);
-              if (orderData) {
-                const order = JSON.parse(orderData);
-                
-                // Only include orders that are ongoing or ready (not temporary)
-                if (order.status === 'ongoing' || order.status === 'ready') {
-                  const tableNames = order.tableIds.map((tableId: string) => {
-                    const foundTable = tables.find(t => t.id === tableId);
-                    return foundTable?.name || `Table ${tableId}`;
-                  });
-
-                  orders.push({
-                    id: order.id,
-                    orderNumber: order.orderNumber,
-                    tableIds: order.tableIds,
-                    tableNames,
-                    items: order.items,
-                    totalAmount: order.totalAmount,
-                    status: order.status === 'ongoing' ? 'ongoing' : 'ready',
-                    createdAt: new Date(order.createdAt),
-                    updatedAt: new Date(order.updatedAt),
-                    staffId: order.staffId
-                  });
-                }
-              }
-            } catch (error) {
-              console.error(`Failed to load order from ${key}:`, error);
-            }
-          }
-        }
-        
-        // Also check occupied tables for any orders that might not be in temp_order_ keys
-        for (const table of occupiedTables) {
-          try {
-            // First try to load from the specific order key
-            const specificOrderKey = `temp_order_${table.currentOrderId}`;
-            const specificOrderData = localStorage.getItem(specificOrderKey);
-            
-            let savedOrder = null;
-            if (specificOrderData) {
-              const order = JSON.parse(specificOrderData);
-              savedOrder = {
-                ...order,
-                createdAt: new Date(order.createdAt),
-                sessionStartedAt: new Date(order.sessionStartedAt),
-                updatedAt: new Date(order.updatedAt),
-              };
-            } else {
-              // Fallback to main localStorage
-              const fallbackOrder = loadFromLocalStorage();
-              if (fallbackOrder && 
-                  fallbackOrder.tableIds.includes(table.id) && 
-                  (fallbackOrder.status === 'ongoing' || fallbackOrder.status === 'temporary') &&
-                  fallbackOrder.items.length > 0) {
-                savedOrder = fallbackOrder;
-              }
-            }
-            
-            if (savedOrder && !orders.find(o => o.id === savedOrder.id)) {
-              const tableNames = savedOrder.tableIds.map(tableId => {
-                const foundTable = tables.find(t => t.id === tableId);
-                return foundTable?.name || `Table ${tableId}`;
-              });
-
-              orders.push({
-                id: savedOrder.id,
-                orderNumber: savedOrder.orderNumber,
-                tableIds: savedOrder.tableIds,
-                tableNames,
-                items: savedOrder.items,
-                totalAmount: savedOrder.totalAmount,
-                status: savedOrder.status === 'ongoing' ? 'ongoing' : 'ready',
-                createdAt: savedOrder.createdAt,
-                updatedAt: savedOrder.updatedAt,
-                staffId: savedOrder.staffId
-              });
-            }
-          } catch (error) {
-            console.error(`Failed to load order for table ${table.id}:`, error);
-          }
-        }
-
-        setPendingOrders(orders);
-        console.log('Loaded pending orders:', orders);
-      } catch (error) {
-        console.error('Failed to load pending orders:', error);
-        toast.error('Failed to load pending orders');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadPendingOrders();
-  }, [tables, loadFromLocalStorage]);
+  // Convert temporary orders to pending orders format
+  const pendingOrders = temporaryOrders.map(order => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    tableIds: order.tableIds || [],
+    tableNames: order.tableIds?.map(tableId => {
+      const foundTable = tables.find(t => t.id === tableId);
+      return foundTable?.name || `Table ${tableId}`;
+    }) || [],
+    items: order.items || [],
+    totalAmount: order.totalAmount || 0,
+    status: order.status === 'temporary' ? 'temporary' : 'ongoing',
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    staffId: order.staffId
+  }));
 
   // Filter orders
   const filteredOrders = pendingOrders.filter(order => {
@@ -213,18 +117,9 @@ const StaffPendingOrdersPage: React.FC = () => {
     if (!orderToDelete) return;
 
     try {
-      // Remove from localStorage
-      localStorage.removeItem(`temp_order_${orderToDelete.id}`);
+      // For now, just release tables and show success
+      // The order will be cleaned up automatically when the context refreshes
       
-      // Also try to remove from main localStorage if it exists
-      const mainOrderData = localStorage.getItem('restaurant_temporary_order');
-      if (mainOrderData) {
-        const mainOrder = JSON.parse(mainOrderData);
-        if (mainOrder.id === orderToDelete.id) {
-          localStorage.removeItem('restaurant_temporary_order');
-        }
-      }
-
       // Release tables if it's a dine-in order
       if (orderToDelete.tableIds && orderToDelete.tableIds.length > 0) {
         for (const tableId of orderToDelete.tableIds) {
@@ -236,9 +131,6 @@ const StaffPendingOrdersPage: React.FC = () => {
           }
         }
       }
-
-      // Update state to remove the order
-      setPendingOrders(prev => prev.filter(o => o.id !== orderToDelete.id));
       
       toast.success(`Order ${orderToDelete.orderNumber} cancelled successfully`);
       setShowDeleteConfirm(false);
@@ -251,11 +143,26 @@ const StaffPendingOrdersPage: React.FC = () => {
 
   // Handle successful bill
   const handleBillSuccess = () => {
+    console.log('🎉 Bill success callback triggered');
     toast.success('Bill generated successfully');
     setShowGoForBill(false);
     setSelectedOrder(null);
-    // Reload pending orders
-    window.location.reload();
+    
+    // Check localStorage after transfer
+    console.log('🔍 Checking localStorage after successful transfer...');
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('temp_order_') || key.startsWith('manager_pending_'))) {
+        console.log(`  - ${key}: ${localStorage.getItem(key)?.substring(0, 100)}...`);
+      }
+    }
+    
+    // Wait a bit before reloading to see the logs
+    console.log('⏳ Waiting 2 seconds before reloading...');
+    setTimeout(() => {
+      console.log('🔄 Reloading staff pending orders...');
+      window.location.reload();
+    }, 2000);
   };
 
   // Handle close view order
@@ -267,10 +174,10 @@ const StaffPendingOrdersPage: React.FC = () => {
   // Get status color
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'temporary':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'ongoing':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'ready':
-        return 'bg-green-100 text-green-800 border-green-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -284,7 +191,7 @@ const StaffPendingOrdersPage: React.FC = () => {
     });
   };
 
-  if (loading) {
+  if (contextLoading) {
     return (
       <DashboardLayout title="Pending Orders">
         <div className="flex items-center justify-center h-64">
@@ -324,12 +231,12 @@ const StaffPendingOrdersPage: React.FC = () => {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Ready for Bill</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {pendingOrders.filter(o => o.status === 'ready').length}
+                <p className="text-sm text-gray-500">Temporary</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {pendingOrders.filter(o => o.status === 'temporary').length}
                 </p>
               </div>
-              <CheckCircle className="w-8 h-8 text-green-500" />
+              <CheckCircle className="w-8 h-8 text-purple-500" />
             </div>
           </Card>
           
@@ -378,14 +285,14 @@ const StaffPendingOrdersPage: React.FC = () => {
               Ongoing
             </button>
             <button
-              onClick={() => setSelectedStatus('ready')}
+              onClick={() => setSelectedStatus('temporary')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                selectedStatus === 'ready'
-                  ? 'bg-green-100 text-green-800'
+                selectedStatus === 'temporary'
+                  ? 'bg-purple-100 text-purple-800'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              Ready
+              Temporary
             </button>
           </div>
         </div>
@@ -411,7 +318,7 @@ const StaffPendingOrdersPage: React.FC = () => {
                     <div className="flex items-center gap-4 mb-2">
                       <h3 className="text-lg font-semibold">{order.orderNumber}</h3>
                       <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(order.status)}`}>
-                        {order.status === 'ongoing' ? 'Ongoing' : 'Ready for Bill'}
+                        {order.status === 'temporary' ? 'Temporary' : 'Ongoing'}
                       </span>
                     </div>
                     
@@ -456,13 +363,15 @@ const StaffPendingOrdersPage: React.FC = () => {
                       View Order
                     </Button>
                     
-                    <Button
-                      onClick={() => handleGoForBill(order)}
-                      className="flex items-center gap-2"
-                    >
-                      <Receipt size={16} />
-                      Go for Bill
-                    </Button>
+                    {order.status === 'ongoing' && (
+                      <Button
+                        onClick={() => handleGoForBill(order)}
+                        className="flex items-center gap-2"
+                      >
+                        <Receipt size={16} />
+                        Go for Bill
+                      </Button>
+                    )}
                     
                     <Button
                       onClick={() => handleDeleteOrder(order)}
@@ -504,31 +413,34 @@ const StaffPendingOrdersPage: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && orderToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-200">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Cancel Order</h3>
+              <h3 className="text-xl font-bold text-gray-900">Cancel Order</h3>
               <button
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setOrderToDelete(null);
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
               >
                 <X size={20} />
               </button>
             </div>
             
             <div className="mb-6">
-              <p className="text-gray-600 mb-2">
-                Are you sure you want to cancel this order?
-              </p>
-              <div className="bg-gray-50 rounded p-3">
-                <p className="font-medium">{orderToDelete.orderNumber}</p>
-                <p className="text-sm text-gray-600">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle className="text-red-500" size={20} />
+                <p className="text-gray-700 font-medium">
+                  Are you sure you want to cancel this order?
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <p className="font-semibold text-gray-900 mb-1">{orderToDelete.orderNumber}</p>
+                <p className="text-sm text-gray-600 mb-2">
                   {orderToDelete.tableNames.join(', ')} • {orderToDelete.items.length} items
                 </p>
-                <p className="text-sm font-medium text-red-600">
+                <p className="text-lg font-bold text-red-600">
                   ₹{orderToDelete.totalAmount.toFixed(2)}
                 </p>
               </div>
@@ -541,13 +453,13 @@ const StaffPendingOrdersPage: React.FC = () => {
                   setOrderToDelete(null);
                 }}
                 variant="outline"
-                className="flex-1"
+                className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
               >
                 No, Keep Order
               </Button>
               <Button
                 onClick={confirmDeleteOrder}
-                className="flex-1 bg-red-600 hover:bg-red-700"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium"
               >
                 Yes, Cancel Order
               </Button>

@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '../../lib/db';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMenuItems } from '../../contexts/MenuItemContext';
@@ -7,7 +9,9 @@ import { useReturns } from '../../contexts/ReturnContext';
 import { useStock } from '../../contexts/StockContext';
 import { useFeatures } from '../../hooks/useFeatures';
 import { format } from 'date-fns';
-import { BarChart, Package, AlertCircle, RefreshCcw, ShoppingCart } from 'lucide-react';
+import { BarChart, Package, AlertCircle, RefreshCcw, ShoppingCart, Receipt, Eye } from 'lucide-react';
+import Button from '../../components/ui/Button';
+import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 
 const AdminDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -17,23 +21,166 @@ const AdminDashboard: React.FC = () => {
   const { stockUpdates } = useStock();
   const { features } = useFeatures();
   
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [localSales, setLocalSales] = useState<any[]>([]);
+
+  // Load sales from localStorage and Firestore to supplement data
+  useEffect(() => {
+    const loadLocalSales = async () => {
+      try {
+        const allSales: any[] = [];
+        
+        // Load from different localStorage sources
+        const salesKeys = [
+          'sales',
+          `sales_${currentUser?.locationId || 'default'}`,
+          'completed_orders_admin',
+          'completed_orders_owner'
+        ];
+        
+        salesKeys.forEach(key => {
+          const data = JSON.parse(localStorage.getItem(key) || '[]');
+          allSales.push(...data);
+        });
+        
+        // Load from Firestore orders collection (completed/settled orders)
+        let firestoreOrders: any[] = [];
+        try {
+          let ordersQuery;
+          
+          if (currentUser?.role === 'superadmin') {
+            // Simplified query to avoid ALL index requirements - fetch all orders without ordering
+            ordersQuery = query(collection(db, 'orders'));
+          } else if (currentUser?.franchiseId) {
+            // First get all locations for this franchise
+            const locationsQuery = query(
+              collection(db, 'locations'),
+              where('franchiseId', '==', currentUser.franchiseId)
+            );
+            const locationsSnapshot = await getDocs(locationsQuery);
+            const locationIds = locationsSnapshot.docs.map(doc => doc.id);
+            
+            if (locationIds.length > 0) {
+              // Simplified query - fetch orders for each location separately to avoid 'in' clause
+              const allLocationOrders: any[] = [];
+              for (const locationId of locationIds) {
+                const locationOrdersQuery = query(
+                  collection(db, 'orders'),
+                  where('locationId', '==', locationId)
+                );
+                const locationSnapshot = await getDocs(locationOrdersQuery);
+                const locationOrders = locationSnapshot.docs.map(doc => {
+                  const data = doc.data();
+                  return {
+                    id: doc.id,
+                    invoiceNumber: data.orderNumber,
+                    total: data.totalAmount || data.total || 0,
+                    subtotal: data.subtotal || data.totalAmount || data.total || 0,
+                    cgstAmount: data.cgstAmount || 0,
+                    sgstAmount: data.sgstAmount || 0,
+                    gstAmount: data.gstAmount || 0,
+                    paymentMethod: data.paymentData?.paymentMethod || data.paymentMethod || 'cash',
+                    paymentStatus: 'paid',
+                    status: data.status,
+                    items: data.items || [],
+                    customerName: data.customerName || 'Walk-in Customer',
+                    createdAt: data.createdAt?.toDate?.() || data.createdAt,
+                    locationId: data.locationId
+                  };
+                });
+                allLocationOrders.push(...locationOrders);
+              }
+              // Filter client-side for completed/settled orders and sort
+              firestoreOrders = allLocationOrders
+                .filter(order => 
+                  ['completed', 'settled'].includes(order.status)
+                )
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            }
+          } else if (currentUser?.locationId) {
+            // Simplified query to avoid ALL index requirements
+            ordersQuery = query(
+              collection(db, 'orders'),
+              where('locationId', '==', currentUser.locationId)
+            );
+          }
+          
+          if (ordersQuery) {
+            const querySnapshot = await getDocs(ordersQuery);
+            const allOrders = querySnapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                invoiceNumber: data.orderNumber,
+                total: data.totalAmount || data.total || 0,
+                subtotal: data.subtotal || data.totalAmount || data.total || 0,
+                cgstAmount: data.cgstAmount || 0,
+                sgstAmount: data.sgstAmount || 0,
+                gstAmount: data.gstAmount || 0,
+                paymentMethod: data.paymentData?.paymentMethod || data.paymentMethod || 'cash',
+                paymentStatus: 'paid',
+                status: data.status,
+                items: data.items || [],
+                customerName: data.customerName || 'Walk-in Customer',
+                createdAt: data.createdAt?.toDate?.() || data.createdAt,
+                locationId: data.locationId
+              };
+            });
+
+            // Filter client-side for completed/settled orders and sort (except for franchise case which is already filtered)
+            if (currentUser?.role !== 'superadmin' && !currentUser?.franchiseId) {
+              firestoreOrders = allOrders
+                .filter(order => 
+                  ['completed', 'settled'].includes(order.status)
+                )
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            } else if (currentUser?.role === 'superadmin') {
+              firestoreOrders = allOrders
+                .filter(order => 
+                  ['completed', 'settled'].includes(order.status)
+                )
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            }
+          }
+        } catch (firestoreError) {
+          console.error('Error loading from Firestore:', firestoreError);
+        }
+        
+        // Remove duplicates based on ID
+        const uniqueSales = [...allSales, ...firestoreOrders].filter((sale, index, self) => 
+          index === self.findIndex((s) => s.id === sale.id)
+        );
+        
+        setLocalSales(uniqueSales);
+      } catch (error) {
+        console.error('Failed to load local sales:', error);
+      }
+    };
+    
+    loadLocalSales();
+  }, [currentUser?.locationId, currentUser?.franchiseId, currentUser?.role]);
+  
+  // Combine Firestore and localStorage sales
+  const allSales = [...sales, ...localSales];
+  
   // Calculate sales metrics (with or without returns based on feature config)
-  const totalSales = sales.reduce((sum, sale) => sum + sale.total, 0);
+  const totalSales = allSales.reduce((sum, sale) => sum + (sale.total || 0), 0);
   const totalReturns = features.canProcessReturns() 
     ? returns.filter(ret => ret.type === 'sale').reduce((sum, ret) => sum + ret.total, 0)
     : 0;
   const netSales = totalSales - totalReturns;
   
   // Calculate transaction metrics
-  const totalTransactions = sales.length;
+  const totalTransactions = allSales.length;
   const totalSalesReturns = features.canProcessReturns() 
     ? returns.filter(ret => ret.type === 'sale').length 
     : 0;
   const netTransactions = totalTransactions - totalSalesReturns;
   
   // Calculate items sold metrics
-  const totalItemsSold = sales.reduce((sum, sale) => 
-    sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+  const totalItemsSold = allSales.reduce((sum, sale) => 
+    sum + (sale.items || []).reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0), 0);
   const totalItemsReturned = features.canProcessReturns()
     ? returns
         .filter(ret => ret.type === 'sale')
@@ -47,10 +194,11 @@ const AdminDashboard: React.FC = () => {
 
   // Get recent activities (conditionally include returns)
   const recentActivities = [
-    ...sales.map(sale => ({
+    ...allSales.map(sale => ({
       type: 'sale',
       date: sale.createdAt,
-      details: `Sale #${sale.invoiceNumber} - ${sale.items.length} items, Total: ₹${sale.total.toFixed(2)}`,
+      details: `Sale #${sale.invoiceNumber || sale.orderNumber} - ${(sale.items || []).length} items, Total: ₹${(sale.total || 0).toFixed(2)}`,
+      sale: sale
     })),
     // Only include returns if the feature is enabled
     ...(features.canProcessReturns() ? returns.map(ret => ({
@@ -67,14 +215,56 @@ const AdminDashboard: React.FC = () => {
   .sort((a, b) => b.date.getTime() - a.date.getTime())
   .slice(0, 15);
   
+  // View receipt
+  const handleViewReceipt = (sale: any) => {
+    const orderData = {
+      id: sale.id,
+      orderNumber: sale.invoiceNumber || sale.orderNumber,
+      tableIds: sale.tableNames || [],
+      tableNames: sale.tableNames || [],
+      items: sale.items || [],
+      subtotal: sale.subtotal || sale.total || 0,
+      cgstAmount: sale.cgstAmount || 0,
+      sgstAmount: sale.sgstAmount || 0,
+      gstAmount: sale.gstAmount || 0,
+      totalAmount: sale.total || 0,
+      paymentMethod: sale.paymentMethod || 'cash',
+      settledAt: sale.createdAt,
+      staffId: sale.staffId,
+      customerName: sale.customerName,
+      notes: sale.notes
+    };
+    
+    setSelectedOrder(orderData);
+    setShowReceiptModal(true);
+  };
+
+  // Close receipt modal
+  const handleCloseReceipt = () => {
+    setShowReceiptModal(false);
+    setSelectedOrder(null);
+  };
+
   return (
     <DashboardLayout title="Admin Dashboard">
       <div className="space-y-4 sm:space-y-6">
         <div className="bg-white shadow rounded-lg p-4 sm:p-6">
-          <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Welcome, Admin</h2>
-          <p className="text-sm sm:text-base text-gray-600 mb-4">
-            You're logged in as an administrator with full access to all system features.
-          </p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Welcome, Admin</h2>
+              <p className="text-sm sm:text-base text-gray-600">
+                You're logged in as an administrator with full access to all system features.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => window.location.href = '/admin/orders'}
+              className="flex items-center gap-2"
+            >
+              <Receipt size={16} />
+              View All Orders
+            </Button>
+          </div>
           
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
             <div className="bg-green-50 overflow-hidden shadow rounded-lg">
@@ -210,8 +400,19 @@ const AdminDashboard: React.FC = () => {
                         </span>
                       </div>
                       <div className="min-w-0 flex-1 pt-1.5 flex flex-col sm:flex-row sm:justify-between space-y-1 sm:space-y-0 sm:space-x-4">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex items-center gap-2">
                           <p className="text-xs sm:text-sm text-gray-500 truncate">{activity.details}</p>
+                          {activity.type === 'sale' && activity.sale && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewReceipt(activity.sale)}
+                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                            >
+                              <Eye size={12} />
+                              <span className="text-xs">View Receipt</span>
+                            </Button>
+                          )}
                         </div>
                         <div className="text-right text-xs sm:text-sm whitespace-nowrap text-gray-500">
                           <span className="hidden sm:inline">{format(activity.date, 'MMM dd, HH:mm')}</span>
@@ -226,6 +427,24 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Receipt Modal */}
+      {showReceiptModal && selectedOrder && (
+        <FinalReceiptModal
+          isOpen={showReceiptModal}
+          onClose={handleCloseReceipt}
+          order={{
+            ...selectedOrder,
+            paymentData: {
+              paymentMethod: selectedOrder.paymentMethod,
+              settledAt: selectedOrder.settledAt
+            }
+          }}
+          paymentMethod={selectedOrder.paymentMethod}
+          onPaymentComplete={() => {}}
+          isReadOnly={true}
+        />
+      )}
     </DashboardLayout>
   );
 };

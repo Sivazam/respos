@@ -1,0 +1,169 @@
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../lib/db';
+import { useAuth } from './AuthContext';
+import { useLocations } from './LocationContext';
+import { Order } from '../types';
+
+interface TemporaryOrdersDisplayContextType {
+  temporaryOrders: Order[];
+  loading: boolean;
+  error: string | null;
+  refreshTemporaryOrders: () => Promise<void>;
+}
+
+const TemporaryOrdersDisplayContext = createContext<TemporaryOrdersDisplayContextType | undefined>(undefined);
+
+export const useTemporaryOrdersDisplay = () => {
+  const context = useContext(TemporaryOrdersDisplayContext);
+  if (context === undefined) {
+    throw new Error('useTemporaryOrdersDisplay must be used within a TemporaryOrdersDisplayProvider');
+  }
+  return context;
+};
+
+interface TemporaryOrdersDisplayProviderProps {
+  children: React.ReactNode;
+}
+
+export const TemporaryOrdersDisplayProvider: React.FC<TemporaryOrdersDisplayProviderProps> = ({ children }) => {
+  const [temporaryOrders, setTemporaryOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { currentUser } = useAuth();
+  const { currentLocation } = useLocations();
+
+  const fetchTemporaryOrders = useCallback(async () => {
+    if (!currentLocation || !currentUser) {
+      setTemporaryOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Simplified query to avoid index requirement - filter by location only, then filter client-side
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        where('locationId', '==', currentLocation.id)
+      );
+
+      const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+        const ordersData: Order[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          // Client-side filtering for status and role
+          if (data.status === 'temporary' || data.status === 'ongoing' || data.status === 'transferred') {
+            // Role-based filtering: only show orders created by the current user or transferred to them
+            const staffId = data.staffId;
+            const userRole = currentUser.role;
+            const userId = currentUser.uid || currentUser.id;
+            
+            // Show orders based on role:
+            // - Staff: only see orders they created (only temporary/ongoing)
+            // - Manager: see orders they created OR orders that were transferred to them (no staffId or transferred status)
+            // - Admin: see all orders for the location
+            let shouldShow = false;
+            
+            if (userRole === 'admin') {
+              // Admins see all temporary orders for their location
+              shouldShow = true;
+            } else if (userRole === 'manager') {
+              // Managers see orders they created OR orders without staffId (transferred to them) OR transferred orders
+              shouldShow = staffId === userId || !staffId || data.status === 'transferred';
+            } else if (userRole === 'staff') {
+              // Staff only see orders they created (not transferred ones)
+              shouldShow = staffId === userId && data.status !== 'transferred';
+            }
+            
+            if (shouldShow) {
+              ordersData.push({
+                id: doc.id,
+                locationId: data.locationId,
+                tableIds: data.tableIds || [],
+                tableNames: data.tableNames || [],
+                staffId: data.staffId,
+                orderType: data.orderType || 'dinein',
+                orderNumber: data.orderNumber,
+                items: data.items || [],
+                status: data.status,
+                totalAmount: data.totalAmount || 0,
+                subtotal: data.subtotal || 0,
+                gstAmount: data.gstAmount || 0,
+                isFinalOrder: data.isFinalOrder || false,
+                paymentMethod: data.paymentMethod,
+                createdAt: data.createdAt?.toDate(),
+                updatedAt: data.updatedAt?.toDate(),
+                settledAt: data.settledAt?.toDate(),
+                notes: data.notes,
+                customerName: data.customerName,
+                customerPhone: data.customerPhone,
+                deliveryAddress: data.deliveryAddress,
+                orderMode: data.orderMode,
+                createdBy: data.staffId, // Map staffId to createdBy for compatibility
+              });
+            }
+          }
+        });
+        
+        // Sort client-side by createdAt (descending)
+        ordersData.sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        });
+        
+        setTemporaryOrders(ordersData);
+        setLoading(false);
+      }, (error) => {
+        console.error('Error fetching temporary orders:', error);
+        setError(error.message);
+        setLoading(false);
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error setting up temporary orders listener:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch temporary orders');
+      setLoading(false);
+    }
+  }, [currentLocation, currentUser]);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    if (currentLocation) {
+      fetchTemporaryOrders().then((unsub) => {
+        unsubscribe = unsub;
+      });
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [fetchTemporaryOrders, currentLocation]);
+
+  const refreshTemporaryOrders = useCallback(async () => {
+    if (fetchTemporaryOrders) {
+      const unsubscribe = await fetchTemporaryOrders();
+      return unsubscribe;
+    }
+  }, [fetchTemporaryOrders]);
+
+  const value: TemporaryOrdersDisplayContextType = {
+    temporaryOrders,
+    loading,
+    error,
+    refreshTemporaryOrders,
+  };
+
+  return (
+    <TemporaryOrdersDisplayContext.Provider value={value}>
+      {children}
+    </TemporaryOrdersDisplayContext.Provider>
+  );
+};

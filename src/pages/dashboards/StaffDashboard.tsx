@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useOrders } from '../../contexts/OrderContext';
+import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplayContext';
 import { useMenuItems } from '../../contexts/MenuItemContext';
 import { useLocations } from '../../contexts/LocationContext';
 import { useTables } from '../../contexts/TableContext';
@@ -22,6 +23,7 @@ import TableStatusOverview from '../../components/table/TableStatusOverview';
 
 const StaffDashboard: React.FC = () => {
   const { orders, updateOrderStatus } = useOrders();
+  const { temporaryOrders } = useTemporaryOrdersDisplay();
   const { menuItems } = useMenuItems();
   const { currentLocation } = useLocations();
   const { tables } = useTables();
@@ -51,6 +53,7 @@ const StaffDashboard: React.FC = () => {
   const totalRevenue = todaysOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0);
   const totalOrders = todaysOrders.length;
   const pendingOrders = todaysOrders.filter(order => order.status === 'pending').length;
+  const temporaryOrdersCount = temporaryOrders.length;
   const preparingOrders = todaysOrders.filter(order => order.status === 'preparing').length;
   const readyOrders = todaysOrders.filter(order => order.status === 'ready').length;
   const completedOrders = todaysOrders.filter(order => order.status === 'completed').length;
@@ -61,15 +64,17 @@ const StaffDashboard: React.FC = () => {
   const tableOccupancyRate = totalTables > 0 ? (occupiedTables / totalTables) * 100 : 0;
   
   // Order type breakdown
-  const dineInOrders = todaysOrders.filter(order => order.orderType === 'dine_in').length;
-  const takeawayOrders = todaysOrders.filter(order => order.orderType === 'takeaway').length;
+  const dineInOrders = todaysOrders.filter(order => order.orderType === 'dinein').length;
+  const takeawayOrders = todaysOrders.filter(order => order.orderType === 'takeaway' || order.orderType === 'delivery').length;
   
   // Average order value
   const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-  // Orders that need attention (pending and preparing)
+  // Orders that need attention (pending and preparing only)
+  // Temporary orders should only appear in the Pending Orders page, not here
   const ordersNeedingAttention = todaysOrders.filter(order => 
-    order.status === 'pending' || order.status === 'preparing'
+    order.status === 'pending' || 
+    order.status === 'preparing'
   ).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   // Filter menu items for search
@@ -94,6 +99,8 @@ const StaffDashboard: React.FC = () => {
       case 'ready': return 'bg-blue-100 text-blue-800';
       case 'preparing': return 'bg-yellow-100 text-yellow-800';
       case 'pending': return 'bg-red-100 text-red-800';
+      case 'temporary': return 'bg-purple-100 text-purple-800';
+      case 'ongoing': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -140,7 +147,7 @@ const StaffDashboard: React.FC = () => {
         )}
         
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center">
               <div className="p-2 sm:p-3 bg-green-100 rounded-full">
@@ -211,7 +218,7 @@ const StaffDashboard: React.FC = () => {
                   {pendingOrders + preparingOrders}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {pendingOrders} pending
+                  {pendingOrders} pending, {preparingOrders} preparing
                 </p>
               </div>
             </div>
@@ -238,18 +245,20 @@ const StaffDashboard: React.FC = () => {
 
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-orange-100 rounded-full">
-                <Utensils className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
+              <div className="p-2 sm:p-3 bg-purple-100 rounded-full">
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  Order Types
+                  <a href="/staff/pending-orders" className="hover:text-purple-700 transition-colors">
+                    Pending Orders
+                  </a>
                 </h3>
-                <p className="text-lg sm:text-2xl font-semibold text-orange-600">
-                  {dineInOrders}/{takeawayOrders}
+                <p className="text-lg sm:text-2xl font-semibold text-purple-600">
+                  {temporaryOrdersCount}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  Dine/Take
+                  Click to view details
                 </p>
               </div>
             </div>
@@ -327,6 +336,22 @@ const StaffDashboard: React.FC = () => {
                           className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
                         >
                           Complete Order
+                        </button>
+                      )}
+                      {order.status === 'temporary' && (
+                        <button
+                          onClick={() => handleUpdateOrderStatus(order.id, 'ongoing')}
+                          className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+                        >
+                          Start Order
+                        </button>
+                      )}
+                      {order.status === 'ongoing' && (
+                        <button
+                          onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
+                          className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 transition-colors"
+                        >
+                          Mark Ready
                         </button>
                       )}
                     </div>

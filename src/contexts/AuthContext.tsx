@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, getDocs, serverTimestamp, collection, query, orderBy, limit, addDoc, updateDoc, where } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, serverTimestamp, collection, query, limit, addDoc, updateDoc, where } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { User, UserRole } from '../types';
 import { SetupService } from '../services/setupService';
@@ -166,7 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (role !== 'superadmin' && !franchiseId) {
         // Try to get the default franchise
         try {
-          const franchiseQuery = query(collection(db, 'franchises'), orderBy('createdAt', 'desc'), limit(1));
+          const franchiseQuery = query(collection(db, 'franchises'), limit(10));
           const franchiseSnapshot = await getDocs(franchiseQuery);
           
           if (franchiseSnapshot.empty) {
@@ -188,6 +188,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const franchiseRef = await addDoc(collection(db, 'franchises'), defaultFranchiseData);
             franchiseId = franchiseRef.id;
           } else {
+            // Get the first franchise (client-side sort by createdAt would be ideal but we'll just take the first)
             franchiseId = franchiseSnapshot.docs[0].id;
           }
         } catch (franchiseError) {
@@ -495,8 +496,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const locationsQuery = query(
               collection(db, 'locations'),
               where('franchiseId', '==', userData.franchiseId),
-              orderBy('createdAt', 'asc'),
-              limit(1)
+              limit(10)
             );
             const locationsSnapshot = await getDocs(locationsQuery);
             

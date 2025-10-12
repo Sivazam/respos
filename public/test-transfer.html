@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .button.danger {
+            background-color: #dc3545;
+        }
+        .button.danger:hover {
+            background-color: #c82333;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+            background-color: #d1ecf1;
+        }
+        .console-output {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Order Transfer Test</h1>
+        
+        <div class="status">
+            <strong>Instructions:</strong>
+            <ol>
+                <li>Open the main POS application and create an order</li>
+                <li>Come back to this test page</li>
+                <li>Click "Check Current State" to see available orders</li>
+                <li>Click "Test Transfer" to test the transfer functionality</li>
+                <li>Check the console output for results</li>
+            </ol>
+        </div>
+
+        <button class="button" onclick="checkCurrentState()">📊 Check Current State</button>
+        <button class="button" onclick="testTransfer()">🔄 Test Transfer</button>
+        <button class="button" onclick="runQuickDebug()">🔧 Run Quick Debug</button>
+        <button class="button danger" onclick="clearConsole()">🗑️ Clear Console</button>
+
+        <div id="console-output" class="console-output">
+            Console output will appear here...
+        </div>
+
+        <div class="status">
+            <strong>Manual Testing:</strong>
+            <p>You can also open the browser console (F12) and run these commands manually:</p>
+            <code>
+                testTransferManually()<br>
+                quickDebug()<br>
+                checkTransferConsistency()
+            </code>
+        </div>
+    </div>
+
+    <script src="/manual-transfer-test.js"></script>
+    <script src="/quick-debug.js"></script>
+    <script>
+        // Override console.log to show output in the page
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        const consoleOutput = document.getElementById('console-output');
+        
+        function addToConsole(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#dc3545' : type === 'warn' ? '#ffc107' : '#007bff';
+            consoleOutput.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole(args.join(' '), 'error');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsole(args.join(' '), 'warn');
+        };
+
+        function checkCurrentState() {
+            console.log('📊 Checking current localStorage state...');
+            
+            const allKeys = Object.keys(localStorage);
+            const orderKeys = allKeys.filter(key => key.startsWith('order_'));
+            const managerKeys = allKeys.filter(key => key.startsWith('manager_pending_'));
+            const tempOrderKeys = allKeys.filter(key => key.startsWith('temp_order_'));
+            
+            console.log('Total localStorage keys:', allKeys.length);
+            console.log('Regular orders (order_):', orderKeys.length);
+            console.log('Manager pending orders (manager_pending_):', managerKeys.length);
+            console.log('Temporary orders (temp_order_):', tempOrderKeys.length);
+            
+            if (orderKeys.length > 0) {
+                console.log('\n📋 Regular Orders:');
+                orderKeys.forEach(key => {
+                    const order = JSON.parse(localStorage.getItem(key));
+                    console.log(`- ${key}: Status=${order.status}, Items=${order.items?.length || 0}, Table=${order.tableNumber || 'N/A'}`);
+                });
+            }
+            
+            if (managerKeys.length > 0) {
+                console.log('\n📋 Manager Pending Orders:');
+                managerKeys.forEach(key => {
+                    const order = JSON.parse(localStorage.getItem(key));
+                    console.log(`- ${key}: Items=${order.items?.length || 0}, TransferredAt=${order.transferredAt || 'N/A'}`);
+                });
+            }
+        }
+
+        function testTransfer() {
+            console.log('🔄 Starting transfer test...');
+            
+            if (typeof testTransferManually === 'function') {
+                testTransferManually();
+            } else {
+                console.error('❌ testTransferManually function not found');
+            }
+        }
+
+        function runQuickDebug() {
+            console.log('🔧 Running quick debug...');
+            
+            if (typeof quickDebug === 'function') {
+                quickDebug();
+            } else {
+                console.error('❌ quickDebug function not found');
+            }
+        }
+
+        function clearConsole() {
+            consoleOutput.innerHTML = 'Console output will appear here...\n';
+        }
+
+        // Load transfer order function from the main application
+        function loadTransferFunction() {
+            // Try to load the transfer order function from the main application
+            const script = document.createElement('script');
+            script.src = '/src/utils/orderTransfer.ts';
+            script.onload = function() {
+                console.log('✅ Transfer function loaded');
+            };
+            script.onerror = function() {
+                console.warn('⚠️ Could not load transfer function from utils');
+            };
+            document.head.appendChild(script);
+        }
+
+        // Initialize
+        console.log('🚀 Transfer Test Page Loaded');
+        checkCurrentState();
+    </script>
+</body>
+</html>

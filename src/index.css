@@ -74,6 +74,14 @@
   background: #a1a1a1;
 }
 
+/* Force solid white background for modals */
+.modal-solid-white {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  background-clip: padding-box !important;
+}
+
 /* Mobile optimizations */
 @media (max-width: 640px) {
   .modal-content {

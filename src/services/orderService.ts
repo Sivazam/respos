@@ -1,0 +1,1121 @@
+import { 
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot,
+  writeBatch,
+  serverTimestamp,
+  Timestamp,
+  limit
+} from 'firebase/firestore';
+import { db } from '../lib/db';
+import { Order, OrderItem, TemporaryOrder, OrderFormData, User, Table } from '../types';
+import { SetupService } from './setupService';
+
+// Order Service for handling all order operations
+export class OrderService {
+  private static instance: OrderService;
+  
+  static getInstance(): OrderService {
+    if (!OrderService.instance) {
+      OrderService.instance = new OrderService();
+    }
+    return OrderService.instance;
+  }
+
+  // Calculate GST using location settings
+  private async calculateGST(subtotal: number, locationId: string): Promise<{ cgstAmount: number; sgstAmount: number; totalGstAmount: number }> {
+    try {
+      const result = await SetupService.getLocationSettings(locationId);
+      if (result.success && result.settings && result.settings.tax) {
+        const cgstRate = result.settings.tax.cgst / 100;
+        const sgstRate = result.settings.tax.sgst / 100;
+        const cgstAmount = subtotal * cgstRate;
+        const sgstAmount = subtotal * sgstRate;
+        const totalGstAmount = cgstAmount + sgstAmount;
+        
+        return {
+          cgstAmount,
+          sgstAmount,
+          totalGstAmount
+        };
+      }
+      
+      // Fallback to 5% total GST if no settings found
+      const fallbackAmount = subtotal * 0.05;
+      return {
+        cgstAmount: fallbackAmount / 2,
+        sgstAmount: fallbackAmount / 2,
+        totalGstAmount: fallbackAmount
+      };
+    } catch (error) {
+      console.error('Error calculating GST:', error);
+      // Fallback to 5% total GST
+      const fallbackAmount = subtotal * 0.05;
+      return {
+        cgstAmount: fallbackAmount / 2,
+        sgstAmount: fallbackAmount / 2,
+        totalGstAmount: fallbackAmount
+      };
+    }
+  }
+
+  // Get location GST settings
+  async getLocationGSTSettings(locationId: string): Promise<{ cgst: number; sgst: number }> {
+    try {
+      const result = await SetupService.getLocationSettings(locationId);
+      if (result.success && result.settings && result.settings.tax) {
+        return {
+          cgst: result.settings.tax.cgst || 0,
+          sgst: result.settings.tax.sgst || 0
+        };
+      }
+      // Default values if no settings found
+      return { cgst: 2.5, sgst: 2.5 }; // 5% total GST default
+    } catch (error) {
+      console.error('Error getting location GST settings:', error);
+      return { cgst: 2.5, sgst: 2.5 }; // Default fallback
+    }
+  }
+
+  // Calculate GST using location settings
+  async calculateOrderGST(subtotal: number, locationId: string): Promise<{ cgstAmount: number; sgstAmount: number; totalGST: number }> {
+    const { cgst, sgst } = await this.getLocationGSTSettings(locationId);
+    const cgstAmount = subtotal * (cgst / 100);
+    const sgstAmount = subtotal * (sgst / 100);
+    const totalGST = cgstAmount + sgstAmount;
+    
+    return {
+      cgstAmount,
+      sgstAmount,
+      totalGST
+    };
+  }
+
+  // Generate sequential order number for location
+  async generateOrderNumber(locationId: string): Promise<string> {
+    try {
+      const today = new Date();
+      const dateStr = today.getFullYear().toString().slice(-2) + 
+                     (today.getMonth() + 1).toString().padStart(2, '0') + 
+                     today.getDate().toString().padStart(2, '0');
+      
+      // Query existing orders for today to get next sequence
+      const ordersQuery = query(
+        collection(db, 'orders'),
+        where('locationId', '==', locationId)
+      );
+      
+      const snapshot = await getDocs(ordersQuery);
+      let sequence = 1;
+      
+      if (!snapshot.empty) {
+        // Filter and sort client-side
+        const todayOrders = snapshot.docs
+          .map(doc => doc.data().orderNumber)
+          .filter(orderNumber => orderNumber && orderNumber.startsWith(`ORD-${dateStr}`))
+          .sort((a, b) => b.localeCompare(a)); // Sort descending
+        
+        if (todayOrders.length > 0) {
+          const lastOrderNumber = todayOrders[0];
+          const lastSequence = parseInt(lastOrderNumber.split('-')[2]);
+          sequence = lastSequence + 1;
+        }
+      }
+      
+      return `ORD-${dateStr}-${sequence.toString().padStart(3, '0')}`;
+    } catch (error) {
+      console.error('Error generating order number:', error);
+      // Fallback to timestamp-based number
+      return `ORD-${Date.now()}`;
+    }
+  }
+
+  // Create new temporary order (Staff initiates order)
+  async createTemporaryOrder(
+    orderData: OrderFormData,
+    staff: User,
+    locationId: string,
+    franchiseId: string
+  ): Promise<string> {
+    try {
+      const orderNumber = await this.generateOrderNumber(locationId);
+      
+      // Create main order document - filter out undefined fields
+      const orderDoc: Record<string, any> = {
+        orderNumber,
+        locationId,
+        franchiseId,
+        tableIds: orderData.tableIds,
+        tableNames: orderData.tableNames,
+        staffId: staff.uid,
+        orderType: orderData.orderType || 'dinein',
+        status: 'temporary',
+        items: orderData.items || [],
+        subtotal: 0,
+        gstAmount: 0,
+        totalAmount: 0,
+        sessionStartedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      // Only include fields that are not undefined
+      if (orderData.orderMode !== undefined) {
+        orderDoc.orderMode = orderData.orderMode;
+      }
+      if (orderData.customerName !== undefined) {
+        orderDoc.customerName = orderData.customerName;
+      }
+      if (orderData.customerPhone !== undefined) {
+        orderDoc.customerPhone = orderData.customerPhone;
+      }
+      if (orderData.deliveryAddress !== undefined) {
+        orderDoc.deliveryAddress = orderData.deliveryAddress;
+      }
+      if (orderData.notes !== undefined) {
+        orderDoc.notes = orderData.notes;
+      }
+
+      const orderRef = await addDoc(collection(db, 'orders'), orderDoc);
+      const orderId = orderRef.id;
+
+      // Create temporary order record for staff
+      const tempOrderDoc = {
+        orderId,
+        locationId,
+        staffId: staff.uid,
+        tableIds: orderData.tableIds,
+        status: 'temporary',
+        sessionStartedAt: serverTimestamp(),
+        lastActivityAt: serverTimestamp(),
+        localStorageKey: `temp_order_${orderId}`,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'temporary_orders'), tempOrderDoc);
+
+      // Update table status to occupied
+      await this.updateTablesStatus(orderData.tableIds, 'occupied', orderId, locationId);
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, locationId, 'created', staff.uid, {
+        orderNumber,
+        tableIds: orderData.tableIds,
+        orderType: orderData.orderType
+      });
+
+      console.log('✅ Temporary order created:', orderId);
+      return orderId;
+    } catch (error) {
+      console.error('Error creating temporary order:', error);
+      throw error;
+    }
+  }
+
+  // Update order items and calculate totals
+  async updateOrderItems(
+    orderId: string,
+    items: OrderItem[],
+    staffId: string
+  ): Promise<void> {
+    try {
+      // Get order details to find locationId
+      const orderRef = doc(db, 'orders', orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) {
+        throw new Error('Order not found');
+      }
+      
+      const orderData = orderDoc.data();
+      const locationId = orderData.locationId;
+      
+      // Calculate totals with proper GST
+      const subtotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
+      const gstCalculation = await this.calculateOrderGST(subtotal, locationId);
+      const totalAmount = subtotal + gstCalculation.totalGST;
+
+      // Update main order
+      await updateDoc(orderRef, {
+        items,
+        subtotal,
+        cgstAmount: gstCalculation.cgstAmount,
+        sgstAmount: gstCalculation.sgstAmount,
+        gstAmount: gstCalculation.totalGST,
+        totalAmount,
+        status: items.length > 0 ? 'ongoing' : 'temporary',
+        updatedAt: serverTimestamp()
+      });
+
+      // Update temporary order activity
+      await this.updateTemporaryOrderActivity(orderId, staffId);
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, '', 'updated', staffId, {
+        itemsCount: items.length,
+        totalAmount
+      });
+
+      console.log('✅ Order items updated:', orderId);
+    } catch (error) {
+      console.error('Error updating order items:', error);
+      throw error;
+    }
+  }
+
+  // Transfer order to manager (Staff clicks "Go for Bill")
+  async transferOrderToManager(
+    orderId: string,
+    staffId: string,
+    notes?: string
+  ): Promise<void> {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = orderDoc.data();
+
+      // Update main order status
+      await updateDoc(orderRef, {
+        status: 'transferred',
+        transferredAt: serverTimestamp(),
+        transferredBy: staffId,
+        updatedAt: serverTimestamp()
+      });
+
+      // Create manager pending order entry for Firestore
+      const managerPendingDoc = {
+        orderId,
+        locationId: orderData.locationId,
+        franchiseId: orderData.franchiseId,
+        transferredBy: staffId,
+        transferredAt: serverTimestamp(),
+        priority: 'normal',
+        status: 'pending',
+        transferNotes: notes || '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'manager_pending_orders'), managerPendingDoc);
+
+      // Also store in localStorage for immediate access
+      const localStorageOrder = {
+        id: orderId,
+        orderId,
+        locationId: orderData.locationId,
+        franchiseId: orderData.franchiseId,
+        transferredBy: staffId,
+        transferredAt: new Date(), // Current date for localStorage
+        priority: 'normal',
+        status: 'pending',
+        transferNotes: notes || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        // Include order details
+        orderNumber: orderData.orderNumber,
+        tableIds: orderData.tableIds || [],
+        items: orderData.items || [],
+        totalAmount: orderData.totalAmount || 0,
+        customerName: orderData.customerName,
+        customerPhone: orderData.customerPhone,
+        notes: orderData.notes,
+        staffId: orderData.staffId || staffId
+      };
+
+      const localStorageKey = `manager_pending_${orderId}`;
+      
+      // Debug: Check localStorage before storing
+      console.log('🔍 Before storing - localStorage length:', localStorage.length);
+      console.log('🔍 Before storing - existing keys:');
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        console.log(`  ${i}: ${key}`);
+      }
+      
+      localStorage.setItem(localStorageKey, JSON.stringify(localStorageOrder));
+      console.log('💾 Stored transferred order in localStorage:', localStorageKey, localStorageOrder);
+      
+      // Debug: Verify it was stored
+      const storedData = localStorage.getItem(localStorageKey);
+      console.log('🔍 Verification - stored data:', storedData);
+      console.log('🔍 After storing - localStorage length:', localStorage.length);
+      
+      // Debug: Check if we can retrieve it
+      const retrievedData = localStorage.getItem(localStorageKey);
+      if (retrievedData) {
+        try {
+          const parsed = JSON.parse(retrievedData);
+          console.log('✅ Successfully retrieved and parsed:', parsed);
+        } catch (e) {
+          console.error('❌ Failed to parse stored data:', e);
+        }
+      } else {
+        console.error('❌ Failed to retrieve stored data immediately after storing!');
+      }
+
+      // Remove from temporary orders
+      await this.removeTemporaryOrder(orderId);
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'transferred', staffId, {
+        notes
+      });
+
+      console.log('✅ Order transferred to manager:', orderId);
+    } catch (error) {
+      console.error('Error transferring order to manager:', error);
+      throw error;
+    }
+  }
+
+  // Complete order (Final step)
+  async completeOrder(orderId: string, managerId: string): Promise<void> {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      
+      await updateDoc(orderRef, {
+        status: 'completed',
+        completedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, '', 'completed', managerId, {});
+
+      console.log('✅ Order completed:', orderId);
+    } catch (error) {
+      console.error('Error completing order:', error);
+      throw error;
+    }
+  }
+
+  // Get real-time orders for location
+  subscribeToLocationOrders(
+    locationId: string,
+    callback: (orders: Order[]) => void
+  ): () => void {
+    const ordersQuery = query(
+      collection(db, 'orders'),
+      where('locationId', '==', locationId)
+    );
+
+    return onSnapshot(ordersQuery, (snapshot) => {
+      const orders: Order[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const orderData = {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate(),
+          updatedAt: data.updatedAt?.toDate(),
+          sessionStartedAt: data.sessionStartedAt?.toDate(),
+          transferredAt: data.transferredAt?.toDate(),
+          settledAt: data.settledAt?.toDate()
+        };
+        orders.push(orderData as unknown as Order);
+      });
+      // Sort client-side by createdAt descending
+      orders.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+      callback(orders);
+    });
+  }
+
+  // Get real-time temporary orders for staff
+  subscribeToStaffTemporaryOrders(
+    staffId: string,
+    locationId: string,
+    callback: (orders: TemporaryOrder[]) => void
+  ): () => void {
+    const tempOrdersQuery = query(
+      collection(db, 'temporary_orders'),
+      where('staffId', '==', staffId),
+      where('locationId', '==', locationId)
+    );
+
+    return onSnapshot(tempOrdersQuery, (snapshot) => {
+      const tempOrderIds = snapshot.docs.map(doc => doc.data().orderId);
+      
+      if (tempOrderIds.length === 0) {
+        callback([]);
+        return;
+      }
+
+      // Get full order details - split into multiple queries to avoid 'in' clause limits
+      const promises: Promise<any>[] = [];
+      const batchSize = 10;
+      
+      for (let i = 0; i < tempOrderIds.length; i += batchSize) {
+        const batch = tempOrderIds.slice(i, i + batchSize);
+        const ordersQuery = query(
+          collection(db, 'orders'),
+          where('id', 'in', batch)
+        );
+        
+        promises.push(
+          new Promise((resolve) => {
+            const unsubscribe = onSnapshot(ordersQuery, (orderSnapshot) => {
+              const orders: TemporaryOrder[] = [];
+              orderSnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.status === 'temporary' || data.status === 'ongoing') {
+                  orders.push({
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt?.toDate(),
+                    updatedAt: data.updatedAt?.toDate(),
+                    sessionStartedAt: data.sessionStartedAt?.toDate()
+                  } as TemporaryOrder);
+                }
+              });
+              resolve(orders);
+            });
+            return unsubscribe;
+          })
+        );
+      }
+
+      // Wait for all batches and combine results
+      Promise.all(promises).then((results) => {
+        const allOrders = results.flat() as TemporaryOrder[];
+        // Sort client-side by createdAt descending
+        allOrders.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+        callback(allOrders);
+      });
+    });
+  }
+
+  // Get real-time manager pending orders
+  subscribeToManagerPendingOrders(
+    locationId: string,
+    callback: (orders: any[]) => void
+  ): () => void {
+    // First, try localStorage for immediate results (for transferred orders)
+    const getLocalStorageOrders = () => {
+      const pendingOrders: any[] = [];
+      
+      console.log('🔍 Scanning localStorage for manager_pending_ keys...');
+      console.log('🔍 Total localStorage keys:', localStorage.length);
+      
+      // Check localStorage for manager pending orders
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        console.log(`🔍 Key ${i}:`, key);
+        if (key && key.startsWith('manager_pending_')) {
+          console.log('✅ Found manager_pending key:', key);
+          try {
+            const orderDataStr = localStorage.getItem(key);
+            console.log('📦 Order data string:', orderDataStr);
+            if (!orderDataStr) continue;
+            
+            const orderData = JSON.parse(orderDataStr);
+            console.log('📦 Parsed order data:', orderData);
+            if (!orderData || !orderData.id) continue;
+            
+            // Convert date strings back to Date objects
+            const convertedOrder = {
+              ...orderData,
+              createdAt: orderData.createdAt && !isNaN(new Date(orderData.createdAt).getTime()) ? new Date(orderData.createdAt) : new Date(),
+              sessionStartedAt: orderData.sessionStartedAt && !isNaN(new Date(orderData.sessionStartedAt).getTime()) ? new Date(orderData.sessionStartedAt) : new Date(),
+              transferredAt: orderData.transferredAt && !isNaN(new Date(orderData.transferredAt).getTime()) ? new Date(orderData.transferredAt) : new Date(),
+              updatedAt: orderData.updatedAt && !isNaN(new Date(orderData.updatedAt).getTime()) ? new Date(orderData.updatedAt) : new Date(),
+            };
+            
+            pendingOrders.push({
+              id: key.replace('manager_pending_', ''),
+              orderId: convertedOrder.id,
+              ...convertedOrder,
+              order: convertedOrder,
+              transferredBy: convertedOrder.transferredBy,
+              transferredAt: convertedOrder.transferredAt,
+              status: 'pending',
+              priority: 'normal',
+              assignedTo: undefined,
+              transferNotes: undefined
+            });
+            console.log('✅ Added order from localStorage:', key);
+          } catch (error) {
+            console.error('❌ Error parsing localStorage order for key:', key, error);
+            // Remove the corrupted entry
+            localStorage.removeItem(key);
+          }
+        }
+      }
+      
+      console.log('🔍 Final pendingOrders count:', pendingOrders.length);
+      
+      // Sort by transferredAt descending
+      pendingOrders.sort((a, b) => {
+        const aTime = a.transferredAt && !isNaN(a.transferredAt.getTime()) ? a.transferredAt.getTime() : 0;
+        const bTime = b.transferredAt && !isNaN(b.transferredAt.getTime()) ? b.transferredAt.getTime() : 0;
+        return bTime - aTime;
+      });
+      
+      return pendingOrders;
+    };
+
+    // Track if we have Firestore data to avoid polling conflicts
+    let hasFirestoreData = false;
+    let lastCombinedOrders: any[] = [];
+
+    // Initial load from localStorage
+    const localOrders = getLocalStorageOrders();
+    console.log('📦 Initial localStorage orders:', localOrders.length, localOrders);
+    
+    lastCombinedOrders = localOrders;
+    callback(localOrders);
+
+    // Set up polling for localStorage changes ONLY if we don't have Firestore data
+    const interval = setInterval(() => {
+      if (!hasFirestoreData) {
+        const updatedOrders = getLocalStorageOrders();
+        console.log('🔄 Polled localStorage orders:', updatedOrders.length, updatedOrders);
+        
+        // Log all localStorage keys for debugging
+        console.log('🔍 All localStorage keys:');
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          console.log(`  ${i}: ${key}`);
+        }
+        
+        lastCombinedOrders = updatedOrders;
+        callback(updatedOrders);
+      } else {
+        console.log('🔄 Skipping localStorage poll - we have Firestore data');
+        // Even when we have Firestore data, we should still check for new localStorage orders
+        // and merge them with the existing Firestore data
+        const newLocalOrders = getLocalStorageOrders();
+        const existingLocalOrderIds = lastCombinedOrders
+          .filter(order => order.orderId && !order.id.startsWith('firestore_'))
+          .map(order => order.orderId);
+        
+        const newOrders = newLocalOrders.filter(order => 
+          !existingLocalOrderIds.includes(order.orderId)
+        );
+        
+        if (newOrders.length > 0) {
+          console.log('🔄 Found new localStorage orders, merging:', newOrders.length);
+          const mergedOrders = [...newOrders, ...lastCombinedOrders];
+          lastCombinedOrders = mergedOrders;
+          callback(mergedOrders);
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
+    // Also try Firestore for any orders that might be there
+    const pendingQuery = query(
+      collection(db, 'manager_pending_orders'),
+      where('locationId', '==', locationId)
+    );
+
+    const unsubscribe = onSnapshot(pendingQuery, async (snapshot) => {
+      const firestoreOrders: any[] = [];
+      
+      // Get current localStorage orders (fresh data)
+      const currentLocalOrders = getLocalStorageOrders();
+      console.log('🔥 Firestore snapshot - current localStorage orders:', currentLocalOrders.length, currentLocalOrders);
+      
+      // Sort client-side by transferredAt
+      const sortedDocs = snapshot.docs.sort((a, b) => {
+        const aTime = a.data().transferredAt?.toMillis() || 0;
+        const bTime = b.data().transferredAt?.toMillis() || 0;
+        return bTime - aTime; // descending
+      });
+      
+      for (const docSnapshot of sortedDocs) {
+        const pendingData = docSnapshot.data();
+        
+        // Only process pending, assigned, or in_progress orders
+        if (['pending', 'assigned', 'in_progress'].includes(pendingData.status)) {
+          // Get full order details
+          const orderDoc = await getDoc(doc(db, 'orders', pendingData.orderId));
+          if (orderDoc.exists()) {
+            const orderData = orderDoc.data();
+            firestoreOrders.push({
+              id: docSnapshot.id,
+              ...pendingData,
+              order: {
+                id: orderDoc.id,
+                ...orderData,
+                createdAt: orderData.createdAt?.toDate(),
+                transferredAt: orderData.transferredAt?.toDate()
+              }
+            });
+          }
+        }
+      }
+      
+      console.log('🔥 Firestore orders found:', firestoreOrders.length, firestoreOrders);
+      
+      // Update Firestore data flag
+      hasFirestoreData = firestoreOrders.length > 0;
+      
+      // Combine current localStorage and Firestore orders, prioritizing localStorage
+      const allOrders = [...currentLocalOrders, ...firestoreOrders];
+      console.log('🔥 Combined orders being sent to callback:', allOrders.length, allOrders);
+      
+      // Update the last combined orders
+      lastCombinedOrders = allOrders;
+      callback(allOrders);
+    });
+
+    // Return cleanup function
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }
+
+  // Test function to verify localStorage is working
+  testLocalStorage() {
+    console.log('🧪 Testing localStorage functionality...');
+    
+    // Test 1: Check if localStorage is available
+    try {
+      localStorage.setItem('test_key', 'test_value');
+      const value = localStorage.getItem('test_key');
+      console.log('✅ localStorage basic test:', value === 'test_value' ? 'PASS' : 'FAIL');
+      localStorage.removeItem('test_key');
+    } catch (error) {
+      console.error('❌ localStorage not available:', error);
+      return;
+    }
+    
+    // Test 2: Check current localStorage contents
+    console.log('🔍 Current localStorage keys:');
+    const managerKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      console.log(`  ${i}: ${key}`);
+      if (key && key.startsWith('manager_pending_')) {
+        managerKeys.push(key);
+      }
+    }
+    
+    console.log(`📊 Found ${managerKeys.length} manager_pending keys:`, managerKeys);
+    
+    // Test 3: Try to read a manager_pending order
+    if (managerKeys.length > 0) {
+      const testKey = managerKeys[0];
+      const orderData = localStorage.getItem(testKey);
+      console.log('📦 Sample order data:', orderData);
+      if (orderData) {
+        try {
+          const parsed = JSON.parse(orderData);
+          console.log('✅ Parsed order:', parsed);
+        } catch (error) {
+          console.error('❌ Failed to parse order:', error);
+        }
+      }
+    }
+    
+    return managerKeys.length;
+  }
+
+  // Helper methods
+  async acceptPendingOrder(orderId: string, managerId: string): Promise<void> {
+    try {
+      // Update the order status in localStorage
+      const key = `manager_pending_${orderId}`;
+      const orderData = localStorage.getItem(key);
+      console.log('🎯 Accepting pending order from localStorage:', key, orderData);
+      
+      if (orderData) {
+        const parsedOrder = JSON.parse(orderData);
+        parsedOrder.status = 'assigned';
+        parsedOrder.assignedTo = managerId;
+        localStorage.setItem(key, JSON.stringify(parsedOrder));
+        console.log('✅ Updated localStorage order status:', parsedOrder);
+      } else {
+        console.warn('⚠️ Order not found in localStorage:', key);
+      }
+    } catch (error) {
+      console.error('Error accepting pending order:', error);
+      throw error;
+    }
+  }
+
+  async settleOrder(orderId: string, paymentData: any): Promise<void> {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = orderDoc.data();
+
+      // Update the order status to completed and save payment data
+      await updateDoc(orderRef, {
+        status: 'completed',
+        paymentData: {
+          paymentMethod: paymentData.paymentMethod || 'cash',
+          amount: paymentData.amount || orderData.totalAmount,
+          settledAt: paymentData.settledAt || serverTimestamp(),
+          settledBy: paymentData.settledBy || null
+        },
+        completedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // Remove the order from manager pending orders (localStorage)
+      const key = `manager_pending_${orderId}`;
+      localStorage.removeItem(key);
+      
+      // Also remove from Firestore manager_pending_orders collection
+      const pendingQuery = query(
+        collection(db, 'manager_pending_orders'),
+        where('orderId', '==', orderId)
+      );
+      const pendingSnapshot = await getDocs(pendingQuery);
+      
+      const batch = writeBatch(db);
+      pendingSnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      // Update table status to available
+      if (orderData.tableIds && orderData.tableIds.length > 0) {
+        await this.updateTablesStatus(orderData.tableIds, 'available', undefined, orderData.locationId);
+      }
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'settled', paymentData.settledBy || 'manager', {
+        paymentMethod: paymentData.paymentMethod,
+        amount: paymentData.amount
+      });
+
+      // Also add to completed orders localStorage for manager dashboard visibility
+      const completedOrderData = {
+        id: orderId,
+        orderNumber: orderData.orderNumber,
+        tableIds: orderData.tableIds || [],
+        tableNames: orderData.tableNames || [],
+        items: orderData.items || [],
+        totalAmount: orderData.totalAmount,
+        status: 'settled',
+        orderType: orderData.orderType || 'dinein',
+        orderMode: orderData.orderMode,
+        createdAt: orderData.createdAt?.toDate?.() || orderData.createdAt,
+        updatedAt: new Date(),
+        settledAt: paymentData.settledAt?.toDate?.() || new Date(),
+        staffId: orderData.staffId || paymentData.settledBy || 'manager',
+        paymentMethod: paymentData.paymentMethod || 'cash',
+        locationId: orderData.locationId
+      };
+
+      // Save to completed orders for all users with location access
+      const completedOrdersKey = `completed_orders_${orderData.locationId}`;
+      const existingCompletedOrders = JSON.parse(localStorage.getItem(completedOrdersKey) || '[]');
+      existingCompletedOrders.push(completedOrderData);
+      localStorage.setItem(completedOrdersKey, JSON.stringify(existingCompletedOrders));
+
+      // Also save to user-specific completed orders
+      const userCompletedOrdersKey = `completed_orders_${paymentData.settledBy || 'manager'}`;
+      const userCompletedOrders = JSON.parse(localStorage.getItem(userCompletedOrdersKey) || '[]');
+      userCompletedOrders.push(completedOrderData);
+      localStorage.setItem(userCompletedOrdersKey, JSON.stringify(userCompletedOrders));
+
+      // Also save to admin and owner completed orders for visibility
+      const adminCompletedOrdersKey = `completed_orders_admin`;
+      const adminCompletedOrders = JSON.parse(localStorage.getItem(adminCompletedOrdersKey) || '[]');
+      adminCompletedOrders.push(completedOrderData);
+      localStorage.setItem(adminCompletedOrdersKey, JSON.stringify(adminCompletedOrders));
+
+      const ownerCompletedOrdersKey = `completed_orders_owner`;
+      const ownerCompletedOrders = JSON.parse(localStorage.getItem(ownerCompletedOrdersKey) || '[]');
+      ownerCompletedOrders.push(completedOrderData);
+      localStorage.setItem(ownerCompletedOrdersKey, JSON.stringify(ownerCompletedOrders));
+
+      // Also save to sales collection for admin dashboard visibility
+      try {
+        const saleData = {
+          id: orderId,
+          invoiceNumber: orderData.orderNumber,
+          createdAt: completedOrderData.createdAt,
+          updatedAt: new Date(),
+          total: orderData.totalAmount,
+          subtotal: orderData.subtotal || orderData.totalAmount,
+          cgstAmount: orderData.cgstAmount || 0,
+          sgstAmount: orderData.sgstAmount || 0,
+          gstAmount: orderData.gstAmount || 0,
+          paymentMethod: paymentData.paymentMethod || 'cash',
+          paymentStatus: 'paid',
+          status: 'completed',
+          items: orderData.items || [],
+          customerName: orderData.customerName || 'Walk-in Customer',
+          staffId: orderData.staffId || paymentData.settledBy || 'manager',
+          locationId: orderData.locationId,
+          orderType: orderData.orderType || 'dinein',
+          tableNames: orderData.tableNames || [],
+          notes: orderData.notes
+        };
+
+        // Save to sales localStorage
+        const salesKey = `sales_${orderData.locationId || 'default'}`;
+        const existingSales = JSON.parse(localStorage.getItem(salesKey) || '[]');
+        existingSales.push(saleData);
+        localStorage.setItem(salesKey, JSON.stringify(existingSales));
+
+        // Also save to general sales
+        const generalSalesKey = 'sales';
+        const generalSales = JSON.parse(localStorage.getItem(generalSalesKey) || '[]');
+        generalSales.push(saleData);
+        localStorage.setItem(generalSalesKey, JSON.stringify(generalSales));
+
+        // Also save to Firestore sales collection for admin dashboard visibility
+        try {
+          const salesRef = collection(db, 'sales');
+          await addDoc(salesRef, {
+            ...saleData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        } catch (firestoreError) {
+          console.error('Failed to save to Firestore sales:', firestoreError);
+        }
+
+      } catch (error) {
+        console.error('Failed to save to sales collection:', error);
+      }
+
+      console.log('✅ Order settled successfully:', orderId);
+    } catch (error) {
+      console.error('Error settling order:', error);
+      throw error;
+    }
+  }
+
+  private async updateTablesStatus(
+    tableIds: string[],
+    status: 'available' | 'occupied' | 'reserved',
+    orderId?: string,
+    locationId?: string
+  ): Promise<void> {
+    const batch = writeBatch(db);
+    
+    for (const tableId of tableIds) {
+      const tableRef = doc(db, 'tables', tableId);
+      const tableDoc = await getDoc(tableRef);
+      
+      // Only update if the table exists
+      if (tableDoc.exists()) {
+        const updateData: any = {
+          status,
+          updatedAt: serverTimestamp()
+        };
+        
+        if (status === 'occupied' && orderId) {
+          updateData.currentOrderId = orderId;
+          updateData.occupiedAt = serverTimestamp();
+        } else if (status === 'available') {
+          updateData.currentOrderId = null;
+        }
+        
+        batch.update(tableRef, updateData);
+      } else {
+        // Create the table if it doesn't exist (for test tables)
+        if (tableId.startsWith('test-table-')) {
+          console.log(`Creating test table ${tableId} as it doesn't exist`);
+          const tableData = {
+            name: tableId.replace('test-table-', 'Table '),
+            locationId: locationId || 'default-location',
+            capacity: 4,
+            status,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            ...(status === 'occupied' && orderId && {
+              currentOrderId: orderId,
+              occupiedAt: serverTimestamp()
+            })
+          };
+          batch.set(tableRef, tableData);
+        } else {
+          console.warn(`Table ${tableId} does not exist, skipping update`);
+        }
+      }
+    }
+    
+    await batch.commit();
+  }
+
+  private async updateTemporaryOrderActivity(
+    orderId: string,
+    staffId: string
+  ): Promise<void> {
+    const tempOrdersQuery = query(
+      collection(db, 'temporary_orders'),
+      where('orderId', '==', orderId),
+      where('staffId', '==', staffId)
+    );
+    
+    const snapshot = await getDocs(tempOrdersQuery);
+    if (!snapshot.empty) {
+      const tempOrderRef = doc(db, 'temporary_orders', snapshot.docs[0].id);
+      await updateDoc(tempOrderRef, {
+        lastActivityAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+    }
+  }
+
+  // Update order (Manager edits order)
+  async updateOrder(orderId: string, updatedOrder: any, managerId: string): Promise<void> {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = orderDoc.data();
+      const locationId = orderData.locationId;
+
+      // Calculate new totals if items were updated
+      let subtotal = updatedOrder.subtotal || 0;
+      let cgstAmount = updatedOrder.cgstAmount || 0;
+      let sgstAmount = updatedOrder.sgstAmount || 0;
+      let gstAmount = updatedOrder.gstAmount || 0;
+      let totalAmount = updatedOrder.totalAmount || 0;
+
+      if (updatedOrder.items && updatedOrder.items.length > 0) {
+        subtotal = updatedOrder.items.reduce((total: number, item: OrderItem) => total + (item.price * item.quantity), 0);
+        const gstCalculation = await this.calculateOrderGST(subtotal, locationId);
+        cgstAmount = gstCalculation.cgstAmount;
+        sgstAmount = gstCalculation.sgstAmount;
+        gstAmount = gstCalculation.totalGST;
+        totalAmount = subtotal + gstAmount;
+      }
+
+      // Update main order
+      await updateDoc(orderRef, {
+        items: updatedOrder.items || orderData.items,
+        customerName: updatedOrder.customerName !== undefined ? updatedOrder.customerName : orderData.customerName,
+        notes: updatedOrder.notes !== undefined ? updatedOrder.notes : orderData.notes,
+        subtotal,
+        cgstAmount,
+        sgstAmount,
+        gstAmount,
+        totalAmount,
+        updatedAt: serverTimestamp(),
+        updatedBy: managerId
+      });
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'updated', managerId, {
+        itemsCount: updatedOrder.items?.length || 0,
+        totalAmount,
+        customerName: updatedOrder.customerName,
+        notes: updatedOrder.notes
+      });
+
+      console.log('✅ Order updated:', orderId);
+    } catch (error) {
+      console.error('Error updating order:', error);
+      throw error;
+    }
+  }
+
+  // Delete order (Staff cancels order)
+  async deleteOrder(orderId: string, staffId: string): Promise<void> {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) {
+        throw new Error('Order not found');
+      }
+
+      const orderData = orderDoc.data();
+
+      // Update order status to cancelled
+      await updateDoc(orderRef, {
+        status: 'cancelled',
+        cancelledAt: serverTimestamp(),
+        cancelledBy: staffId,
+        updatedAt: serverTimestamp()
+      });
+
+      // Remove from temporary orders
+      await this.removeTemporaryOrder(orderId);
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'cancelled', staffId, {});
+
+      console.log('✅ Order deleted successfully:', orderId);
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      throw error;
+    }
+  }
+
+  private async removeTemporaryOrder(orderId: string): Promise<void> {
+    const tempOrdersQuery = query(
+      collection(db, 'temporary_orders'),
+      where('orderId', '==', orderId)
+    );
+    
+    const snapshot = await getDocs(tempOrdersQuery);
+    const batch = writeBatch(db);
+    
+    snapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
+  }
+
+  private async removeManagerPendingOrder(orderId: string): Promise<void> {
+    const pendingQuery = query(
+      collection(db, 'manager_pending_orders'),
+      where('orderId', '==', orderId)
+    );
+    
+    const snapshot = await getDocs(pendingQuery);
+    const batch = writeBatch(db);
+    
+    snapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
+  }
+
+  private async createOrderHistoryEntry(
+    orderId: string,
+    locationId: string,
+    action: string,
+    performedBy: string,
+    changes: any
+  ): Promise<void> {
+    const historyDoc = {
+      orderId,
+      locationId,
+      action,
+      performedBy,
+      changes,
+      timestamp: serverTimestamp()
+    };
+    
+    await addDoc(collection(db, 'order_history'), historyDoc);
+  }
+}
+
+// Export singleton instance
+export const orderService = OrderService.getInstance();

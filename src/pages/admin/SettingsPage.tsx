@@ -12,12 +12,14 @@ import {
   AlertCircle,
   Utensils,
   Table,
-  Clock
+  Clock,
+  Printer
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import Input from '../../components/ui/Input';
 import { SetupService } from '../../services/setupService';
+import PrinterConfig from '../../components/PrinterConfig';
 
 const SettingsPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -563,6 +565,19 @@ const SettingsPage: React.FC = () => {
                 </Button>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        {/* Printer Settings */}
+        <Card className="bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5" />
+              Printer Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PrinterConfig />
           </CardContent>
         </Card>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { useTables } from '../../contexts/TableContext';
@@ -64,19 +64,24 @@ const TableSelection: React.FC<TableSelectionProps> = ({
     );
   };
 
-  const handleProceedToPOS = (tableIds: string[]) => {
+  const handleProceedToPOS = useCallback((tableIds: string[]) => {
     onClose();
     
-    // Navigate to POS with order context
+    // Get table names from the selected tables
+    const selectedTables = filteredTables.filter(table => tableIds.includes(table.id));
+    const tableNames = selectedTables.map(table => table.name || `Table ${table.number}`);
+    
+    // Navigate to POS with order context - always use /pos for partial order flow
     navigate('/pos', { 
       state: { 
         orderType,
         tableIds,
+        tableNames,
         isOngoing,
         fromLocation: location.state?.fromLocation || '/manager'
       } 
     });
-  };
+  }, [onClose, filteredTables, location.state, navigate, orderType, isOngoing]);
 
   // If delivery, skip table selection and go directly to POS
   useEffect(() => {

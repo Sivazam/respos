@@ -194,6 +194,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
     setError(null);
 
     try {
+      // Simplified query to avoid index requirements - fetch all orders for location
       const ordersQuery = query(
         collection(db, 'orders'),
         where('locationId', '==', currentLocation.id)
@@ -203,11 +204,16 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
         const ordersData: Order[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
+          // Filter client-side to show only completed/settled orders
+          if (!['settled', 'completed'].includes(data.status)) {
+            return;
+          }
           ordersData.push({
             id: doc.id,
             orderNumber: data.orderNumber,
             tableId: data.tableId,
-            tableName: data.tableName,
+            tableIds: data.tableIds || [],
+            tableNames: data.tableNames || [],
             locationId: data.locationId,
             staffId: data.staffId,
             staffName: data.staffName,
@@ -295,26 +301,34 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
       const orderNumber = generateOrderNumber();
       const newOrder = {
         orderNumber,
-        tableId: orderData.tableId,
-        tableName: orderData.tableName,
+        tableId: orderData.tableId || (orderData.tableIds && orderData.tableIds.length > 0 ? orderData.tableIds[0] : null),
+        tableIds: orderData.tableIds || [],
+        tableNames: orderData.tableNames || [],
         locationId: currentLocation.id,
         staffId: currentUser.uid,
         staffName: currentUser.displayName || 'Unknown Staff',
         items: orderData.items || [],
-        status: 'pending' as OrderStatus,
-        subtotal: 0,
-        tax: 0,
-        discount: { type: 'percentage' as const, amount: 0 },
-        total: 0,
-        paymentStatus: 'pending' as const,
-        orderType: orderData.orderType || 'dine-in',
-        customerInfo: orderData.customerInfo,
-        specialInstructions: orderData.specialInstructions,
+        status: orderData.status || 'pending' as OrderStatus,
+        subtotal: orderData.subtotal || 0,
+        tax: orderData.tax || 0,
+        discount: orderData.discount || { type: 'percentage' as const, amount: 0 },
+        total: orderData.total || 0,
+        totalAmount: orderData.totalAmount || 0,
+        gstAmount: orderData.gstAmount || 0,
+        paymentStatus: orderData.paymentStatus || 'pending' as const,
+        paymentMethod: orderData.paymentMethod,
+        settledAt: orderData.settledAt || null,
+        orderType: orderData.orderType || 'dinein',
+        customerName: orderData.customerName || null,
+        customerPhone: orderData.customerPhone || null,
+        deliveryAddress: orderData.deliveryAddress || null,
+        notes: orderData.notes || null,
+        specialInstructions: orderData.specialInstructions || null,
         estimatedTime: orderData.estimatedTime ? new Date(orderData.estimatedTime) : null,
-        completedAt: null,
+        completedAt: orderData.completedAt || null,
         statusHistory: [{
           status: 'pending' as OrderStatus,
-          timestamp: serverTimestamp(),
+          timestamp: new Date(),
           updatedBy: currentUser.uid,
           note: 'Order created',
         }],

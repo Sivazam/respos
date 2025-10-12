@@ -29,7 +29,7 @@ import FranchiseDashboard from './pages/dashboards/FranchiseOwnerDashboard';
 import StaffTablesPage from './pages/staff/TablesPage';
 import StaffCatalogPage from './pages/staff/CatalogPage';
 import StaffOrdersPage from './pages/staff/OrdersPage';
-import StaffPendingOrdersPage from './pages/staff/PendingOrdersPage';
+import EnhancedStaffPendingOrdersPage from './pages/staff/EnhancedPendingOrdersPage';
 
 // Full providers for authenticated routes
 import FullAppProviders from './components/providers/FullAppProviders';
@@ -60,10 +60,9 @@ import ManagerOrdersPage from './pages/manager/OrdersPage';
 import ManagerUsersPage from './pages/manager/UsersPage';
 import ManagerSettingsPage from './pages/manager/SettingsPage';
 import ManagerMenuPage from './pages/manager/MenuPage';
-import ManagerPOSPage from './pages/manager/POSPage';
 import ManagerTablesPage from './pages/manager/TablesPage';
 import ManagerCatalogPage from './pages/manager/CatalogPage';
-import ManagerPendingOrdersPage from './pages/manager/PendingOrdersPage';
+import ManagerPendingOrdersPage from './pages/manager/ManagerPendingOrdersPage';
 
 // Reports Pages - Main sales report component
 import SalesReportPage from './pages/reports/SalesReportPage';
@@ -401,7 +400,7 @@ function App() {
                         path="/manager/pos" 
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerPOSPage />
+                            <POSPage />
                           </ProtectedRoute>
                         } 
                       />
@@ -475,7 +474,7 @@ function App() {
                         path="/staff/pending-orders" 
                         element={
                           <ProtectedRoute allowedRoles={['staff']}>
-                            <StaffPendingOrdersPage />
+                            <EnhancedStaffPendingOrdersPage />
                           </ProtectedRoute>
                         } 
                       />
@@ -578,6 +577,7 @@ function App() {
                         } 
                       />
 
+  
                       {/* Default redirect */}
                       <Route path="/" element={<Navigate to="/login" replace />} />
                       

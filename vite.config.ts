@@ -20,14 +20,18 @@ export default defineConfig({
     hmr: {
       port: 3000,
     },
+    cors: true,
     allowedHosts: [
       'ws-feb-b-c-dbb-oxrsrxlavf.cn-hongkong-vpc.fcapp.run',
+      'ws-b-c-d-bb-pwzglxvcvz.cn-hongkong-vpc.fcapp.run',
       'localhost',
-      '127.0.0.1'
+      '127.0.0.1',
+      '.space.z.ai'
     ],
   },
   preview: {
     host: '0.0.0.0',
     port: 3000,
+    cors: true,
   },
 });

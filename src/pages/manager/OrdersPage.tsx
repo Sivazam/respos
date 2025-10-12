@@ -5,19 +5,21 @@ import {
   Users, 
   DollarSign, 
   Search,
-  CheckCircle,
   AlertCircle,
-  Filter,
   Calendar,
   Download,
   CreditCard,
-  Smartphone
+  Smartphone,
+  Eye
 } from 'lucide-react';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { db } from '../../lib/db';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Card } from '../../components/ui/card';
+import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 import toast from 'react-hot-toast';
 
 interface CompletedOrder {
@@ -45,8 +47,10 @@ const OrdersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTab, setSelectedTab] = useState<'dinein' | 'delivery'>('dinein');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<CompletedOrder | null>(null);
 
-  // Load completed orders from localStorage
+  // Load completed orders from multiple sources including Firestore
   useEffect(() => {
     const loadOrders = async () => {
       try {
@@ -54,22 +58,134 @@ const OrdersPage: React.FC = () => {
         
         const completedOrders: CompletedOrder[] = [];
         
-        // Load completed orders from localStorage
+        // Source 1: Load completed orders from localStorage (user-specific)
         const completedOrdersKey = `completed_orders_${currentUser?.uid}`;
         const existingOrders = JSON.parse(localStorage.getItem(completedOrdersKey) || '[]');
         
-        for (const orderData of existingOrders) {
-          const tableNames = orderData.tableIds.map((tableId: string) => {
-            return `Table ${tableId}`; // In real implementation, fetch actual table names
-          });
+        // Source 2: Load location-based completed orders
+        const locationCompletedOrdersKey = `completed_orders_${currentUser?.locationId}`;
+        const locationOrders = JSON.parse(localStorage.getItem(locationCompletedOrdersKey) || '[]');
+        
+        // Source 3: Load admin completed orders
+        const adminCompletedOrdersKey = `completed_orders_admin`;
+        const adminOrders = JSON.parse(localStorage.getItem(adminCompletedOrdersKey) || '[]');
+        
+        // Source 4: Load owner completed orders
+        const ownerCompletedOrdersKey = `completed_orders_owner`;
+        const ownerOrders = JSON.parse(localStorage.getItem(ownerCompletedOrdersKey) || '[]');
+        
+        // Source 5: Load from sales localStorage
+        const salesKey = `sales_${currentUser?.locationId || 'default'}`;
+        const salesOrders = JSON.parse(localStorage.getItem(salesKey) || '[]');
+        
+        // Source 6: Load from general sales
+        const generalSalesKey = 'sales';
+        const generalSales = JSON.parse(localStorage.getItem(generalSalesKey) || '[]');
+        
+        // Source 7: Load from Firestore orders collection (completed/settled orders)
+        let firestoreOrders: any[] = [];
+        if (currentUser?.locationId) {
+          try {
+            // Simplified query to avoid ALL index requirements - fetch all orders for location without ordering
+            const ordersQuery = query(
+              collection(db, 'orders'),
+              where('locationId', '==', currentUser.locationId)
+            );
+            
+            const querySnapshot = await getDocs(ordersQuery);
+            const allLocationOrders = querySnapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                orderNumber: data.orderNumber,
+                tableIds: data.tableIds || [],
+                tableNames: data.tableNames || [],
+                items: data.items || [],
+                totalAmount: data.totalAmount || data.total || 0,
+                status: data.status,
+                orderType: data.orderType || 'dinein',
+                orderMode: data.orderMode,
+                createdAt: data.createdAt?.toDate?.() || data.createdAt,
+                updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+                settledAt: data.completedAt?.toDate?.() || data.settledAt?.toDate?.() || data.createdAt,
+                staffId: data.staffId,
+                paymentMethod: data.paymentData?.paymentMethod || data.paymentMethod || 'cash',
+                paymentData: data.paymentData,
+                customerName: data.customerName,
+                notes: data.notes
+              };
+            });
+
+            // Filter client-side and sort by creation date (newest first)
+            firestoreOrders = allLocationOrders
+              .filter(order => 
+                ['completed', 'settled'].includes(order.status)
+              )
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          } catch (firestoreError) {
+            console.error('Error loading from Firestore:', firestoreError);
+          }
+        }
+        
+        // Combine all sources and avoid duplicates
+        const allOrders = [
+          ...existingOrders, 
+          ...locationOrders, 
+          ...adminOrders, 
+          ...ownerOrders,
+          ...salesOrders.map(sale => ({
+            id: sale.id,
+            orderNumber: sale.invoiceNumber,
+            tableIds: sale.tableNames || [],
+            tableNames: sale.tableNames || [],
+            items: sale.items || [],
+            totalAmount: sale.total || 0,
+            status: 'settled',
+            orderType: sale.orderType || 'dinein',
+            orderMode: sale.orderMode,
+            createdAt: sale.createdAt,
+            updatedAt: sale.updatedAt,
+            settledAt: sale.createdAt,
+            staffId: sale.staffId,
+            paymentMethod: sale.paymentMethod || 'cash'
+          })),
+          ...generalSales.map(sale => ({
+            id: sale.id,
+            orderNumber: sale.invoiceNumber,
+            tableIds: sale.tableNames || [],
+            tableNames: sale.tableNames || [],
+            items: sale.items || [],
+            totalAmount: sale.total || 0,
+            status: 'settled',
+            orderType: sale.orderType || 'dinein',
+            orderMode: sale.orderMode,
+            createdAt: sale.createdAt,
+            updatedAt: sale.updatedAt,
+            settledAt: sale.createdAt,
+            staffId: sale.staffId,
+            paymentMethod: sale.paymentMethod || 'cash'
+          })),
+          ...firestoreOrders
+        ];
+        
+        const uniqueOrders = allOrders.filter((order, index, self) => 
+          index === self.findIndex((o) => o.id === order.id)
+        );
+        
+        for (const orderData of uniqueOrders) {
+          const tableNames = orderData.tableIds && orderData.tableIds.length > 0 
+            ? orderData.tableIds.map((tableId: string) => {
+                return `Table ${tableId}`; // In real implementation, fetch actual table names
+              })
+            : orderData.tableNames || [];
 
           completedOrders.push({
             id: orderData.id,
             orderNumber: orderData.orderNumber,
-            tableIds: orderData.tableIds,
+            tableIds: orderData.tableIds || [],
             tableNames,
-            items: orderData.items,
-            totalAmount: orderData.totalAmount,
+            items: orderData.items || [],
+            totalAmount: Number(orderData.totalAmount) || 0,
             status: orderData.status,
             orderType: orderData.orderType,
             orderMode: orderData.orderMode,
@@ -77,10 +193,12 @@ const OrdersPage: React.FC = () => {
             updatedAt: new Date(orderData.updatedAt),
             settledAt: new Date(orderData.settledAt),
             staffId: orderData.staffId,
-            paymentMethod: orderData.paymentMethod
+            paymentMethod: orderData.paymentMethod || 'cash'
           });
         }
 
+        // Sort by settledAt date descending
+        completedOrders.sort((a, b) => b.settledAt.getTime() - a.settledAt.getTime());
         setOrders(completedOrders);
       } catch (error) {
         console.error('Failed to load orders:', error);
@@ -91,7 +209,7 @@ const OrdersPage: React.FC = () => {
     };
 
     loadOrders();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, currentUser?.locationId]);
 
   // Filter orders
   const filteredOrders = orders.filter(order => {
@@ -205,6 +323,18 @@ const OrdersPage: React.FC = () => {
       console.error('Export failed:', error);
       toast.error('Failed to export orders');
     }
+  };
+
+  // View receipt
+  const handleViewReceipt = (order: CompletedOrder) => {
+    setSelectedOrder(order);
+    setShowReceiptModal(true);
+  };
+
+  // Close receipt modal
+  const handleCloseReceipt = () => {
+    setShowReceiptModal(false);
+    setSelectedOrder(null);
   };
 
   if (loading) {
@@ -359,6 +489,9 @@ const OrdersPage: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Time
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -404,6 +537,18 @@ const OrdersPage: React.FC = () => {
                           <p className="text-xs">{formatDate(order.settledAt)}</p>
                         </div>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewReceipt(order)}
+                            title="View Receipt"
+                          >
+                            <Eye size={16} />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -412,6 +557,24 @@ const OrdersPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Receipt Modal */}
+      {showReceiptModal && selectedOrder && (
+        <FinalReceiptModal
+          isOpen={showReceiptModal}
+          onClose={handleCloseReceipt}
+          order={{
+            ...selectedOrder,
+            paymentData: {
+              paymentMethod: selectedOrder.paymentMethod,
+              settledAt: selectedOrder.settledAt
+            }
+          }}
+          paymentMethod={selectedOrder.paymentMethod}
+          onPaymentComplete={() => {}}
+          isReadOnly={true}
+        />
+      )}
     </DashboardLayout>
   );
 };

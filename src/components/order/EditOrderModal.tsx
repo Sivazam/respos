@@ -41,7 +41,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({
   const [editedNotes, setEditedNotes] = useState(order?.notes || '');
   const [editedCustomerName, setEditedCustomerName] = useState(order?.customerName || '');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [gstSettings, setGstSettings] = useState({ cgst: 2.5, sgst: 2.5 });
+  const [gstSettings, setGstSettings] = useState({ cgst: 0, sgst: 0 });
 
   // Load GST settings for the location
   useEffect(() => {

@@ -20,7 +20,6 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatures } from '../hooks/useFeatures';
 import { useLocations } from '../contexts/LocationContext';
-import { useFranchises } from '../contexts/FranchiseContext';
 import FranchiseSelector from '../components/franchise/FranchiseSelector';
 import LocationSelector from '../components/location/LocationSelector';
 
@@ -95,6 +94,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
     const managerLinks = [
       { name: 'Dashboard', href: '/manager', icon: <LayoutDashboard size={20} /> },
       { name: 'Tables', href: '/manager/tables', icon: <Store size={20} /> },
+      { name: 'Categories', href: '/manager/categories', icon: <Tags size={20} /> },
       { name: 'Menu Items', href: '/manager/menu', icon: <Utensils size={20} /> },
       { name: 'Catalog', href: '/manager/catalog', icon: <Tags size={20} /> },
       { name: 'Orders', href: '/manager/orders', icon: <ClipboardList size={20} /> },

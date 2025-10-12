@@ -24,6 +24,7 @@ export default defineConfig({
     allowedHosts: [
       'ws-feb-b-c-dbb-oxrsrxlavf.cn-hongkong-vpc.fcapp.run',
       'ws-b-c-d-bb-pwzglxvcvz.cn-hongkong-vpc.fcapp.run',
+      'ws-d-ffae-cdcdd-lwxvkcwlet.cn-hongkong-vpc.fcapp.run',
       'localhost',
       '127.0.0.1',
       '.space.z.ai'

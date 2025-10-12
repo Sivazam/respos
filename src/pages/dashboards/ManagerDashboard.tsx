@@ -22,6 +22,7 @@ import Input from '../../components/ui/Input';
 import StartOrderButton from '../../components/order/StartOrderButton';
 import TableStatusOverview from '../../components/table/TableStatusOverview';
 import SettleBillModal from '../../components/order/SettleBillModal';
+import ApprovalStatusBanner from '../../components/ui/ApprovalStatusBanner';
 import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import toast from 'react-hot-toast';
 
@@ -38,6 +39,9 @@ const ManagerDashboard: React.FC = () => {
   const [showSettleBillModal, setShowSettleBillModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Check if manager has full access (approved + assigned location)
+  const hasFullAccess = currentUser?.isApproved && currentUser?.locationId && currentUser?.isActive;
   
   // Get today's orders
   const today = useMemo(() => {
@@ -102,6 +106,10 @@ const ManagerDashboard: React.FC = () => {
 
   // Handle settle bill for manager
   const handleSettleBill = (order: any) => {
+    if (!hasFullAccess) {
+      toast.error('You need approval and location assignment to settle bills.');
+      return;
+    }
     setSelectedOrder(order);
     setShowSettleBillModal(true);
   };
@@ -197,6 +205,12 @@ const ManagerDashboard: React.FC = () => {
   return (
     <>
       <DashboardLayout title="Manager Dashboard">
+        {/* Approval Status Banner */}
+        <ApprovalStatusBanner 
+          currentUser={currentUser} 
+          onRefresh={() => window.location.reload()} 
+        />
+        
         <div className="space-y-6">
         {/* Location Filter */}
         {currentLocation && (
@@ -328,9 +342,15 @@ const ManagerDashboard: React.FC = () => {
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  <a href="/manager/pending-orders" className="hover:text-purple-700 transition-colors">
-                    Pending Orders
-                  </a>
+                  {hasFullAccess ? (
+                    <a href="/manager/pending-orders" className="hover:text-purple-700 transition-colors">
+                      Pending Orders
+                    </a>
+                  ) : (
+                    <span className="text-gray-400 cursor-not-allowed">
+                      Pending Orders (Approval Required)
+                    </span>
+                  )}
                 </h3>
                 <p className="text-lg sm:text-2xl font-semibold text-purple-600">
                   {temporaryOrdersCount}
@@ -462,7 +482,20 @@ const ManagerDashboard: React.FC = () => {
       </DashboardLayout>
 
       {/* Start Order Button - Same as Staff Dashboard */}
-      <StartOrderButton />
+      {hasFullAccess ? (
+        <StartOrderButton />
+      ) : (
+        <div className="fixed bottom-4 right-4 z-50">
+          <button 
+            disabled 
+            className="bg-gray-400 text-white px-6 py-3 rounded-lg shadow-lg cursor-not-allowed opacity-60 flex items-center space-x-2"
+            title="You need approval and location assignment to start orders"
+          >
+            <span>🚫</span>
+            <span>Start Order (Approval Required)</span>
+          </button>
+        </div>
+      )}
 
       {/* Settle Bill Modal */}
       <SettleBillModal

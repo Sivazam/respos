@@ -46,7 +46,7 @@ interface TemporaryOrderProviderProps {
 
 export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ children }) => {
   const [temporaryOrder, setTemporaryOrder] = useState<TemporaryOrder | null>(null);
-  const [gstRates, setGstRates] = useState({ cgst: 2.5, sgst: 2.5 });
+  const [gstRates, setGstRates] = useState({ cgst: 0, sgst: 0 });
   const { currentUser } = useAuth();
   const { currentLocation } = useLocations();
   const { tables, occupyTable, releaseTable } = useTables();

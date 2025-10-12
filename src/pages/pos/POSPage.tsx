@@ -34,6 +34,24 @@ const POSPage: React.FC = () => {
   // Check if this is a table-based order
   const isTableBasedOrder = location.state?.orderType && location.state?.tableIds;
   
+  // Check if current user is a manager and this is a table-based order
+  const isManagerTableOrder = isTableBasedOrder && currentUser?.role === 'manager';
+  
+  // If manager is creating a table-based order, redirect to ManagerPOSPage
+  if (isManagerTableOrder) {
+    console.log('👨‍💼 Redirecting manager to ManagerPOSPage');
+    const ManagerPOS = React.lazy(() => import('./ManagerPOSPage'));
+    return (
+      <React.Suspense fallback={
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+      }>
+        <ManagerPOS />
+      </React.Suspense>
+    );
+  }
+  
   // Get menu items for current location
   const locationMenuItems = useMemo(() => {
     return menuItems.filter(item => 

@@ -1,7 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplayContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useOrders } from '../../contexts/OrderContext';
 import { format } from 'date-fns';
@@ -31,10 +30,11 @@ import toast from 'react-hot-toast';
 
 const ManagerPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { temporaryOrders } = useTemporaryOrdersDisplay();
   const { currentUser } = useAuth();
   const { createOrder } = useOrders();
   const { completeOrder } = useTemporaryOrder();
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showViewOrderModal, setShowViewOrderModal] = useState(false);
   const [showEditOrderModal, setShowEditOrderModal] = useState(false);
@@ -45,45 +45,76 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
 
-  // Filter temporary orders
+  // Subscribe to manager pending orders
+  useEffect(() => {
+    if (!currentUser?.locationId) return;
+
+    setLoading(true);
+    const unsubscribe = orderService.subscribeToManagerPendingOrders(
+      currentUser.locationId,
+      (orders) => {
+        setPendingOrders(orders);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUser?.locationId]);
+
+  // Filter pending orders
   const filteredOrders = useMemo(() => {
-    return temporaryOrders.filter(order => {
+    return pendingOrders.filter(order => {
       const searchLower = searchTerm.toLowerCase();
       return (
-        order.orderNumber?.toLowerCase().includes(searchLower) ||
-        order.customerName?.toLowerCase().includes(searchLower) ||
-        order.tableNames?.some((table: string) => table.toLowerCase().includes(searchLower)) ||
-        order.items?.some((item: any) => item.name.toLowerCase().includes(searchLower))
+        order.order?.orderNumber?.toLowerCase().includes(searchLower) ||
+        order.order?.customerName?.toLowerCase().includes(searchLower) ||
+        order.order?.tableNames?.some((table: string) => table.toLowerCase().includes(searchLower)) ||
+        order.order?.items?.some((item: any) => item.name.toLowerCase().includes(searchLower))
       );
     });
-  }, [temporaryOrders, searchTerm]);
+  }, [pendingOrders, searchTerm]);
 
   // Handle settle bill
   const handleSettleBill = (order: any) => {
-    setSelectedOrder(order);
+    setSelectedOrder(order.order || order);
     setShowPaymentReceivedModal(true);
   };
 
   // Handle view order
   const handleViewOrder = (order: any) => {
-    setSelectedOrder(order);
+    setSelectedOrder(order.order || order);
     setShowViewOrderModal(true);
   };
 
   // Handle edit order
   const handleEditOrder = (order: any) => {
-    setSelectedOrder(order);
-    setShowEditOrderModal(true);
+    const orderData = order.order || order;
+    
+    // Navigate to ManagerPOSPage with order data
+    navigate('/manager/pos', {
+      state: {
+        orderType: orderData.orderType === 'dine_in' ? 'dinein' : (orderData.orderType === 'delivery' ? 'delivery' : 'dinein'),
+        tableIds: orderData.tableIds || [],
+        tableNames: orderData.tableNames || [],
+        isOngoing: true,
+        fromLocation: '/manager/pending-orders',
+        orderId: orderData.id,
+        orderMode: orderData.orderMode || 'in-store'
+      }
+    });
   };
 
   // Handle print order
   const handlePrintOrder = (order: any) => {
-    setSelectedOrder(order);
+    const orderData = order.order || order;
+    setSelectedOrder(orderData);
     
     // Check if payment method is already set
-    if (order.paymentData?.paymentMethod) {
+    if (orderData.paymentData?.paymentMethod) {
       // Directly show receipt with existing payment method
-      setSelectedPaymentMethod(order.paymentData.paymentMethod as 'cash' | 'card' | 'upi');
+      setSelectedPaymentMethod(orderData.paymentData.paymentMethod as 'cash' | 'card' | 'upi');
       setShowReceiptModal(true);
     } else {
       // Show payment method selection first
@@ -93,9 +124,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
 
   // Handle delete order
   const handleDeleteOrder = async (order: any) => {
-    if (window.confirm(`Are you sure you want to delete order #${order.orderNumber}?`)) {
+    const orderData = order.order || order;
+    if (window.confirm(`Are you sure you want to delete order #${orderData.orderNumber}?`)) {
       try {
-        await completeOrder(order.id);
+        await completeOrder(orderData.id);
         toast.success('Order deleted successfully!');
       } catch (error) {
         console.error('Error deleting order:', error);
@@ -122,10 +154,6 @@ const ManagerPendingOrdersPage: React.FC = () => {
           notes: `Payment via ${paymentMethod}`
         }
       };
-
-      // Save the payment method to localStorage for persistence
-      const managerOrderKey = `manager_pending_${selectedOrder.id}`;
-      localStorage.setItem(managerOrderKey, JSON.stringify(updatedOrder));
 
       setSelectedPaymentMethod(paymentMethod);
       setSelectedOrder(updatedOrder);
@@ -178,8 +206,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
       // Create the order in regular orders collection
       await createOrder(orderData);
       
-      // Remove from temporary orders
-      await orderService.completeOrder(selectedOrder.id, currentUser.uid);
+      // Remove from pending orders using orderService
+      await orderService.settleOrder(selectedOrder.id, {
+        paymentMethod: selectedOrder.paymentData?.paymentMethod || 'cash',
+        amount: total,
+        settledAt: new Date(),
+        settledBy: currentUser.uid
+      });
       
       toast.success('Payment received and order settled!');
       setShowPaymentReceivedModal(false);
@@ -260,13 +293,20 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 />
               </div>
               <div className="text-sm text-gray-600">
-                {filteredOrders.length} orders found
+                {loading ? 'Loading...' : `${filteredOrders.length} orders found`}
               </div>
             </div>
           </div>
 
+          {/* Loading State */}
+          {loading && (
+            <div className="bg-white shadow rounded-lg p-8 text-center">
+              <div className="text-gray-500">Loading pending orders...</div>
+            </div>
+          )}
+
           {/* Orders List */}
-          {filteredOrders.length > 0 ? (
+          {!loading && filteredOrders.length > 0 ? (
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -290,12 +330,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredOrders.map((order) => {
-                      const waitTime = getOrderWaitTime(order.createdAt);
+                    {filteredOrders.map((pendingOrder) => {
+                      const order = pendingOrder.order || pendingOrder;
+                      const waitTime = getOrderWaitTime(order.createdAt || order.transferredAt);
                       const total = calculateOrderTotal(order);
                       
                       return (
-                        <tr key={order.id} className="hover:bg-gray-50">
+                        <tr key={pendingOrder.id || order.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               #{order.orderNumber}
@@ -310,7 +351,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                               )}
                             </div>
                             <div className="text-xs text-gray-400">
-                              {format(new Date(order.createdAt), 'dd MMM yyyy, HH:mm')}
+                              {format(new Date(order.createdAt || order.transferredAt), 'dd MMM yyyy, HH:mm')}
                             </div>
                           </td>
                           <td className="px-6 py-4">
@@ -341,35 +382,35 @@ const ManagerPendingOrdersPage: React.FC = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex flex-wrap gap-2">
                               <button
-                                onClick={() => handleViewOrder(order)}
+                                onClick={() => handleViewOrder(pendingOrder)}
                                 className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
                                 title="View Order"
                               >
                                 <Eye size={16} />
                               </button>
                               <button
-                                onClick={() => handleEditOrder(order)}
+                                onClick={() => handleEditOrder(pendingOrder)}
                                 className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors"
                                 title="Edit Order"
                               >
                                 <Edit size={16} />
                               </button>
                               <button
-                                onClick={() => handlePrintOrder(order)}
+                                onClick={() => handlePrintOrder(pendingOrder)}
                                 className="p-1 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition-colors"
                                 title="Print Order"
                               >
                                 <Printer size={16} />
                               </button>
                               <button
-                                onClick={() => handleSettleBill(order)}
+                                onClick={() => handleSettleBill(pendingOrder)}
                                 className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
                                 title="Settle Bill"
                               >
                                 Settle
                               </button>
                               <button
-                                onClick={() => handleDeleteOrder(order)}
+                                onClick={() => handleDeleteOrder(pendingOrder)}
                                 className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
                                 title="Delete Order"
                               >
@@ -385,15 +426,17 @@ const ManagerPendingOrdersPage: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="bg-white shadow rounded-lg p-8">
-              <div className="text-center">
-                <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No pending orders</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  {searchTerm ? 'No orders match your search criteria.' : 'There are no pending orders at the moment.'}
-                </p>
+            !loading && (
+              <div className="bg-white shadow rounded-lg p-8">
+                <div className="text-center">
+                  <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No pending orders</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {searchTerm ? 'No orders match your search criteria.' : 'There are no pending orders at the moment.'}
+                  </p>
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
       </DashboardLayout>

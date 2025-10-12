@@ -3,6 +3,7 @@ import { RestaurantProvider } from '../../contexts/RestaurantContext';
 import { TableProvider } from '../../contexts/TableContext';
 import { OrderProvider } from '../../contexts/OrderContext';
 import { TemporaryOrderProvider } from '../../contexts/TemporaryOrderContext';
+import { ManagerOrderProvider } from '../../contexts/ManagerOrderContext';
 import { TemporaryOrdersDisplayProvider } from '../../contexts/TemporaryOrdersDisplayContext';
 import { EnhancedOrderProvider } from '../../contexts/EnhancedOrderContext';
 import { RealtimeTableProvider } from '../../contexts/RealtimeTableContext';
@@ -29,25 +30,27 @@ const FullAppProviders: React.FC<FullAppProvidersProps> = ({ children }) => {
             <OrderProvider>
               <EnhancedOrderProvider>
                 <TemporaryOrderProvider>
-                  <TemporaryOrdersDisplayProvider>
-                    <CategoryProvider>
-                      <ProductProvider>
-                        <MenuItemProvider>
-                          <StockProvider>
-                            <CartProvider>
-                              <SalesProvider>
-                                <PurchaseProvider>
-                                  <ReturnProvider>
-                                    {children}
-                                  </ReturnProvider>
-                                </PurchaseProvider>
-                              </SalesProvider>
-                            </CartProvider>
-                          </StockProvider>
-                        </MenuItemProvider>
-                      </ProductProvider>
-                    </CategoryProvider>
-                  </TemporaryOrdersDisplayProvider>
+                  <ManagerOrderProvider>
+                    <TemporaryOrdersDisplayProvider>
+                      <CategoryProvider>
+                        <ProductProvider>
+                          <MenuItemProvider>
+                            <StockProvider>
+                              <CartProvider>
+                                <SalesProvider>
+                                  <PurchaseProvider>
+                                    <ReturnProvider>
+                                      {children}
+                                    </ReturnProvider>
+                                  </PurchaseProvider>
+                                </SalesProvider>
+                              </CartProvider>
+                            </StockProvider>
+                          </MenuItemProvider>
+                        </ProductProvider>
+                      </CategoryProvider>
+                    </TemporaryOrdersDisplayProvider>
+                  </ManagerOrderProvider>
                 </TemporaryOrderProvider>
               </EnhancedOrderProvider>
             </OrderProvider>

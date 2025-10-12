@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, ToggleLeft, ToggleRight, Grid, List } from 'lucide-react';
+import { Search, ToggleLeft, ToggleRight, Grid, List, Leaf, Drumstick } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useMenuItems } from '../../contexts/MenuItemContext';
 import { useCategories } from '../../contexts/CategoryContext';
@@ -17,6 +17,7 @@ const ManagerCatalogPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [useOptimizedView, setUseOptimizedView] = useState(false);
+  const [vegFilter, setVegFilter] = useState<'all' | 'veg' | 'non-veg'>('all');
   
   // Get menu items for current location
   const locationMenuItems = useMemo(() => {
@@ -29,9 +30,12 @@ const ManagerCatalogPage: React.FC = () => {
                            (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = !selectedCategory || item.categoryId === selectedCategory;
       const matchesStock = showOutOfStock || item.isAvailable;
-      return matchesSearch && matchesCategory && matchesStock;
+      const matchesVegFilter = vegFilter === 'all' || 
+                             (vegFilter === 'veg' && item.isVegetarian) || 
+                             (vegFilter === 'non-veg' && !item.isVegetarian);
+      return matchesSearch && matchesCategory && matchesStock && matchesVegFilter;
     });
-  }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock]);
+  }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock, vegFilter]);
 
   const getCategoryName = (categoryId: string) => {
     const category = categories.find(cat => cat.id === categoryId);
@@ -91,6 +95,42 @@ const ManagerCatalogPage: React.FC = () => {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Veg/Non-Veg Filter */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setVegFilter('all')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    vegFilter === 'all' 
+                      ? 'bg-gray-600 text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setVegFilter('veg')}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    vegFilter === 'veg' 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  }`}
+                >
+                  <Leaf size={14} />
+                  Veg
+                </button>
+                <button
+                  onClick={() => setVegFilter('non-veg')}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    vegFilter === 'non-veg' 
+                      ? 'bg-red-600 text-white' 
+                      : 'bg-red-100 text-red-700 hover:bg-red-200'
+                  }`}
+                >
+                  <Drumstick size={14} />
+                  Non-Veg
+                </button>
               </div>
 
               {/* Toggles */}
@@ -155,6 +195,14 @@ const ManagerCatalogPage: React.FC = () => {
                   Category: {getCategoryName(selectedCategory)}
                 </span>
               )}
+              {vegFilter !== 'all' && (
+                <span className={`text-sm font-medium flex items-center gap-1 ${
+                  vegFilter === 'veg' ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {vegFilter === 'veg' ? <Leaf size={14} /> : <Drumstick size={14} />}
+                  {vegFilter === 'veg' ? 'Vegetarian' : 'Non-Vegetarian'}
+                </span>
+              )}
               {searchTerm && (
                 <span className="text-sm text-blue-600 font-medium">
                   Search: "{searchTerm}"
@@ -192,6 +240,8 @@ const ManagerCatalogPage: React.FC = () => {
                     ? `No items match your search for "${searchTerm}"`
                     : selectedCategory 
                     ? `No items found in "${getCategoryName(selectedCategory)}" category`
+                    : vegFilter !== 'all'
+                    ? `No ${vegFilter === 'veg' ? 'vegetarian' : 'non-vegetarian'} items found`
                     : 'No menu items available'
                   }
                 </p>

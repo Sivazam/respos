@@ -88,13 +88,14 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
     content += 'Subtotal'.padEnd(30) + formatPrice(sale.subtotal).padStart(10) + '\n';
     
     if (sale.cgst > 0) {
-      content += 'CGST (2.5%)'.padEnd(30) + formatPrice(sale.cgst).padStart(10) + '\n';
+      content += `CGST (${cgstPercentage.toFixed(1)}%)`.padEnd(30) + formatPrice(sale.cgst).padStart(10) + '\n';
     }
     if (sale.sgst > 0) {
-      content += 'SGST (2.5%)'.padEnd(30) + formatPrice(sale.sgst).padStart(10) + '\n';
+      content += `SGST (${sgstPercentage.toFixed(1)}%)`.padEnd(30) + formatPrice(sale.sgst).padStart(10) + '\n';
     }
     if (sale.gst > 0) {
-      content += 'GST (5%)'.padEnd(30) + formatPrice(sale.gst).padStart(10) + '\n';
+      const totalGstPercentage = cgstPercentage + sgstPercentage;
+      content += `GST (${totalGstPercentage.toFixed(1)}%)`.padEnd(30) + formatPrice(sale.gst).padStart(10) + '\n';
     }
     
     if (sale.discount > 0) {

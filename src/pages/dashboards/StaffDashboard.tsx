@@ -5,6 +5,7 @@ import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplay
 import { useMenuItems } from '../../contexts/MenuItemContext';
 import { useLocations } from '../../contexts/LocationContext';
 import { useTables } from '../../contexts/TableContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { startOfDay, endOfDay } from 'date-fns';
 import { 
   ShoppingCart, 
@@ -20,6 +21,7 @@ import {
 import Input from '../../components/ui/Input';
 import StartOrderButton from '../../components/order/StartOrderButton';
 import TableStatusOverview from '../../components/table/TableStatusOverview';
+import ApprovalStatusBanner from '../../components/ui/ApprovalStatusBanner';
 
 const StaffDashboard: React.FC = () => {
   const { orders, updateOrderStatus } = useOrders();
@@ -27,8 +29,12 @@ const StaffDashboard: React.FC = () => {
   const { menuItems } = useMenuItems();
   const { currentLocation } = useLocations();
   const { tables } = useTables();
+  const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
+
+  // Check if staff has full access (approved + assigned location)
+  const hasFullAccess = currentUser?.isApproved && currentUser?.locationId && currentUser?.isActive;
   
   // Get today's orders
   const today = useMemo(() => {
@@ -116,9 +122,62 @@ const StaffDashboard: React.FC = () => {
     return { text: `${minutes}m`, color: 'text-red-600' };
   };
 
+  // Helper function to get table display name
+  const getTableDisplayName = (tableIds?: string[], tableNames?: string[]) => {
+    if (tableNames && tableNames.length > 0) {
+      return tableNames.join(', ');
+    }
+    
+    if (tableIds && tableIds.length > 0) {
+      const tableNumbers = tableIds.map(id => {
+        const tableMatch = id.match(/table-(\d+)/i);
+        if (tableMatch) {
+          return `Table ${tableMatch[1]}`;
+        }
+        if (/^\d+$/.test(id)) {
+          return `Table ${id}`;
+        }
+        const numberMatch = id.match(/\d+/);
+        if (numberMatch) {
+          return `Table ${numberMatch[0]}`;
+        }
+        return id;
+      });
+      return tableNumbers.join(', ');
+    }
+    
+    return 'N/A';
+  };
+
+  // Helper function to get table display name from order object
+  const getOrderTableDisplay = (order: any) => {
+    // First try to use tableNames if available
+    if (order.tableNames && order.tableNames.length > 0) {
+      return order.tableNames.join(', ');
+    }
+    
+    // Then try tableIds
+    if (order.tableIds && order.tableIds.length > 0) {
+      return getTableDisplayName(order.tableIds);
+    }
+    
+    // Fall back to tableNumber if available (legacy support)
+    if (order.tableNumber) {
+      return `Table ${order.tableNumber}`;
+    }
+    
+    return 'N/A';
+  };
+
   return (
     <>
       <DashboardLayout title="Staff Dashboard">
+        {/* Approval Status Banner */}
+        <ApprovalStatusBanner 
+          currentUser={currentUser} 
+          onRefresh={() => window.location.reload()} 
+        />
+        
         <div className="space-y-6">
         {/* Location Filter */}
         {currentLocation && (
@@ -250,9 +309,15 @@ const StaffDashboard: React.FC = () => {
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  <a href="/staff/pending-orders" className="hover:text-purple-700 transition-colors">
-                    Pending Orders
-                  </a>
+                  {hasFullAccess ? (
+                    <a href="/staff/pending-orders" className="hover:text-purple-700 transition-colors">
+                      Pending Orders
+                    </a>
+                  ) : (
+                    <span className="text-gray-400 cursor-not-allowed">
+                      Pending Orders (Approval Required)
+                    </span>
+                  )}
                 </h3>
                 <p className="text-lg sm:text-2xl font-semibold text-purple-600">
                   {temporaryOrdersCount}
@@ -298,7 +363,7 @@ const StaffDashboard: React.FC = () => {
                       <p className="text-sm text-gray-600 mb-1">Customer: {order.customerName}</p>
                       <p className="text-sm text-gray-600">
                         {order.orderType === 'dine_in' ? 'Dine In' : 'Take Away'} 
-                        {order.tableNumber && ` • Table ${order.tableNumber}`}
+                        {getOrderTableDisplay(order) && ` • ${getOrderTableDisplay(order)}`}
                       </p>
                     </div>
 
@@ -316,42 +381,67 @@ const StaffDashboard: React.FC = () => {
                     <div className="flex space-x-2">
                       {order.status === 'pending' && (
                         <button
-                          onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
-                          className="px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 transition-colors"
+                          onClick={() => hasFullAccess && handleUpdateOrderStatus(order.id, 'preparing')}
+                          disabled={!hasFullAccess}
+                          className={`px-3 py-1 text-sm rounded transition-colors ${
+                            hasFullAccess 
+                              ? 'bg-yellow-600 text-white hover:bg-yellow-700' 
+                              : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          }`}
                         >
-                          Start Preparing
+                          {hasFullAccess ? 'Start Preparing' : 'Start Preparing (Approval Required)'}
                         </button>
                       )}
                       {order.status === 'preparing' && (
                         <button
-                          onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                          onClick={() => hasFullAccess && handleUpdateOrderStatus(order.id, 'ready')}
+                          disabled={!hasFullAccess}
+                          className={`px-3 py-1 text-sm rounded transition-colors ${
+                            hasFullAccess 
+                              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                              : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          }`}
                         >
-                          Mark Ready
+                          {hasFullAccess ? 'Mark Ready' : 'Mark Ready (Approval Required)'}
                         </button>
                       )}
                       {order.status === 'ready' && (
                         <button
-                          onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                          onClick={() => hasFullAccess && handleUpdateOrderStatus(order.id, 'completed')}
+                          disabled={!hasFullAccess}
+                          className={`px-3 py-1 text-sm rounded transition-colors ${
+                            hasFullAccess 
+                              ? 'bg-green-600 text-white hover:bg-green-700' 
+                              : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          }`}
                         >
-                          Complete Order
+                          {hasFullAccess ? 'Complete Order' : 'Complete Order (Approval Required)'}
                         </button>
                       )}
                       {order.status === 'temporary' && (
                         <button
-                          onClick={() => handleUpdateOrderStatus(order.id, 'ongoing')}
-                          className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors"
+                          onClick={() => hasFullAccess && handleUpdateOrderStatus(order.id, 'ongoing')}
+                          disabled={!hasFullAccess}
+                          className={`px-3 py-1 text-sm rounded transition-colors ${
+                            hasFullAccess 
+                              ? 'bg-purple-600 text-white hover:bg-purple-700' 
+                              : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          }`}
                         >
-                          Start Order
+                          {hasFullAccess ? 'Start Order' : 'Start Order (Approval Required)'}
                         </button>
                       )}
                       {order.status === 'ongoing' && (
                         <button
-                          onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
-                          className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 transition-colors"
+                          onClick={() => hasFullAccess && handleUpdateOrderStatus(order.id, 'ready')}
+                          disabled={!hasFullAccess}
+                          className={`px-3 py-1 text-sm rounded transition-colors ${
+                            hasFullAccess 
+                              ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                              : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          }`}
                         >
-                          Mark Ready
+                          {hasFullAccess ? 'Mark Ready' : 'Mark Ready (Approval Required)'}
                         </button>
                       )}
                     </div>
@@ -467,7 +557,20 @@ const StaffDashboard: React.FC = () => {
         </div>
       </div>
       </DashboardLayout>
-      <StartOrderButton />
+      {hasFullAccess ? (
+        <StartOrderButton />
+      ) : (
+        <div className="fixed bottom-4 right-4 z-50">
+          <button 
+            disabled 
+            className="bg-gray-400 text-white px-6 py-3 rounded-lg shadow-lg cursor-not-allowed opacity-60 flex items-center space-x-2"
+            title="You need approval and location assignment to start orders"
+          >
+            <span>🚫</span>
+            <span>Start Order (Approval Required)</span>
+          </button>
+        </div>
+      )}
     </>
   );
 };

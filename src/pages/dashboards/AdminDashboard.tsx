@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { BarChart, Package, AlertCircle, RefreshCcw, ShoppingCart, Receipt, Eye } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
+import ApprovalStatusBanner from '../../components/ui/ApprovalStatusBanner';
 
 const AdminDashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -24,6 +25,9 @@ const AdminDashboard: React.FC = () => {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [localSales, setLocalSales] = useState<any[]>([]);
+
+  // Check if admin has full access (approved by super admin)
+  const hasFullAccess = currentUser?.isApproved && currentUser?.isActive;
 
   // Load sales from localStorage and Firestore to supplement data
   useEffect(() => {
@@ -217,6 +221,11 @@ const AdminDashboard: React.FC = () => {
   
   // View receipt
   const handleViewReceipt = (sale: any) => {
+    if (!hasFullAccess) {
+      alert('You need approval to view receipts.');
+      return;
+    }
+    
     const orderData = {
       id: sale.id,
       orderNumber: sale.invoiceNumber || sale.orderNumber,
@@ -247,6 +256,12 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <DashboardLayout title="Admin Dashboard">
+      {/* Approval Status Banner */}
+      <ApprovalStatusBanner 
+        currentUser={currentUser} 
+        onRefresh={() => window.location.reload()} 
+      />
+      
       <div className="space-y-4 sm:space-y-6">
         <div className="bg-white shadow rounded-lg p-4 sm:p-6">
           <div className="flex justify-between items-start mb-4">
@@ -257,12 +272,14 @@ const AdminDashboard: React.FC = () => {
               </p>
             </div>
             <Button
-              variant="outline"
-              onClick={() => window.location.href = '/admin/orders'}
+              variant={hasFullAccess ? "outline" : "disabled"}
+              onClick={() => hasFullAccess && (window.location.href = '/admin/orders')}
+              disabled={!hasFullAccess}
               className="flex items-center gap-2"
+              title={hasFullAccess ? "View all orders" : "You need approval to access orders"}
             >
               <Receipt size={16} />
-              View All Orders
+              {hasFullAccess ? 'View All Orders' : 'View All Orders (Approval Required)'}
             </Button>
           </div>
           

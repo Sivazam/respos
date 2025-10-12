@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTables } from '../../contexts/TableContext';
 import { Table, TableFormData, TableReservationData } from '../../types';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   AlertCircle,
@@ -17,6 +18,7 @@ import toast from 'react-hot-toast';
 import EnhancedTableCard from '../table/EnhancedTableCard';
 
 const ManagerTableManagement: React.FC = () => {
+  const navigate = useNavigate();
   const { 
     tables, 
     loading, 
@@ -213,6 +215,25 @@ const ManagerTableManagement: React.FC = () => {
     setShowHistoryModal(true);
   };
 
+  const handleEditOngoingOrder = (table: Table) => {
+    if (!table.currentOrderId) {
+      toast.error('No ongoing order found for this table');
+      return;
+    }
+
+    // Navigate to manager POS page with order state for editing
+    navigate('/manager/pos', {
+      state: {
+        orderType: 'dinein',
+        tableIds: [table.id],
+        tableNames: [table.name],
+        isOngoing: true,
+        editOrderId: table.currentOrderId,
+        fromLocation: '/manager/tables'
+      }
+    });
+  };
+
   const toggleTableSelection = (tableId: string) => {
     setSelectedTables(prev => 
       prev.includes(tableId) 
@@ -286,12 +307,12 @@ const ManagerTableManagement: React.FC = () => {
             table={table}
             isSelected={selectedTables.includes(table.id)}
             onClick={() => toggleTableSelection(table.id)}
-            onEdit={() => openEditModal(table)}
+            onEdit={() => table.status === 'occupied' && table.currentOrderId ? handleEditOngoingOrder(table) : openEditModal(table)}
             onHistory={() => openHistoryModal(table)}
             onReserve={() => openReserveModal(table)}
             onRelease={() => handleReleaseTable(table.id)}
             onDelete={() => handleDeleteTable(table.id)}
-            editText="Edit Table"
+            editText={table.status === 'occupied' && table.currentOrderId ? 'Edit Order' : 'Edit Table'}
           />
         ))}
       </div>

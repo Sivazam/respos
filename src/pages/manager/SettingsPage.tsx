@@ -35,8 +35,8 @@ const ManagerSettingsPage: React.FC = () => {
       upi: false
     },
     tax: {
-      cgst: 5,
-      sgst: 5
+      cgst: 0,
+      sgst: 0
     },
     maxEmployees: 10,
     tables: {
@@ -94,7 +94,7 @@ const ManagerSettingsPage: React.FC = () => {
         const newSettings = {
           orderTypes: existingSettings.orderTypes || { dineIn: true, takeaway: true },
           paymentMethods: existingSettings.paymentMethods || { cash: true, card: true, upi: false },
-          tax: existingSettings.tax || { cgst: 5, sgst: 5 },
+          tax: existingSettings.tax || { cgst: 0, sgst: 0 },
           maxEmployees: existingSettings.maxEmployees || 10,
           tables: existingSettings.tables || {
             totalTables: 20,
@@ -130,8 +130,8 @@ const ManagerSettingsPage: React.FC = () => {
             upi: false
           },
           tax: {
-            cgst: 5,
-            sgst: 5
+            cgst: 0,
+            sgst: 0
           },
           maxEmployees: 10,
           tables: {
@@ -186,8 +186,8 @@ const ManagerSettingsPage: React.FC = () => {
           upi: settings.paymentMethods?.upi ?? false
         },
         tax: {
-          cgst: settings.tax?.cgst ?? 5,
-          sgst: settings.tax?.sgst ?? 5
+          cgst: settings.tax?.cgst !== undefined ? settings.tax.cgst : 0,
+          sgst: settings.tax?.sgst !== undefined ? settings.tax.sgst : 0
         },
         maxEmployees: settings.maxEmployees ?? 10,
         tables: {

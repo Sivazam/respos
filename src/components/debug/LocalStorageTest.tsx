@@ -25,8 +25,7 @@ const LocalStorageTest: React.FC = () => {
     
     // Test 2: Test orderService localStorage functionality
     try {
-      const result = orderService.testLocalStorage();
-      console.log('✅ Test 2: orderService test result:', result);
+      console.log('✅ Test 2: orderService localStorage test skipped - no longer using localStorage');
     } catch (error) {
       console.error('❌ Test 2 failed:', error);
     }

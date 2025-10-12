@@ -413,6 +413,14 @@ function App() {
                         } 
                       />
                       <Route 
+                        path="/manager/categories" 
+                        element={
+                          <ProtectedRoute allowedRoles={['manager']}>
+                            <CategoryPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      <Route 
                         path="/manager/catalog" 
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>

@@ -274,7 +274,7 @@ const EnhancedTableCard: React.FC<EnhancedTableCardProps> = ({
               }}
               className="flex-1 px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
             >
-              <Edit size={12} />
+              {table.status === 'occupied' && table.currentOrderId ? <Utensils size={12} /> : <Edit size={12} />}
               <span className="hidden sm:inline">{editText}</span>
             </button>
           )}

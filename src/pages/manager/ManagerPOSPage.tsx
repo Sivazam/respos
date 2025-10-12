@@ -11,6 +11,7 @@ import { useOrders } from '../../contexts/OrderContext';
 import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import { orderService } from '../../services/orderService';
 import { useTables } from '../../contexts/TableContext';
+import { useManagerOrder } from '../../contexts/ManagerOrderContext';
 import ProductGrid from '../../components/pos/ProductGrid';
 import OptimizedProductList from '../../components/pos/OptimizedProductList';
 import Cart from '../../components/pos/Cart';
@@ -31,12 +32,19 @@ const ManagerPOSPage: React.FC = () => {
   const { createOrder } = useOrders();
   const { tables } = useTables();
   const { 
-    isTemporaryOrderActive, 
-    temporaryOrder,
-    startTemporaryOrder, 
-    loadOrderIntoCart,
-    checkForExistingOrder 
-  } = useTemporaryOrder();
+    managerOrder,
+    isManagerOrderActive,
+    startManagerOrder, 
+    loadOrderIntoCart: loadManagerOrderIntoCart,
+    checkForExistingManagerOrder,
+    addItemToManagerOrder,
+    removeItemFromManagerOrder,
+    updateItemQuantity,
+    clearManagerOrder,
+    createPartialManagerOrder,
+    calculateTotals,
+    getTableNames
+  } = useManagerOrder();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showOutOfStock, setShowOutOfStock] = useState(false);
@@ -99,11 +107,11 @@ const ManagerPOSPage: React.FC = () => {
     });
   }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock]);
 
-  // Initialize temporary order when component mounts
+  // Initialize manager order when component mounts
   useEffect(() => {
     console.log('🔍 Manager POS Page - orderContext:', { orderType, tableIds, isOngoingOrder, orderId });
     
-    if (isTableBasedOrder && !isTemporaryOrderActive) {
+    if (isTableBasedOrder && !isManagerOrderActive) {
       const initializeOrder = async () => {
         try {
           let existingOrder = null;
@@ -111,25 +119,26 @@ const ManagerPOSPage: React.FC = () => {
           // If we have a specific order ID, try to load it first
           if (orderId) {
             console.log('📦 Manager loading order by ID:', orderId);
-            existingOrder = await loadOrderIntoCart(orderId);
+            existingOrder = await loadManagerOrderIntoCart(orderId);
             console.log('✅ Manager loaded order by ID into cart:', existingOrder);
           }
           
-          // If no specific order found, check for existing order on tables
+          // If no specific order found, check for existing manager order on tables
           if (!existingOrder) {
-            existingOrder = await checkForExistingOrder(tableIds);
+            existingOrder = await checkForExistingManagerOrder(tableIds);
             console.log('🔍 Manager found existing order by table:', existingOrder);
             
             if (existingOrder) {
               // Load the existing order into the cart
-              await loadOrderIntoCart(existingOrder.id);
+              await loadManagerOrderIntoCart(existingOrder.id);
             }
           }
           
           if (!existingOrder) {
-            // Start a new temporary order
-            await startTemporaryOrder(tableIds, orderType);
-            console.log('🆕 Manager started new temporary order');
+            // Start a new manager order
+            await startManagerOrder(tableIds, orderType === 'dinein' ? 'dinein' : 'delivery', 
+              orderType === 'delivery' ? (location.state?.orderMode || 'in-store') : 'in-store');
+            console.log('🆕 Manager started new manager order');
           }
         } catch (error) {
           console.error('Manager failed to initialize order:', error);
@@ -138,12 +147,41 @@ const ManagerPOSPage: React.FC = () => {
       };
       initializeOrder();
     }
-  }, [isTableBasedOrder, isTemporaryOrderActive, tableIds, orderType, orderId, loadOrderIntoCart, checkForExistingOrder, startTemporaryOrder]);
+  }, [isTableBasedOrder, isManagerOrderActive, tableIds, orderType, orderId, loadManagerOrderIntoCart, checkForExistingManagerOrder, startManagerOrder]);
+
+  // Get manager order totals for display
+  const managerOrderTotals = calculateTotals();
+  const displayItems = isTableBasedOrder && isManagerOrderActive ? managerOrder?.items || [] : items;
+  const displaySubtotal = isTableBasedOrder && isManagerOrderActive ? managerOrderTotals.subtotal : subtotal;
+  const displayCgst = isTableBasedOrder && isManagerOrderActive ? managerOrderTotals.cgstAmount : cgst;
+  const displaySgst = isTableBasedOrder && isManagerOrderActive ? managerOrderTotals.sgstAmount : sgst;
+  const displayTotal = isTableBasedOrder && isManagerOrderActive ? managerOrderTotals.total : total;
 
   const handleCheckout = () => {
-    if (items.length > 0) {
+    if (displayItems.length > 0) {
       setShowCheckout(true);
     }
+  };
+
+  const handleSavePartialOrder = async () => {
+    if (!isTableBasedOrder || !isManagerOrderActive) return;
+    
+    try {
+      await createPartialManagerOrder();
+      toast.success('Order saved to pending orders!');
+    } catch (error) {
+      console.error('Error saving partial order:', error);
+      toast.error('Failed to save order. Please try again.');
+    }
+  };
+
+  const handleClearCart = () => {
+    if (isTableBasedOrder && isManagerOrderActive) {
+      clearManagerOrder();
+    } else {
+      clearCart();
+    }
+    toast.success('Cart cleared');
   };
 
   const handleConfirmCheckout = async (paymentMethod: Sale['paymentMethod']) => {
@@ -153,7 +191,20 @@ const ManagerPOSPage: React.FC = () => {
       // Get the current location
       const locationId = currentUser.locationId;
 
-      if (isTableBasedOrder) {
+      if (isTableBasedOrder && isManagerOrderActive) {
+        // Save the manager order to Firestore
+        await createPartialManagerOrder();
+        
+        // For manager orders, we could directly settle them or transfer to pending
+        // For now, let's just save and show success
+        toast.success('Manager order saved successfully!');
+        setShowCheckout(false);
+        
+        // Optionally clear the manager order after saving
+        setTimeout(() => {
+          clearManagerOrder();
+        }, 1000);
+      } else if (isTableBasedOrder) {
         // Create a temporary order for table-based orders using orderService
         const orderFormData = {
           tableIds,
@@ -228,7 +279,11 @@ const ManagerPOSPage: React.FC = () => {
       }
 
       // Clear cart after successful order
-      clearCart();
+      if (isTableBasedOrder && isManagerOrderActive) {
+        // Manager order is already cleared in createPartialManagerOrder
+      } else {
+        clearCart();
+      }
       setShowCheckout(false);
 
     } catch (error) {
@@ -237,13 +292,23 @@ const ManagerPOSPage: React.FC = () => {
     }
   };
 
-  const handleClearCart = () => {
-    clearCart();
-    toast.success('Cart cleared');
-  };
-
   const handleAddItem = (item: any) => {
-    addItem(item);
+    if (isTableBasedOrder && isManagerOrderActive) {
+      // Use manager order context for table-based orders
+      addItemToManagerOrder({
+        ...item,
+        id: item.id || `temp_${Date.now()}_${Math.random()}`,
+        menuItemId: item.menuItemId || item.id,
+        name: item.name || 'Unknown Item',
+        price: Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1,
+        modifications: item.modifications || [],
+        notes: item.notes || ''
+      });
+    } else {
+      // Use regular cart for takeaway orders
+      addItem(item);
+    }
   };
 
   // Get table display name
@@ -392,17 +457,30 @@ const ManagerPOSPage: React.FC = () => {
 
             {/* Cart */}
             <div className="lg:col-span-1">
-              <Cart 
-                items={items}
-                subtotal={subtotal}
-                cgst={cgst}
-                sgst={sgst}
-                total={total}
-                onCheckout={handleCheckout}
-                onClearCart={handleClearCart}
-                cgstRate={cgstRate}
-                sgstRate={sgstRate}
-              />
+              <div className="bg-white shadow rounded-lg p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-semibold">Order Summary</h2>
+                  {isTableBasedOrder && isManagerOrderActive && (
+                    <button
+                      onClick={handleSavePartialOrder}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Save Order
+                    </button>
+                  )}
+                </div>
+                <Cart 
+                  items={displayItems}
+                  subtotal={displaySubtotal}
+                  cgst={displayCgst}
+                  sgst={displaySgst}
+                  total={displayTotal}
+                  onCheckout={handleCheckout}
+                  onClearCart={handleClearCart}
+                  cgstRate={cgstRate}
+                  sgstRate={sgstRate}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -413,11 +491,11 @@ const ManagerPOSPage: React.FC = () => {
         <CheckoutModal
           isOpen={showCheckout}
           onClose={() => setShowCheckout(false)}
-          items={items}
-          subtotal={subtotal}
-          cgst={cgst}
-          sgst={sgst}
-          total={total}
+          items={displayItems}
+          subtotal={displaySubtotal}
+          cgst={displayCgst}
+          sgst={displaySgst}
+          total={displayTotal}
           onConfirm={handleConfirmCheckout}
           cgstRate={cgstRate}
           sgstRate={sgstRate}

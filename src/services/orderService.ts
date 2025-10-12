@@ -48,21 +48,21 @@ export class OrderService {
         };
       }
       
-      // Fallback to 5% total GST if no settings found
-      const fallbackAmount = subtotal * 0.05;
+      // Fallback to 0% total GST if no settings found
+      const fallbackAmount = 0;
       return {
-        cgstAmount: fallbackAmount / 2,
-        sgstAmount: fallbackAmount / 2,
-        totalGstAmount: fallbackAmount
+        cgstAmount: 0,
+        sgstAmount: 0,
+        totalGstAmount: 0
       };
     } catch (error) {
       console.error('Error calculating GST:', error);
-      // Fallback to 5% total GST
-      const fallbackAmount = subtotal * 0.05;
+      // Fallback to 0% total GST
+      const fallbackAmount = 0;
       return {
-        cgstAmount: fallbackAmount / 2,
-        sgstAmount: fallbackAmount / 2,
-        totalGstAmount: fallbackAmount
+        cgstAmount: 0,
+        sgstAmount: 0,
+        totalGstAmount: 0
       };
     }
   }
@@ -78,10 +78,10 @@ export class OrderService {
         };
       }
       // Default values if no settings found
-      return { cgst: 2.5, sgst: 2.5 }; // 5% total GST default
+      return { cgst: 0, sgst: 0 }; // 0% GST default
     } catch (error) {
       console.error('Error getting location GST settings:', error);
-      return { cgst: 2.5, sgst: 2.5 }; // Default fallback
+      return { cgst: 0, sgst: 0 }; // Default fallback
     }
   }
 
@@ -312,61 +312,6 @@ export class OrderService {
 
       await addDoc(collection(db, 'manager_pending_orders'), managerPendingDoc);
 
-      // Also store in localStorage for immediate access
-      const localStorageOrder = {
-        id: orderId,
-        orderId,
-        locationId: orderData.locationId,
-        franchiseId: orderData.franchiseId,
-        transferredBy: staffId,
-        transferredAt: new Date(), // Current date for localStorage
-        priority: 'normal',
-        status: 'pending',
-        transferNotes: notes || '',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        // Include order details
-        orderNumber: orderData.orderNumber,
-        tableIds: orderData.tableIds || [],
-        items: orderData.items || [],
-        totalAmount: orderData.totalAmount || 0,
-        customerName: orderData.customerName,
-        customerPhone: orderData.customerPhone,
-        notes: orderData.notes,
-        staffId: orderData.staffId || staffId
-      };
-
-      const localStorageKey = `manager_pending_${orderId}`;
-      
-      // Debug: Check localStorage before storing
-      console.log('🔍 Before storing - localStorage length:', localStorage.length);
-      console.log('🔍 Before storing - existing keys:');
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        console.log(`  ${i}: ${key}`);
-      }
-      
-      localStorage.setItem(localStorageKey, JSON.stringify(localStorageOrder));
-      console.log('💾 Stored transferred order in localStorage:', localStorageKey, localStorageOrder);
-      
-      // Debug: Verify it was stored
-      const storedData = localStorage.getItem(localStorageKey);
-      console.log('🔍 Verification - stored data:', storedData);
-      console.log('🔍 After storing - localStorage length:', localStorage.length);
-      
-      // Debug: Check if we can retrieve it
-      const retrievedData = localStorage.getItem(localStorageKey);
-      if (retrievedData) {
-        try {
-          const parsed = JSON.parse(retrievedData);
-          console.log('✅ Successfully retrieved and parsed:', parsed);
-        } catch (e) {
-          console.error('❌ Failed to parse stored data:', e);
-        }
-      } else {
-        console.error('❌ Failed to retrieve stored data immediately after storing!');
-      }
-
       // Remove from temporary orders
       await this.removeTemporaryOrder(orderId);
 
@@ -503,119 +448,10 @@ export class OrderService {
     locationId: string,
     callback: (orders: any[]) => void
   ): () => void {
-    // First, try localStorage for immediate results (for transferred orders)
-    const getLocalStorageOrders = () => {
-      const pendingOrders: any[] = [];
-      
-      console.log('🔍 Scanning localStorage for manager_pending_ keys...');
-      console.log('🔍 Total localStorage keys:', localStorage.length);
-      
-      // Check localStorage for manager pending orders
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        console.log(`🔍 Key ${i}:`, key);
-        if (key && key.startsWith('manager_pending_')) {
-          console.log('✅ Found manager_pending key:', key);
-          try {
-            const orderDataStr = localStorage.getItem(key);
-            console.log('📦 Order data string:', orderDataStr);
-            if (!orderDataStr) continue;
-            
-            const orderData = JSON.parse(orderDataStr);
-            console.log('📦 Parsed order data:', orderData);
-            if (!orderData || !orderData.id) continue;
-            
-            // Convert date strings back to Date objects
-            const convertedOrder = {
-              ...orderData,
-              createdAt: orderData.createdAt && !isNaN(new Date(orderData.createdAt).getTime()) ? new Date(orderData.createdAt) : new Date(),
-              sessionStartedAt: orderData.sessionStartedAt && !isNaN(new Date(orderData.sessionStartedAt).getTime()) ? new Date(orderData.sessionStartedAt) : new Date(),
-              transferredAt: orderData.transferredAt && !isNaN(new Date(orderData.transferredAt).getTime()) ? new Date(orderData.transferredAt) : new Date(),
-              updatedAt: orderData.updatedAt && !isNaN(new Date(orderData.updatedAt).getTime()) ? new Date(orderData.updatedAt) : new Date(),
-            };
-            
-            pendingOrders.push({
-              id: key.replace('manager_pending_', ''),
-              orderId: convertedOrder.id,
-              ...convertedOrder,
-              order: convertedOrder,
-              transferredBy: convertedOrder.transferredBy,
-              transferredAt: convertedOrder.transferredAt,
-              status: 'pending',
-              priority: 'normal',
-              assignedTo: undefined,
-              transferNotes: undefined
-            });
-            console.log('✅ Added order from localStorage:', key);
-          } catch (error) {
-            console.error('❌ Error parsing localStorage order for key:', key, error);
-            // Remove the corrupted entry
-            localStorage.removeItem(key);
-          }
-        }
-      }
-      
-      console.log('🔍 Final pendingOrders count:', pendingOrders.length);
-      
-      // Sort by transferredAt descending
-      pendingOrders.sort((a, b) => {
-        const aTime = a.transferredAt && !isNaN(a.transferredAt.getTime()) ? a.transferredAt.getTime() : 0;
-        const bTime = b.transferredAt && !isNaN(b.transferredAt.getTime()) ? b.transferredAt.getTime() : 0;
-        return bTime - aTime;
-      });
-      
-      return pendingOrders;
-    };
+    // Track current orders to avoid unnecessary callbacks
+    let currentOrders: any[] = [];
 
-    // Track if we have Firestore data to avoid polling conflicts
-    let hasFirestoreData = false;
-    let lastCombinedOrders: any[] = [];
-
-    // Initial load from localStorage
-    const localOrders = getLocalStorageOrders();
-    console.log('📦 Initial localStorage orders:', localOrders.length, localOrders);
-    
-    lastCombinedOrders = localOrders;
-    callback(localOrders);
-
-    // Set up polling for localStorage changes ONLY if we don't have Firestore data
-    const interval = setInterval(() => {
-      if (!hasFirestoreData) {
-        const updatedOrders = getLocalStorageOrders();
-        console.log('🔄 Polled localStorage orders:', updatedOrders.length, updatedOrders);
-        
-        // Log all localStorage keys for debugging
-        console.log('🔍 All localStorage keys:');
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          console.log(`  ${i}: ${key}`);
-        }
-        
-        lastCombinedOrders = updatedOrders;
-        callback(updatedOrders);
-      } else {
-        console.log('🔄 Skipping localStorage poll - we have Firestore data');
-        // Even when we have Firestore data, we should still check for new localStorage orders
-        // and merge them with the existing Firestore data
-        const newLocalOrders = getLocalStorageOrders();
-        const existingLocalOrderIds = lastCombinedOrders
-          .filter(order => order.orderId && !order.id.startsWith('firestore_'))
-          .map(order => order.orderId);
-        
-        const newOrders = newLocalOrders.filter(order => 
-          !existingLocalOrderIds.includes(order.orderId)
-        );
-        
-        if (newOrders.length > 0) {
-          console.log('🔄 Found new localStorage orders, merging:', newOrders.length);
-          const mergedOrders = [...newOrders, ...lastCombinedOrders];
-          lastCombinedOrders = mergedOrders;
-          callback(mergedOrders);
-        }
-      }
-    }, 2000); // Check every 2 seconds
-
-    // Also try Firestore for any orders that might be there
+    // Set up Firestore real-time listener
     const pendingQuery = query(
       collection(db, 'manager_pending_orders'),
       where('locationId', '==', locationId)
@@ -623,10 +459,6 @@ export class OrderService {
 
     const unsubscribe = onSnapshot(pendingQuery, async (snapshot) => {
       const firestoreOrders: any[] = [];
-      
-      // Get current localStorage orders (fresh data)
-      const currentLocalOrders = getLocalStorageOrders();
-      console.log('🔥 Firestore snapshot - current localStorage orders:', currentLocalOrders.length, currentLocalOrders);
       
       // Sort client-side by transferredAt
       const sortedDocs = snapshot.docs.sort((a, b) => {
@@ -658,89 +490,40 @@ export class OrderService {
         }
       }
       
-      console.log('🔥 Firestore orders found:', firestoreOrders.length, firestoreOrders);
-      
-      // Update Firestore data flag
-      hasFirestoreData = firestoreOrders.length > 0;
-      
-      // Combine current localStorage and Firestore orders, prioritizing localStorage
-      const allOrders = [...currentLocalOrders, ...firestoreOrders];
-      console.log('🔥 Combined orders being sent to callback:', allOrders.length, allOrders);
-      
-      // Update the last combined orders
-      lastCombinedOrders = allOrders;
-      callback(allOrders);
+      // Only call callback if orders have actually changed
+      if (JSON.stringify(firestoreOrders) !== JSON.stringify(currentOrders)) {
+        currentOrders = firestoreOrders;
+        callback(firestoreOrders);
+      }
     });
 
     // Return cleanup function
     return () => {
-      clearInterval(interval);
       unsubscribe();
     };
-  }
-
-  // Test function to verify localStorage is working
-  testLocalStorage() {
-    console.log('🧪 Testing localStorage functionality...');
-    
-    // Test 1: Check if localStorage is available
-    try {
-      localStorage.setItem('test_key', 'test_value');
-      const value = localStorage.getItem('test_key');
-      console.log('✅ localStorage basic test:', value === 'test_value' ? 'PASS' : 'FAIL');
-      localStorage.removeItem('test_key');
-    } catch (error) {
-      console.error('❌ localStorage not available:', error);
-      return;
-    }
-    
-    // Test 2: Check current localStorage contents
-    console.log('🔍 Current localStorage keys:');
-    const managerKeys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      console.log(`  ${i}: ${key}`);
-      if (key && key.startsWith('manager_pending_')) {
-        managerKeys.push(key);
-      }
-    }
-    
-    console.log(`📊 Found ${managerKeys.length} manager_pending keys:`, managerKeys);
-    
-    // Test 3: Try to read a manager_pending order
-    if (managerKeys.length > 0) {
-      const testKey = managerKeys[0];
-      const orderData = localStorage.getItem(testKey);
-      console.log('📦 Sample order data:', orderData);
-      if (orderData) {
-        try {
-          const parsed = JSON.parse(orderData);
-          console.log('✅ Parsed order:', parsed);
-        } catch (error) {
-          console.error('❌ Failed to parse order:', error);
-        }
-      }
-    }
-    
-    return managerKeys.length;
   }
 
   // Helper methods
   async acceptPendingOrder(orderId: string, managerId: string): Promise<void> {
     try {
-      // Update the order status in localStorage
-      const key = `manager_pending_${orderId}`;
-      const orderData = localStorage.getItem(key);
-      console.log('🎯 Accepting pending order from localStorage:', key, orderData);
+      // Update the pending order status in Firestore
+      const pendingQuery = query(
+        collection(db, 'manager_pending_orders'),
+        where('orderId', '==', orderId)
+      );
       
-      if (orderData) {
-        const parsedOrder = JSON.parse(orderData);
-        parsedOrder.status = 'assigned';
-        parsedOrder.assignedTo = managerId;
-        localStorage.setItem(key, JSON.stringify(parsedOrder));
-        console.log('✅ Updated localStorage order status:', parsedOrder);
+      const snapshot = await getDocs(pendingQuery);
+      
+      if (!snapshot.empty) {
+        const pendingDoc = snapshot.docs[0];
+        await updateDoc(pendingDoc.ref, {
+          status: 'assigned',
+          assignedTo: managerId,
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Updated pending order status in Firestore:', orderId);
       } else {
-        console.warn('⚠️ Order not found in localStorage:', key);
+        console.warn('⚠️ Pending order not found in Firestore:', orderId);
       }
     } catch (error) {
       console.error('Error accepting pending order:', error);
@@ -772,11 +555,7 @@ export class OrderService {
         updatedAt: serverTimestamp()
       });
 
-      // Remove the order from manager pending orders (localStorage)
-      const key = `manager_pending_${orderId}`;
-      localStorage.removeItem(key);
-      
-      // Also remove from Firestore manager_pending_orders collection
+      // Remove the order from Firestore manager_pending_orders collection
       const pendingQuery = query(
         collection(db, 'manager_pending_orders'),
         where('orderId', '==', orderId)
@@ -1079,6 +858,90 @@ export class OrderService {
     });
     
     await batch.commit();
+  }
+
+  // Create manager order directly
+  async createManagerOrder(
+    orderData: OrderFormData,
+    manager: User,
+    locationId: string,
+    franchiseId: string
+  ): Promise<string> {
+    try {
+      const orderNumber = `MGR-${Date.now().toString().slice(-6)}`;
+      
+      // Create main order document
+      const orderDoc: Record<string, any> = {
+        orderNumber,
+        locationId,
+        franchiseId,
+        tableIds: orderData.tableIds,
+        tableNames: orderData.tableNames,
+        staffId: manager.uid,
+        orderType: orderData.orderType || 'dinein',
+        status: 'ongoing',
+        items: orderData.items || [],
+        subtotal: 0,
+        gstAmount: 0,
+        totalAmount: 0,
+        sessionStartedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        isManagerOrder: true
+      };
+
+      // Only include fields that are not undefined
+      if (orderData.orderMode !== undefined) {
+        orderDoc.orderMode = orderData.orderMode;
+      }
+      if (orderData.customerName !== undefined) {
+        orderDoc.customerName = orderData.customerName;
+      }
+      if (orderData.customerPhone !== undefined) {
+        orderDoc.customerPhone = orderData.customerPhone;
+      }
+      if (orderData.deliveryAddress !== undefined) {
+        orderDoc.deliveryAddress = orderData.deliveryAddress;
+      }
+      if (orderData.notes !== undefined) {
+        orderDoc.notes = orderData.notes;
+      }
+
+      const orderRef = await addDoc(collection(db, 'orders'), orderDoc);
+      const orderId = orderRef.id;
+
+      // Create manager pending order entry
+      const managerPendingDoc = {
+        orderId,
+        locationId,
+        franchiseId,
+        createdBy: manager.uid,
+        createdAt: serverTimestamp(),
+        priority: 'normal',
+        status: 'pending',
+        notes: 'Manager created order',
+        updatedAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'manager_pending_orders'), managerPendingDoc);
+
+      // Update table status to occupied
+      await this.updateTablesStatus(orderData.tableIds, 'occupied', orderId, locationId);
+
+      // Create order history entry
+      await this.createOrderHistoryEntry(orderId, locationId, 'created', manager.uid, {
+        orderNumber,
+        tableIds: orderData.tableIds,
+        orderType: orderData.orderType,
+        isManagerOrder: true
+      });
+
+      console.log('✅ Manager order created:', orderId);
+      return orderId;
+    } catch (error) {
+      console.error('Error creating manager order:', error);
+      throw error;
+    }
   }
 
   private async removeManagerPendingOrder(orderId: string): Promise<void> {

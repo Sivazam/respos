@@ -329,28 +329,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
 
-      // Only check isActive and isApproved for non-superadmin users
-      if (userWithRole.role !== 'superadmin') {
-        // Add debugging for admin accounts
-        if (userWithRole.role === 'admin') {
-          // Silent debug - only log in development
-          // Debugging disabled for production
-        }
-        
-        if (!userWithRole.isActive) {
-          await signOut(auth);
-          throw new Error('Your account is inactive. Please contact an administrator.');
-        }
-        
-        if (!userWithRole.isApproved) {
-          await signOut(auth);
-          throw new Error('Your account is pending approval. Please contact a super administrator.');
-        }
-      } else {
-        // Superadmin should always be active and approved
-        // Debugging disabled for production
-      }
-
+      // Allow all users to log in regardless of approval status
+      // Features will be restricted at dashboard level based on approval
       setCurrentUser(userWithRole);
       
       try {

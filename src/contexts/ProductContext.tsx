@@ -127,7 +127,7 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
 
   useEffect(() => {
     refreshProducts();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addProduct = async (data: ProductFormData) => {
     setError(null);

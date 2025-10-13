@@ -160,7 +160,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   useEffect(() => {
     refreshLocations();
-  }, [currentUser]);
+  }, [currentUser?.uid, currentUser?.role, currentUser?.franchiseId, currentUser?.locationId]);
 
   const addLocation = async (locationData: Omit<Location, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);

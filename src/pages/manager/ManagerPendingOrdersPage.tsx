@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
-import { useOrders } from '../../contexts/OrderContext';
+import { useLocations } from '../../contexts/LocationContext';
 import { format } from 'date-fns';
 import { 
   Search, 
@@ -24,18 +24,17 @@ import EditOrderModal from '../../components/order/EditOrderModal';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 import PaymentMethodModal from '../../components/order/PaymentMethodModal';
 import PaymentReceivedModal from '../../components/order/PaymentReceivedModal';
-import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import { orderService } from '../../services/orderService';
 import toast from 'react-hot-toast';
 
 const ManagerPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { createOrder } = useOrders();
-  const { completeOrder } = useTemporaryOrder();
+  const { currentLocation } = useLocations();
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [createdByFilter, setCreatedByFilter] = useState<'all' | 'staff' | 'me'>('all');
   const [showViewOrderModal, setShowViewOrderModal] = useState(false);
   const [showEditOrderModal, setShowEditOrderModal] = useState(false);
   const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
@@ -43,7 +42,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const [showPaymentReceivedModal, setShowPaymentReceivedModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
+  const [orderTotals, setOrderTotals] = useState<{ [key: string]: number }>({});
+  const [paymentFlow, setPaymentFlow] = useState<'print' | 'settle'>('print'); // Track which flow we're in
+  const [orderCreators, setOrderCreators] = useState<{ [key: string]: { email: string; role: string; displayName?: string } }>({});
+  const [locationNames, setLocationNames] = useState<{ [key: string]: string }>({});
 
   // Subscribe to manager pending orders
   useEffect(() => {
@@ -63,23 +65,117 @@ const ManagerPendingOrdersPage: React.FC = () => {
     };
   }, [currentUser?.locationId]);
 
+  // Calculate order totals when orders change
+  useEffect(() => {
+    const calculateTotals = async () => {
+      const totals: { [key: string]: number } = {};
+      
+      for (const pendingOrder of pendingOrders) {
+        const order = pendingOrder.order || pendingOrder;
+        if (!totals[order.id]) {
+          totals[order.id] = await calculateOrderTotal(order);
+        }
+      }
+      
+      setOrderTotals(totals);
+    };
+
+    if (pendingOrders.length > 0) {
+      calculateTotals();
+    }
+  }, [pendingOrders]);
+
+  // Fetch order creator details and location names when orders change
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      const creators: { [key: string]: { email: string; role: string; displayName?: string } } = {};
+      const locations: { [key: string]: string } = {};
+      
+      for (const pendingOrder of pendingOrders) {
+        const order = pendingOrder.order || pendingOrder;
+        
+        // Fetch creator details if not already cached
+        if (order.staffId && !creators[order.staffId]) {
+          const creatorDetails = await orderService.getUserDetails(order.staffId);
+          if (creatorDetails) {
+            creators[order.staffId] = creatorDetails;
+          }
+        }
+        
+        // Fetch transferred by details if available and not already cached
+        if (order.transferredBy && !creators[order.transferredBy]) {
+          const transferDetails = await orderService.getUserDetails(order.transferredBy);
+          if (transferDetails) {
+            creators[order.transferredBy] = transferDetails;
+          }
+        }
+        
+        // Set location name (we already have currentLocation)
+        if (order.locationId && !locations[order.locationId]) {
+          locations[order.locationId] = currentLocation?.name || 'Unknown Location';
+        }
+      }
+      
+      setOrderCreators(creators);
+      setLocationNames(locations);
+    };
+
+    if (pendingOrders.length > 0) {
+      fetchOrderDetails();
+    }
+  }, [pendingOrders, currentLocation]);
+
   // Filter pending orders
   const filteredOrders = useMemo(() => {
     return pendingOrders.filter(order => {
       const searchLower = searchTerm.toLowerCase();
-      return (
-        order.order?.orderNumber?.toLowerCase().includes(searchLower) ||
-        order.order?.customerName?.toLowerCase().includes(searchLower) ||
-        order.order?.tableNames?.some((table: string) => table.toLowerCase().includes(searchLower)) ||
-        order.order?.items?.some((item: any) => item.name.toLowerCase().includes(searchLower))
+      const orderData = order.order || order;
+      
+      // Search filter
+      const matchesSearch = (
+        orderData.orderNumber?.toLowerCase().includes(searchLower) ||
+        orderData.customerName?.toLowerCase().includes(searchLower) ||
+        orderData.tableNames?.some((table: string) => table.toLowerCase().includes(searchLower)) ||
+        orderData.items?.some((item: any) => item.name.toLowerCase().includes(searchLower))
       );
+      
+      // Created by filter
+      let matchesCreatedBy = true;
+      if (createdByFilter === 'me') {
+        matchesCreatedBy = orderData.staffId === currentUser?.uid;
+      } else if (createdByFilter === 'staff') {
+        matchesCreatedBy = orderCreators[orderData.staffId]?.role === 'staff';
+      }
+      
+      return matchesSearch && matchesCreatedBy;
     });
-  }, [pendingOrders, searchTerm]);
+  }, [pendingOrders, searchTerm, createdByFilter, currentUser?.uid, orderCreators]);
 
   // Handle settle bill
   const handleSettleBill = (order: any) => {
-    setSelectedOrder(order.order || order);
-    setShowPaymentReceivedModal(true);
+    const orderData = order.order || order;
+    
+    // Find the latest order data from pendingOrders state
+    const latestPendingOrder = pendingOrders.find(pendingOrder => {
+      const pendingOrderData = pendingOrder.order || pendingOrder;
+      return pendingOrderData.id === orderData.id;
+    });
+    
+    const latestOrderData = latestPendingOrder?.order || latestPendingOrder || orderData;
+    
+    setSelectedOrder(latestOrderData);
+    setPaymentFlow('settle'); // Set flow to settle
+    
+    // Check if payment method is already set (either pendingPaymentMethod or paymentData)
+    const existingPaymentMethod = latestOrderData.pendingPaymentMethod || latestOrderData.paymentData?.paymentMethod;
+    
+    if (existingPaymentMethod) {
+      // Payment method already selected, directly show payment received confirmation
+      setShowPaymentReceivedModal(true);
+    } else {
+      // No payment method selected, show payment method selection first
+      setShowPaymentMethodModal(true);
+    }
   };
 
   // Handle view order
@@ -95,7 +191,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
     // Navigate to ManagerPOSPage with order data
     navigate('/manager/pos', {
       state: {
-        orderType: orderData.orderType === 'dine_in' ? 'dinein' : (orderData.orderType === 'delivery' ? 'delivery' : 'dinein'),
+        orderType: orderData.orderType === 'dinein' ? 'dinein' : (orderData.orderType === 'delivery' ? 'delivery' : 'dinein'),
         tableIds: orderData.tableIds || [],
         tableNames: orderData.tableNames || [],
         isOngoing: true,
@@ -109,12 +205,22 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle print order
   const handlePrintOrder = (order: any) => {
     const orderData = order.order || order;
-    setSelectedOrder(orderData);
     
-    // Check if payment method is already set
-    if (orderData.paymentData?.paymentMethod) {
+    // Find the latest order data from pendingOrders state
+    const latestPendingOrder = pendingOrders.find(pendingOrder => {
+      const pendingOrderData = pendingOrder.order || pendingOrder;
+      return pendingOrderData.id === orderData.id;
+    });
+    
+    const latestOrderData = latestPendingOrder?.order || latestPendingOrder || orderData;
+    
+    setSelectedOrder(latestOrderData);
+    setPaymentFlow('print'); // Set flow to print
+    
+    // Check if payment method is already set (either pendingPaymentMethod or paymentData)
+    const existingPaymentMethod = latestOrderData.pendingPaymentMethod || latestOrderData.paymentData?.paymentMethod;
+    if (existingPaymentMethod) {
       // Directly show receipt with existing payment method
-      setSelectedPaymentMethod(orderData.paymentData.paymentMethod as 'cash' | 'card' | 'upi');
       setShowReceiptModal(true);
     } else {
       // Show payment method selection first
@@ -127,7 +233,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
     const orderData = order.order || order;
     if (window.confirm(`Are you sure you want to delete order #${orderData.orderNumber}?`)) {
       try {
-        await completeOrder(orderData.id);
+        await orderService.deleteOrder(orderData.id, currentUser?.uid || '');
         toast.success('Order deleted successfully!');
       } catch (error) {
         console.error('Error deleting order:', error);
@@ -142,26 +248,47 @@ const ManagerPendingOrdersPage: React.FC = () => {
     
     setIsProcessing(true);
     try {
-      const total = calculateOrderTotal(selectedOrder);
+      const total = orderTotals[selectedOrder.id] || await calculateOrderTotal(selectedOrder);
       
-      // Update the order with payment method
+      // Save pendingPaymentMethod to Firestore (not paymentData yet)
+      await orderService.updateOrderPendingPaymentMethod(selectedOrder.id, paymentMethod);
+      
+      // Update local state for the selected order only
       const updatedOrder = {
         ...selectedOrder,
-        paymentData: {
-          paymentMethod,
-          amount: total,
-          settledAt: new Date(),
-          notes: `Payment via ${paymentMethod}`
-        }
+        pendingPaymentMethod: paymentMethod
       };
 
-      setSelectedPaymentMethod(paymentMethod);
       setSelectedOrder(updatedOrder);
       
-      setShowPaymentMethodModal(false);
-      setShowReceiptModal(true);
+      // Also update the pendingOrders state to ensure consistency
+      setPendingOrders(prevOrders => 
+        prevOrders.map(pendingOrder => {
+          const order = pendingOrder.order || pendingOrder;
+          if (order.id === selectedOrder.id) {
+            return {
+              ...pendingOrder,
+              order: {
+                ...order,
+                pendingPaymentMethod: paymentMethod
+              }
+            };
+          }
+          return pendingOrder;
+        })
+      );
       
-      toast.success('Payment method selected!');
+      setShowPaymentMethodModal(false);
+      
+      // Handle based on which flow we're in
+      if (paymentFlow === 'print') {
+        // Print flow - show receipt
+        setShowReceiptModal(true);
+        toast.success('Payment method selected!');
+      } else {
+        // Settle flow - show payment received confirmation
+        setShowPaymentReceivedModal(true);
+      }
     } catch (error) {
       console.error('Error selecting payment method:', error);
       toast.error('Failed to select payment method. Please try again.');
@@ -176,39 +303,21 @@ const ManagerPendingOrdersPage: React.FC = () => {
     
     setIsProcessing(true);
     try {
-      const total = calculateOrderTotal(selectedOrder);
+      const total = orderTotals[selectedOrder.id] || await calculateOrderTotal(selectedOrder);
       
-      // Create a completed order from the temporary order
-      const orderData = {
-        tableIds: selectedOrder.tableIds || [],
-        tableNames: selectedOrder.tableNames || [],
-        orderType: selectedOrder.orderType || 'dinein',
-        orderMode: selectedOrder.orderMode,
-        items: selectedOrder.items || [],
-        customerName: selectedOrder.customerName,
-        customerPhone: selectedOrder.customerPhone,
-        deliveryAddress: selectedOrder.deliveryAddress,
-        notes: selectedOrder.notes,
-        status: 'completed',
-        paymentMethod: selectedOrder.paymentData?.paymentMethod || 'cash',
-        paymentStatus: 'paid',
-        settledAt: new Date(),
-        completedAt: new Date(),
-        totalAmount: total,
-        subtotal: selectedOrder.subtotal || total,
-        tax: selectedOrder.tax || 0,
-        gstAmount: selectedOrder.gstAmount || 0,
-        total: total,
-        locationId: currentUser.locationId,
-        tableId: selectedOrder.tableIds?.[0] || null, // Use first tableId or null
-      };
-
-      // Create the order in regular orders collection
-      await createOrder(orderData);
+      // Use pendingPaymentMethod from the selected order
+      const paymentMethodToUse = selectedOrder.pendingPaymentMethod;
       
-      // Remove from pending orders using orderService
+      if (!paymentMethodToUse) {
+        toast.error('No payment method selected. Please select a payment method first.');
+        setShowPaymentReceivedModal(false);
+        setShowPaymentMethodModal(true);
+        return;
+      }
+      
+      // Settle the existing order using orderService (this will update it to completed status)
       await orderService.settleOrder(selectedOrder.id, {
-        paymentMethod: selectedOrder.paymentData?.paymentMethod || 'cash',
+        paymentMethod: paymentMethodToUse,
         amount: total,
         settledAt: new Date(),
         settledBy: currentUser.uid
@@ -228,6 +337,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle edit payment method from receipt
   const handleEditPaymentMethod = () => {
     setShowReceiptModal(false);
+    setPaymentFlow('print'); // Keep it in print flow
     setShowPaymentMethodModal(true);
   };
 
@@ -258,12 +368,30 @@ const ManagerPendingOrdersPage: React.FC = () => {
     return 'N/A';
   };
 
-  // Calculate order total
-  const calculateOrderTotal = (order: any) => {
+  // Calculate order total using the same method as orderService
+  const calculateOrderTotal = async (order: any) => {
     const subtotal = order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0;
-    const cgst = subtotal * 0.025; // 2.5% CGST
-    const sgst = subtotal * 0.025; // 2.5% SGST
-    return subtotal + cgst + sgst;
+    
+    // Use the order's existing tax calculations if available
+    if (order.gstAmount !== undefined) {
+      return subtotal + order.gstAmount;
+    }
+    
+    // Otherwise, calculate using location GST settings
+    if (order.locationId) {
+      try {
+        const gstSettings = await orderService.getLocationGSTSettings(order.locationId);
+        const totalGST = subtotal * ((gstSettings.cgst + gstSettings.sgst) / 100);
+        return subtotal + totalGST;
+      } catch (error) {
+        console.error('Error calculating order total:', error);
+        // Fallback to 0% GST
+        return subtotal;
+      }
+    }
+    
+    // Fallback to subtotal only (0% GST)
+    return subtotal;
   };
 
   // Get order wait time
@@ -283,7 +411,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         <div className="space-y-6">
           {/* Search Bar */}
           <div className="bg-white shadow rounded-lg p-4">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 mb-4">
               <div className="flex-1">
                 <Input
                   placeholder="Search by order number, customer name, table, or items..."
@@ -294,6 +422,43 @@ const ManagerPendingOrdersPage: React.FC = () => {
               </div>
               <div className="text-sm text-gray-600">
                 {loading ? 'Loading...' : `${filteredOrders.length} orders found`}
+              </div>
+            </div>
+            
+            {/* Created By Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Created By:</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCreatedByFilter('all')}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    createdByFilter === 'all'
+                      ? 'bg-gray-800 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setCreatedByFilter('staff')}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    createdByFilter === 'staff'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Staff
+                </button>
+                <button
+                  onClick={() => setCreatedByFilter('me')}
+                  className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                    createdByFilter === 'me'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Me
+                </button>
               </div>
             </div>
           </div>
@@ -333,7 +498,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                     {filteredOrders.map((pendingOrder) => {
                       const order = pendingOrder.order || pendingOrder;
                       const waitTime = getOrderWaitTime(order.createdAt || order.transferredAt);
-                      const total = calculateOrderTotal(order);
+                      const total = orderTotals[order.id] || 0;
                       
                       return (
                         <tr key={pendingOrder.id || order.id} className="hover:bg-gray-50">
@@ -345,7 +510,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                               {order.customerName || 'Guest'}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {order.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'}
+                              {order.orderType === 'dinein' ? 'Dine-in' : 'Delivery'}
                               {order.tableIds && (
                                 <span> • {getTableDisplayName(order.tableIds, order.tableNames)}</span>
                               )}
@@ -450,6 +615,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         }}
         onSelect={handlePaymentMethodSelect}
         isProcessing={isProcessing}
+        selectedPaymentMethod={selectedOrder?.pendingPaymentMethod}
       />
 
       {/* Final Receipt Modal */}
@@ -463,12 +629,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
           order={{
             ...selectedOrder,
             paymentData: selectedOrder.paymentData || {
-              paymentMethod: selectedPaymentMethod,
-              amount: calculateOrderTotal(selectedOrder),
+              paymentMethod: selectedOrder.pendingPaymentMethod,
+              amount: orderTotals[selectedOrder.id] || 0,
               settledAt: new Date()
             }
           }}
-          paymentMethod={selectedPaymentMethod}
+          paymentMethod={selectedOrder.pendingPaymentMethod || 'cash'}
           isReadOnly={false}
           onEditPaymentMethod={handleEditPaymentMethod}
         />
@@ -505,7 +671,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                       <div>
                         <h4 className="font-semibold text-gray-700">Customer Information</h4>
                         <p className="text-sm text-gray-600">Name: {selectedOrder.customerName || 'Guest'}</p>
-                        <p className="text-sm text-gray-600">Type: {selectedOrder.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'}</p>
+                        <p className="text-sm text-gray-600">Type: {selectedOrder.orderType === 'dinein' ? 'Dine-in' : 'Delivery'}</p>
                         <p className="text-sm text-gray-600">Table: {getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames)}</p>
                         <p className="text-sm text-gray-600">Date: {format(new Date(selectedOrder.createdAt), 'dd MMM yyyy, HH:mm')}</p>
                       </div>
@@ -528,16 +694,16 @@ const ManagerPendingOrdersPage: React.FC = () => {
                           <span>₹{selectedOrder.subtotal?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>CGST (2.5%):</span>
-                          <span>₹{(selectedOrder.subtotal * 0.025).toFixed(2)}</span>
+                          <span>CGST:</span>
+                          <span>₹{((selectedOrder.cgstAmount || 0)).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span>SGST (2.5%):</span>
-                          <span>₹{(selectedOrder.subtotal * 0.025).toFixed(2)}</span>
+                          <span>SGST:</span>
+                          <span>₹{((selectedOrder.sgstAmount || 0)).toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between font-semibold">
                           <span>Total:</span>
-                          <span>₹{calculateOrderTotal(selectedOrder).toFixed(2)}</span>
+                          <span>₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -589,7 +755,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                         <p className="text-sm text-gray-600">Customer: {selectedOrder.customerName || 'Guest'}</p>
                         <p className="text-sm text-gray-600">Table: {getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames)}</p>
                         <p className="text-sm text-gray-600">Items: {selectedOrder.items?.length || 0}</p>
-                        <p className="text-sm text-gray-600">Total: ₹{calculateOrderTotal(selectedOrder).toFixed(2)}</p>
+                        <p className="text-sm text-gray-600">Total: ₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</p>
                       </div>
                     </div>
                   </div>

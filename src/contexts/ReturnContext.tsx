@@ -132,7 +132,7 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
 
   useEffect(() => {
     refreshReturns();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const isItemReturned = (orderId: string, itemId: string) => {
     const hasReturn = returns.some(r => 

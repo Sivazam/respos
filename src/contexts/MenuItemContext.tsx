@@ -123,7 +123,7 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
 
   useEffect(() => {
     refreshMenuItems();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addMenuItem = async (itemData: Omit<MenuItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);

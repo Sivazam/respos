@@ -125,7 +125,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
 
   useEffect(() => {
     refreshPurchases();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addPurchase = async (data: PurchaseFormData) => {
     setError(null);

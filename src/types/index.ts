@@ -576,6 +576,7 @@ export interface Franchise {
   gstNumber?: string;
   panNumber?: string;
   licenseNumber?: string;
+  logoUrl?: string; // Firebase Storage URL for franchise logo
   isActive: boolean;
   isApproved: boolean;
   plan?: FranchisePlan;
@@ -614,4 +615,5 @@ export interface FranchiseFormData {
   plan?: FranchisePlan;
   commissionRate?: number;
   features?: FranchiseStoredFeatures;
+  logoUrl?: string; // Firebase Storage URL for franchise logo
 }

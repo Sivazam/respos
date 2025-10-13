@@ -4,6 +4,7 @@ import { franchisePlanDefaults } from '../../config/features';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import ErrorAlert from '../ui/ErrorAlert';
+import LogoUpload from './LogoUpload';
 
 interface FranchiseFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -52,7 +53,8 @@ const FranchiseForm: React.FC<FranchiseFormProps> = ({
     address: initialData?.address || '',
     plan: validPlan,
     commissionRate: validCommissionRate,
-    features: validFeatures
+    features: validFeatures,
+    logoUrl: initialData?.logoUrl || null
   });
   
   const [error, setError] = useState<string>('');
@@ -105,7 +107,7 @@ const FranchiseForm: React.FC<FranchiseFormProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
+    const { name, value } = e.target;
     
     if (name === 'plan') {
       const selectedPlan = value as FranchisePlan;
@@ -150,6 +152,13 @@ const FranchiseForm: React.FC<FranchiseFormProps> = ({
         ...prev.features,
         [feature]: !prev.features[feature]
       }
+    }));
+  };
+
+  const handleLogoChange = (logoUrl: string | null) => {
+    setFormData(prev => ({
+      ...prev,
+      logoUrl
     }));
   };
 
@@ -217,6 +226,12 @@ const FranchiseForm: React.FC<FranchiseFormProps> = ({
               required
             />
           </div>
+
+          <LogoUpload
+            currentLogoUrl={formData.logoUrl}
+            onLogoChange={handleLogoChange}
+            label="Franchise Logo"
+          />
         </div>
 
         <div className="space-y-4">

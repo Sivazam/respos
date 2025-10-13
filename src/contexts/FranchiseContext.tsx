@@ -118,7 +118,7 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
 
   useEffect(() => {
     refreshFranchises();
-  }, [currentUser]);
+  }, [currentUser?.uid, currentUser?.role]);
 
   const addFranchise = async (franchiseData: Omit<Franchise, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);

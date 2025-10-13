@@ -183,19 +183,7 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
       
       // Delete the order from database
       await orderService.deleteOrder(orderToDelete.id, currentUser.uid);
-      console.log('✅ Order deleted from database');
-      
-      // Release tables if it's a dine-in order
-      if (orderToDelete.tableIds && orderToDelete.tableIds.length > 0) {
-        for (const tableId of orderToDelete.tableIds) {
-          try {
-            await releaseTable(tableId);
-            console.log(`Successfully released table ${tableId} for deleted order ${orderToDelete.id}`);
-          } catch (error) {
-            console.error(`Failed to release table ${tableId}:`, error);
-          }
-        }
-      }
+      console.log('✅ Order deleted from database and tables released automatically');
 
       toast.success(`Order ${orderToDelete.orderNumber} cancelled successfully`);
       setShowDeleteConfirm(false);

@@ -180,7 +180,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
       console.error('Error syncing offline actions:', error);
       setError('Failed to sync offline actions');
     }
-  }, [currentUser, currentLocation]);
+  }, [currentUser?.uid, currentLocation?.id]);
 
   // Fetch orders for current location
   const fetchOrders = useCallback(async () => {
@@ -204,10 +204,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
         const ordersData: Order[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
-          // Filter client-side to show only completed/settled orders
-          if (!['settled', 'completed'].includes(data.status)) {
-            return;
-          }
+          // Include all orders for operational use (staff dashboard needs to see pending/preparing orders)
           ordersData.push({
             id: doc.id,
             orderNumber: data.orderNumber,

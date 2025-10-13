@@ -291,7 +291,7 @@ export class PrintUtils {
   /**
    * Test print with sample content (Centered design)
    */
-  static async testPrint(options: PrintOptions = {}): Promise<boolean> {
+  static async testPrint(options: PrintOptions = {}, franchiseDetails?: any): Promise<boolean> {
     // Helper function to center text within 58 characters
     const centerText = (text: string, width = 58) => {
       const padding = Math.floor((width - text.length) / 2);
@@ -303,14 +303,20 @@ export class PrintUtils {
       const priceStr = `₹${price.toFixed(2)}`;
       return priceStr.padStart(20);
     };
+
+    // Get franchise details or use defaults
+    const restaurantName = franchiseDetails?.name || 'FORKFLOW POS';
+    const address = franchiseDetails?.address || '123 Main Street, City';
+    const contact = franchiseDetails?.phone || '+91 98765 43210';
+    const gstNumber = franchiseDetails?.gstNumber || '5%';
     
     const sampleContent = `
 ${centerText('🍽️')}
-${centerText('FORKFLOW POS')}
+${centerText(restaurantName)}
 ${'='.repeat(58)}
-${centerText('123 Main Street, City')}
-${centerText('Phone: +91 98765 43210')}
-${centerText('GST: 5%')}
+${centerText(address)}
+${centerText(`Phone: ${contact}`)}
+${centerText(`GST: ${gstNumber}`)}
 ${'='.repeat(58)}
 ${'ORDER #TEST-001'.padEnd(40)}${new Date().toLocaleTimeString().padStart(18)}
 ${new Date().toLocaleDateString().padEnd(58)}
@@ -354,11 +360,11 @@ ${centerText('Powered by FORKFLOW POS')}
     const restaurantName = franchiseDetails?.name || 'FORKFLOW POS';
     const address = franchiseDetails?.address || 'Restaurant Address';
     const contact = franchiseDetails?.phone || 'Contact Number';
-    const gstPercentage = franchiseDetails?.gstPercentage || 0;
+    const gstNumber = franchiseDetails?.gstNumber || null;
     
     // Calculate totals
     const subtotal = items.reduce((sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
-    const gstAmount = gstPercentage > 0 ? (subtotal * gstPercentage) / 100 : 0;
+    const gstAmount = order.gstAmount || 0;
     const total = subtotal + gstAmount;
     
     // Helper function to center text within 58 characters
@@ -381,8 +387,8 @@ ${centerText('Powered by FORKFLOW POS')}
     content += '='.repeat(58) + '\n';
     content += centerText(address) + '\n';
     content += centerText(`Tel: ${contact}`) + '\n';
-    if (gstPercentage > 0) {
-      content += centerText(`GST: ${gstPercentage}%`) + '\n';
+    if (gstNumber) {
+      content += centerText(`GSTIN: ${gstNumber}`) + '\n';
     }
     content += '='.repeat(58) + '\n';
     
@@ -417,8 +423,16 @@ ${centerText('Powered by FORKFLOW POS')}
     // Totals
     content += 'Subtotal'.padEnd(40) + formatPrice(subtotal) + '\n';
     
-    if (gstPercentage > 0) {
-      content += `GST (${gstPercentage}%)`.padEnd(40) + formatPrice(gstAmount) + '\n';
+    if (order.cgst > 0) {
+      content += `CGST (${order.cgstPercentage || 2.5}%)`.padEnd(40) + formatPrice(order.cgst) + '\n';
+    }
+    
+    if (order.sgst > 0) {
+      content += `SGST (${order.sgstPercentage || 2.5}%)`.padEnd(40) + formatPrice(order.sgst) + '\n';
+    }
+    
+    if (gstAmount > 0 && !order.cgst && !order.sgst) {
+      content += `GST (5%)`.padEnd(40) + formatPrice(gstAmount) + '\n';
     }
     
     content += '-'.repeat(58) + '\n';
@@ -444,7 +458,7 @@ ${centerText('Powered by FORKFLOW POS')}
 // Export convenience functions
 export const printReceipt = (content: string, options?: PrintOptions, orderData?: any, franchiseDetails?: any) => 
   PrintUtils.smartPrint(content, options, orderData, franchiseDetails);
-export const testPrint = (options?: PrintOptions) => PrintUtils.testPrint(options);
+export const testPrint = (options?: PrintOptions, franchiseDetails?: any) => PrintUtils.testPrint(options, franchiseDetails);
 export const getPrintMethods = () => PrintUtils.getAvailableMethods();
 export const getUSBPrinters = () => PrintUtils.getUSBPrinters();
 export const formatReceipt = (order: any, franchiseDetails?: any) => PrintUtils.formatReceiptContent(order, franchiseDetails);

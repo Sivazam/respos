@@ -137,7 +137,7 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
 
   useEffect(() => {
     refreshSales();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const getNextInvoiceNumber = async () => {
     const counterRef = doc(db, 'counters', 'sales');

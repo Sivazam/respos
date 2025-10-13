@@ -129,7 +129,7 @@ export const TemporaryOrdersDisplayProvider: React.FC<TemporaryOrdersDisplayProv
       setError(error instanceof Error ? error.message : 'Failed to fetch temporary orders');
       setLoading(false);
     }
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;

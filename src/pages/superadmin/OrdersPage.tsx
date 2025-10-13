@@ -8,8 +8,7 @@ import { useFeatures } from '../../hooks/useFeatures';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import ErrorAlert from '../../components/ui/ErrorAlert';
-import ReceiptModal from '../../components/pos/ReceiptModal';
-import { Receipt } from '../../types';
+import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 
 const SuperAdminOrdersPage: React.FC = () => {
   const { sales, loading, error } = useSales();
@@ -17,7 +16,7 @@ const SuperAdminOrdersPage: React.FC = () => {
   const { features } = useFeatures();
   const [searchTerm, setSearchTerm] = useState('');
   const [showReceipt, setShowReceipt] = useState(false);
-  const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
 
   const filteredSales = sales.filter(sale => {
     const matchesSearch = sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -27,15 +26,29 @@ const SuperAdminOrdersPage: React.FC = () => {
   });
 
   const viewReceipt = (sale: any) => {
-    const receipt: Receipt = {
-      sale,
-      businessName: 'ForkFlow',
-      businessAddress: '123 Food Street, Bangalore, Karnataka 560001',
-      gstNumber: 'GSTIN29ABCDE1234F1Z5',
-      contactNumber: '+91 80 1234 5678',
-      email: 'contact@millethomefoods.com'
+    // Convert sale data to order format expected by FinalReceiptModal
+    const orderData = {
+      orderNumber: sale.invoiceNumber,
+      tableNames: [], // Super admin orders don't have table info
+      tableIds: [],
+      items: sale.items,
+      subtotal: sale.subtotal || sale.total,
+      totalAmount: sale.total,
+      total: sale.total,
+      cgstAmount: sale.cgst || 0,
+      sgstAmount: sale.sgst || 0,
+      cgst: sale.cgst || 0,
+      sgst: sale.sgst || 0,
+      paymentData: {
+        paymentMethod: sale.paymentMethod,
+        amount: sale.total,
+        settledAt: sale.createdAt
+      },
+      locationId: sale.locationId || '', // Use locationId from sale if available
+      completedAt: sale.createdAt
     };
-    setSelectedReceipt(receipt);
+    
+    setSelectedReceipt(orderData);
     setShowReceipt(true);
   };
 
@@ -180,13 +193,15 @@ const SuperAdminOrdersPage: React.FC = () => {
       </div>
 
       {showReceipt && selectedReceipt && (
-        <ReceiptModal
-          receipt={selectedReceipt}
+        <FinalReceiptModal
+          isOpen={showReceipt}
           onClose={() => {
             setShowReceipt(false);
             setSelectedReceipt(null);
           }}
-          onPrint={() => {}} // Print function is now handled internally
+          order={selectedReceipt}
+          paymentMethod={selectedReceipt.paymentData?.paymentMethod || 'cash'}
+          isReadOnly={true}
         />
       )}
     </DashboardLayout>

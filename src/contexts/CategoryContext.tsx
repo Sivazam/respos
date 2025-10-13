@@ -122,7 +122,7 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
 
   useEffect(() => {
     refreshCategories();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addCategory = async (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);

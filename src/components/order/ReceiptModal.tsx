@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Receipt, 
   X, 
@@ -8,6 +8,7 @@ import {
   CheckCircle 
 } from 'lucide-react';
 import Button from '../ui/Button';
+import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 
 interface PendingOrder {
   id: string;
@@ -30,16 +31,40 @@ interface ReceiptModalProps {
   onClose: () => void;
   order: PendingOrder;
   onSettle: (paymentMethod: string) => void;
+  locationId?: string;
 }
 
 const ReceiptModal: React.FC<ReceiptModalProps> = ({
   isOpen,
   onClose,
   order,
-  onSettle
+  onSettle,
+  locationId
 }) => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [franchiseData, setFranchiseData] = useState<{
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    logoUrl: string | null;
+    gstNumber: string | null;
+  } | null>(null);
+
+  // Fetch franchise data when component mounts or locationId changes
+  useEffect(() => {
+    const fetchFranchiseData = async () => {
+      if (locationId) {
+        const data = await getFranchiseReceiptData(locationId);
+        setFranchiseData(data);
+      }
+    };
+
+    if (isOpen) {
+      fetchFranchiseData();
+    }
+  }, [isOpen, locationId]);
 
   if (!isOpen) return null;
 
@@ -111,7 +136,8 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
     return price.toFixed(2);
   };
 
-  const logoUrl = 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
+  // Use franchise logo if available, otherwise use default
+  const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -231,10 +257,12 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   
                   {/* Header */}
                   <div className="text-center mb-3 font-bold">
-                    <div className="text-sm">FORKFLOW POS</div>
-                    <div className="text-xs">123 Main Street, City</div>
-                    <div className="text-xs">Phone: +91 98765 43210</div>
-                    <div className="text-xs">GSTIN: 123456789012345</div>
+                    <div className="text-sm">{franchiseData?.name || 'FORKFLOW POS'}</div>
+                    <div className="text-xs">{franchiseData?.address || '123 Main Street, City'}</div>
+                    <div className="text-xs">Phone: {franchiseData?.phone || '+91 98765 43210'}</div>
+                    {franchiseData?.gstNumber && (
+                      <div className="text-xs">GSTIN: {franchiseData.gstNumber}</div>
+                    )}
                   </div>
                   
                   <div className="border-t border-b border-dashed border-gray-400 py-2 my-2">

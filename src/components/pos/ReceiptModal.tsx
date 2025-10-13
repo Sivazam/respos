@@ -1,16 +1,38 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Receipt } from '../../types';
 import { browserPrintService } from '@/lib/browserPrint';
+import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 
 interface ReceiptModalProps {
   receipt: Receipt;
   onClose: () => void;
   isReturn?: boolean;
+  locationId?: string;
 }
 
-const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn = false }) => {
+const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn = false, locationId }) => {
   const { sale, businessName, businessAddress, gstNumber, contactNumber, email } = receipt;
+  const [franchiseData, setFranchiseData] = useState<{
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    logoUrl: string | null;
+    gstNumber: string | null;
+  } | null>(null);
+
+  // Fetch franchise data when component mounts or locationId changes
+  useEffect(() => {
+    const fetchFranchiseData = async () => {
+      if (locationId) {
+        const data = await getFranchiseReceiptData(locationId);
+        setFranchiseData(data);
+      }
+    };
+
+    fetchFranchiseData();
+  }, [locationId]);
   
   // Calculate GST percentages from sale data
   const cgstPercentage = sale.subtotal > 0 ? (sale.cgst / sale.subtotal) * 100 : 0;
@@ -38,10 +60,10 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
     content += '\n';
     
     // Restaurant Header (centered)
-    content += centerText(businessName) + '\n';
-    content += centerText(businessAddress) + '\n';
-    content += centerText(`Phone: ${contactNumber || '+91 98765 43210'}`) + '\n';
-    content += centerText(`GSTIN: ${gstNumber}`) + '\n';
+    content += centerText(franchiseData?.name || businessName) + '\n';
+    content += centerText(franchiseData?.address || businessAddress) + '\n';
+    content += centerText(`Phone: ${franchiseData?.phone || contactNumber || '+91 98765 43210'}`) + '\n';
+    content += centerText(`GSTIN: ${franchiseData?.gstNumber || gstNumber}`) + '\n';
     content += '-'.repeat(48) + '\n';
     
     // Order Info
@@ -184,7 +206,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
             {/* Logo */}
             <div className="flex justify-center mb-2">
               <img 
-                src="https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd" 
+                src={franchiseData?.logoUrl || "https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd"} 
                 alt="Restaurant Logo" 
                 style={{ width: '160px', height: 'auto', maxHeight: 'auto', objectFit: 'contain' }}
               />
@@ -192,16 +214,16 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
 
             {/* Header */}
             <div className="text-center" style={{ fontSize: '20px', fontWeight: '900', marginBottom: '8px' }}>
-              {businessName}
+              {franchiseData?.name || businessName}
             </div>
             
             <div className="text-center mb-4" style={{ fontWeight: '700' }}>
-              {businessAddress.split(',').map((line, i) => (
+              {(franchiseData?.address || businessAddress).split(',').map((line, i) => (
                 <div key={i}>{line.trim()}</div>
               ))}
-              <div>GST No: {gstNumber}</div>
-              <div>Tel: {contactNumber}</div>
-              <div>{email}</div>
+              <div>GST No: {franchiseData?.gstNumber || gstNumber}</div>
+              <div>Tel: {franchiseData?.phone || contactNumber}</div>
+              <div>{franchiseData?.email || email}</div>
             </div>
 
             {/* Solid line after GSTIN */}

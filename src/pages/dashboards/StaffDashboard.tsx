@@ -43,6 +43,7 @@ const StaffDashboard: React.FC = () => {
     return { start, end };
   }, []);
 
+  // Get today's orders for this staff member only
   const todaysOrders = useMemo(() => {
     return orders.filter(order => {
       const orderDate = new Date(order.createdAt);
@@ -51,30 +52,133 @@ const StaffDashboard: React.FC = () => {
       // Filter by location if specified
       const matchesLocation = selectedLocationId === 'all' || order.locationId === selectedLocationId;
       
-      return isToday && matchesLocation;
+      // Only show orders assigned to this staff member
+      const matchesStaff = order.staffId === currentUser?.uid;
+      
+      return isToday && matchesLocation && matchesStaff;
     });
-  }, [orders, today, selectedLocationId]);
+  }, [orders, today, selectedLocationId, currentUser?.uid]);
 
-  // Calculate metrics
-  const totalRevenue = todaysOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0);
-  const totalOrders = todaysOrders.length;
+  // Get this staff member's assigned tables
+  const assignedTables = useMemo(() => {
+    if (!currentUser?.uid) return [];
+    
+    // Filter tables that are assigned to this staff member
+    return tables.filter(table => {
+      // Check if table has assignedStaff field and matches current user
+      return table.assignedStaff === currentUser.uid || 
+             table.staffId === currentUser.uid ||
+             (table.assignedStaffIds && table.assignedStaffIds.includes(currentUser.uid));
+    });
+  }, [tables, currentUser?.uid]);
+
+  // Get orders for assigned tables only
+  const assignedTableOrders = useMemo(() => {
+    const assignedTableIds = assignedTables.map(table => table.id);
+    
+    return orders.filter(order => {
+      const orderDate = new Date(order.createdAt);
+      const isToday = orderDate >= today.start && orderDate <= today.end;
+      
+      // Check if order is for any of the assigned tables
+      const hasAssignedTable = order.tableIds?.some(tableId => 
+        assignedTableIds.includes(tableId)
+      );
+      
+      return isToday && hasAssignedTable;
+    });
+  }, [orders, today, assignedTables]);
+
+  // Calculate staff-specific performance metrics
+  const staffMetrics = useMemo(() => {
+    // Today's performance
+    const todayRevenue = todaysOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0);
+    const todayOrders = todaysOrders.length;
+    const todayCompletedOrders = todaysOrders.filter(order => order.status === 'completed' || order.status === 'settled').length;
+    const todayAvgOrderValue = todayOrders > 0 ? todayRevenue / todayOrders : 0;
+    
+    // Payment method breakdown
+    const upiOrders = todaysOrders.filter(order => order.paymentMethod === 'upi').length;
+    const cashOrders = todaysOrders.filter(order => order.paymentMethod === 'cash').length;
+    const cardOrders = todaysOrders.filter(order => order.paymentMethod === 'card').length;
+    
+    // Order type breakdown
+    const dineInOrders = todaysOrders.filter(order => order.orderType === 'dinein').length;
+    const deliveryOrders = todaysOrders.filter(order => order.orderType === 'delivery').length;
+    
+    // Total items sold
+    const totalItems = todaysOrders.reduce((sum, order) => 
+      sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+    
+    // Average order completion time (for completed orders)
+    const completedOrdersWithTime = todaysOrders.filter(order => 
+      (order.status === 'completed' || order.status === 'settled') && 
+      order.completedAt && 
+      order.createdAt
+    );
+    
+    const avgCompletionTime = completedOrdersWithTime.length > 0 
+      ? completedOrdersWithTime.reduce((sum, order) => {
+          const completionTime = new Date(order.completedAt).getTime();
+          const createdTime = new Date(order.createdAt).getTime();
+          return sum + (completionTime - createdTime);
+        }, 0) / completedOrdersWithTime.length / (1000 * 60) // Convert to minutes
+      : 0;
+
+    // Peak hours analysis
+    const hourOrders: { [hour: string]: number } = {};
+    todaysOrders.forEach(order => {
+      const hour = new Date(order.createdAt).getHours();
+      const hourKey = `${hour}:00`;
+      hourOrders[hourKey] = (hourOrders[hourKey] || 0) + 1;
+    });
+
+    const peakHours = Object.entries(hourOrders)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([hour, count]) => ({ hour, count }));
+
+    // Top selling items
+    const itemSales: { [key: string]: number } = {};
+    todaysOrders.forEach(order => {
+      order.items.forEach(item => {
+        const itemName = item.name || item.itemName || 'Unknown Item';
+        itemSales[itemName] = (itemSales[itemName] || 0) + item.quantity;
+      });
+    });
+
+    const topItems = Object.entries(itemSales)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([name, quantity]) => ({ name, quantity }));
+
+    return {
+      todayRevenue,
+      todayOrders,
+      todayCompletedOrders,
+      todayAvgOrderValue,
+      upiOrders,
+      cashOrders,
+      cardOrders,
+      dineInOrders,
+      deliveryOrders,
+      totalItems,
+      avgCompletionTime,
+      peakHours,
+      topItems
+    };
+  }, [todaysOrders]);
+
+  // Current status metrics
   const pendingOrders = todaysOrders.filter(order => order.status === 'pending').length;
-  const temporaryOrdersCount = temporaryOrders.length;
   const preparingOrders = todaysOrders.filter(order => order.status === 'preparing').length;
   const readyOrders = todaysOrders.filter(order => order.status === 'ready').length;
-  const completedOrders = todaysOrders.filter(order => order.status === 'completed').length;
+  const temporaryOrdersCount = temporaryOrders.length;
   
-  // Table-specific metrics
-  const occupiedTables = tables.filter(table => table.status === 'occupied').length;
-  const totalTables = tables.length;
-  const tableOccupancyRate = totalTables > 0 ? (occupiedTables / totalTables) * 100 : 0;
-  
-  // Order type breakdown
-  const dineInOrders = todaysOrders.filter(order => order.orderType === 'dinein').length;
-  const takeawayOrders = todaysOrders.filter(order => order.orderType === 'takeaway' || order.orderType === 'delivery').length;
-  
-  // Average order value
-  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  // Table-specific metrics for assigned tables
+  const occupiedAssignedTables = assignedTables.filter(table => table.status === 'occupied').length;
+  const totalAssignedTables = assignedTables.length;
+  const assignedTableOccupancyRate = totalAssignedTables > 0 ? (occupiedAssignedTables / totalAssignedTables) * 100 : 0;
 
   // Orders that need attention (pending and preparing only)
   // Temporary orders should only appear in the Pending Orders page, not here
@@ -205,8 +309,8 @@ const StaffDashboard: React.FC = () => {
           </div>
         )}
         
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
+        {/* Staff Performance Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center">
               <div className="p-2 sm:p-3 bg-green-100 rounded-full">
@@ -214,13 +318,13 @@ const StaffDashboard: React.FC = () => {
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  Today's Revenue
+                  My Revenue
                 </h3>
                 <p className="text-lg sm:text-2xl font-semibold text-green-600 truncate">
-                  ₹{totalRevenue.toFixed(2)}
+                  ₹{staffMetrics.todayRevenue.toFixed(2)}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  Avg: ₹{avgOrderValue.toFixed(0)}
+                  Avg: ₹{staffMetrics.todayAvgOrderValue.toFixed(0)}
                 </p>
               </div>
             </div>
@@ -233,13 +337,13 @@ const StaffDashboard: React.FC = () => {
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  Total Orders
+                  My Orders
                 </h3>
                 <p className="text-lg sm:text-2xl font-semibold text-blue-600">
-                  {totalOrders}
+                  {staffMetrics.todayOrders}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {completedOrders} done
+                  {staffMetrics.todayCompletedOrders} completed
                 </p>
               </div>
             </div>
@@ -252,13 +356,13 @@ const StaffDashboard: React.FC = () => {
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  Tables
+                  My Tables
                 </h3>
                 <p className="text-lg sm:text-2xl font-semibold text-purple-600">
-                  {occupiedTables}/{totalTables}
+                  {occupiedAssignedTables}/{totalAssignedTables}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {tableOccupancyRate.toFixed(0)}% full
+                  {assignedTableOccupancyRate.toFixed(0)}% occupied
                 </p>
               </div>
             </div>
@@ -290,13 +394,13 @@ const StaffDashboard: React.FC = () => {
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  Completed
+                  Items Sold
                 </h3>
                 <p className="text-lg sm:text-2xl font-semibold text-green-600">
-                  {completedOrders}
+                  {staffMetrics.totalItems}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {readyOrders} ready
+                  Today's total
                 </p>
               </div>
             </div>
@@ -304,31 +408,92 @@ const StaffDashboard: React.FC = () => {
 
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-purple-100 rounded-full">
-                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+              <div className="p-2 sm:p-3 bg-orange-100 rounded-full">
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  {hasFullAccess ? (
-                    <a href="/staff/pending-orders" className="hover:text-purple-700 transition-colors">
-                      Pending Orders
-                    </a>
-                  ) : (
-                    <span className="text-gray-400 cursor-not-allowed">
-                      Pending Orders (Approval Required)
-                    </span>
-                  )}
+                  Avg Time
                 </h3>
-                <p className="text-lg sm:text-2xl font-semibold text-purple-600">
-                  {temporaryOrdersCount}
+                <p className="text-lg sm:text-2xl font-semibold text-orange-600">
+                  {staffMetrics.avgCompletionTime.toFixed(0)}m
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  Click to view details
+                  Per order
                 </p>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Staff Performance Details */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* Payment Methods Breakdown */}
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Payment Methods</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">UPI</span>
+                <span className="text-sm font-semibold text-green-600">{staffMetrics.upiOrders}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Cash</span>
+                <span className="text-sm font-semibold text-blue-600">{staffMetrics.cashOrders}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Card</span>
+                <span className="text-sm font-semibold text-purple-600">{staffMetrics.cardOrders}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Order Types Breakdown */}
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Order Types</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Dine-in</span>
+                <span className="text-sm font-semibold text-purple-600">{staffMetrics.dineInOrders}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Delivery</span>
+                <span className="text-sm font-semibold text-red-600">{staffMetrics.deliveryOrders}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Peak Hours */}
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Peak Hours</h3>
+            <div className="space-y-3">
+              {staffMetrics.peakHours.length > 0 ? (
+                staffMetrics.peakHours.map((peak, index) => (
+                  <div key={index} className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">{peak.hour}</span>
+                    <span className="text-sm font-semibold text-orange-600">{peak.count} orders</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">No orders yet today</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Top Selling Items */}
+        {staffMetrics.topItems.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">My Top Selling Items</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {staffMetrics.topItems.map((item, index) => (
+                <div key={index} className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-lg font-bold text-gray-900">{item.quantity}</div>
+                  <div className="text-xs text-gray-600 truncate">{item.name}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Orders Needing Attention */}
         <div className="bg-white rounded-lg shadow p-4 sm:p-6">

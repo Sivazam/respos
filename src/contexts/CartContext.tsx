@@ -89,7 +89,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     };
     
     loadGstSettings();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addItem = (cartItem: Omit<CartItem, 'id' | 'quantity'>) => {
     // Check if the menu item exists and is available

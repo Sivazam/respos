@@ -107,7 +107,7 @@ export const EnhancedOrderProvider: React.FC<EnhancedOrderProviderProps> = ({ ch
       console.error('Error setting up temporary orders listener:', err);
       setError('Failed to load temporary orders');
     }
-  }, [currentUser, currentLocation]);
+  }, [currentUser?.uid, currentUser?.role, currentLocation?.id]);
 
   // Subscribe to manager pending orders
   useEffect(() => {
@@ -130,7 +130,7 @@ export const EnhancedOrderProvider: React.FC<EnhancedOrderProviderProps> = ({ ch
       console.error('Error setting up manager pending orders listener:', err);
       setError('Failed to load manager pending orders');
     }
-  }, [currentUser, currentLocation]);
+  }, [currentUser?.uid, currentUser?.role, currentLocation?.id]);
 
   // Create temporary order
   const createTemporaryOrder = useCallback(async (orderData: OrderFormData): Promise<string> => {

@@ -41,7 +41,6 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
     checkForExistingManagerOrder,
     updateOrderMode,
     loadOrderIntoCart,
-    settleManagerOrder,
   } = useManagerOrder();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -203,40 +202,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
     }
   };
 
-  // Handle settle order (manager settles directly)
-  const handleSettleOrder = async () => {
-    if (managerOrder && managerOrder.items.length > 0) {
-      try {
-        console.log('Settling manager order:', managerOrder);
-        
-        // Show loading toast
-        const loadingToast = toast.loading('Settling order...');
-        
-        // Settle the order (convert to final order)
-        await settleManagerOrder('cash'); // Default to cash, can be enhanced with payment modal
-        
-        // Refresh tables
-        await refreshTables();
-        
-        // Show success toast
-        toast.success(`Order ${managerOrder.orderNumber} settled successfully!`, { 
-          id: loadingToast 
-        });
-        
-        // Navigate to manager pending orders page
-        if (orderContext?.fromLocation) {
-          navigate(orderContext.fromLocation);
-        } else {
-          navigate('/manager/pending-orders');
-        }
-      } catch (error) {
-        console.error('Failed to settle manager order:', error);
-        toast.error('Failed to settle order. Please try again.');
-      }
-    } else {
-      toast.error('No items in order to settle');
-    }
-  };
+
 
   // Handle back navigation
   const handleBack = () => {
@@ -505,37 +471,19 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                 {/* Action Buttons */}
                 <div className="space-y-2 mt-4">
                   {isEditingOrder ? (
-                    <>
-                      <Button
-                        onClick={handleSaveChanges}
-                        className="w-full"
-                      >
-                        Save Changes
-                      </Button>
-                      <Button
-                        onClick={handleSettleOrder}
-                        className="w-full"
-                        variant="secondary"
-                      >
-                        Settle Order
-                      </Button>
-                    </>
+                    <Button
+                      onClick={handleSaveChanges}
+                      className="w-full"
+                    >
+                      Save Changes
+                    </Button>
                   ) : (
-                    <>
-                      <Button
-                        onClick={handlePlacePartialOrder}
-                        className="w-full"
-                      >
-                        Create Partial Order
-                      </Button>
-                      <Button
-                        onClick={handleSettleOrder}
-                        className="w-full"
-                        variant="secondary"
-                      >
-                        Settle Order
-                      </Button>
-                    </>
+                    <Button
+                      onClick={handlePlacePartialOrder}
+                      className="w-full"
+                    >
+                      Create Partial Order
+                    </Button>
                   )}
                   
                   <Button

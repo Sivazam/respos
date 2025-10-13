@@ -179,7 +179,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       console.error('Error syncing offline actions:', error);
       setError('Failed to sync offline actions');
     }
-  }, [currentUser, currentLocation]);
+  }, [currentUser?.uid, currentLocation?.id]);
 
   // Fetch tables for current location
   const fetchTables = useCallback(async () => {
@@ -601,7 +601,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       console.error('Error merging tables:', error);
       throw error;
     }
-  }, [currentUser]);
+  }, [currentUser?.uid]);
 
   // Split tables
   const splitTables = useCallback(async (tableIds: string[]) => {
@@ -628,7 +628,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       console.error('Error splitting tables:', error);
       throw error;
     }
-  }, [currentUser]);
+  }, [currentUser?.uid]);
 
   // Helper functions
   const getTableById = useCallback((tableId: string) => {

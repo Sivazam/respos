@@ -12,7 +12,7 @@ import {
   Smartphone,
   Eye
 } from 'lucide-react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/db';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
@@ -27,7 +27,7 @@ interface CompletedOrder {
   orderNumber: string;
   tableIds: string[];
   tableNames: string[];
-  items: any[];
+  items: unknown[];
   totalAmount: number;
   status: 'settled';
   orderType: 'dinein' | 'delivery';
@@ -46,7 +46,8 @@ const OrdersPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTab, setSelectedTab] = useState<'dinein' | 'delivery'>('dinein');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<CompletedOrder | null>(null);
 
@@ -83,7 +84,7 @@ const OrdersPage: React.FC = () => {
         const generalSales = JSON.parse(localStorage.getItem(generalSalesKey) || '[]');
         
         // Source 7: Load from Firestore orders collection (completed/settled orders)
-        let firestoreOrders: any[] = [];
+        let firestoreOrders: CompletedOrder[] = [];
         if (currentUser?.locationId) {
           try {
             // Simplified query to avoid ALL index requirements - fetch all orders for location without ordering
@@ -173,11 +174,25 @@ const OrdersPage: React.FC = () => {
         );
         
         for (const orderData of uniqueOrders) {
-          const tableNames = orderData.tableIds && orderData.tableIds.length > 0 
-            ? orderData.tableIds.map((tableId: string) => {
-                return `Table ${tableId}`; // In real implementation, fetch actual table names
-              })
-            : orderData.tableNames || [];
+          const tableNames = orderData.tableNames && orderData.tableNames.length > 0 
+            ? orderData.tableNames
+            : orderData.tableIds && orderData.tableIds.length > 0 
+              ? orderData.tableIds.map((tableId: string) => {
+                  // Try to extract table number from ID
+                  const tableMatch = tableId.match(/table-(\d+)/i);
+                  if (tableMatch) {
+                    return `Table ${tableMatch[1]}`;
+                  }
+                  if (/^\d+$/.test(tableId)) {
+                    return `Table ${tableId}`;
+                  }
+                  const numberMatch = tableId.match(/\d+/);
+                  if (numberMatch) {
+                    return `Table ${numberMatch[0]}`;
+                  }
+                  return tableId;
+                })
+              : [];
 
           completedOrders.push({
             id: orderData.id,
@@ -219,25 +234,37 @@ const OrdersPage: React.FC = () => {
     
     const matchesTab = order.orderType === selectedTab;
     
-    const matchesDate = order.settledAt.toISOString().split('T')[0] === selectedDate;
+    const orderDate = order.settledAt.toISOString().split('T')[0];
+    const matchesDateRange = orderDate >= startDate && orderDate <= endDate;
     
-    return matchesSearch && matchesTab && matchesDate;
+    return matchesSearch && matchesTab && matchesDateRange;
   });
 
   // Get order statistics
   const getStats = () => {
-    const todayOrders = orders.filter(order => 
-      order.settledAt.toISOString().split('T')[0] === new Date().toISOString().split('T')[0]
-    );
+    const dateRangeOrders = orders.filter(order => {
+      const orderDate = order.settledAt.toISOString().split('T')[0];
+      return orderDate >= startDate && orderDate <= endDate;
+    });
     
-    const dineinOrders = todayOrders.filter(order => order.orderType === 'dinein');
-    const deliveryOrders = todayOrders.filter(order => order.orderType === 'delivery');
+    const dineinOrders = dateRangeOrders.filter(order => order.orderType === 'dinein');
+    const deliveryOrders = dateRangeOrders.filter(order => order.orderType === 'delivery');
+    
+    const upiPayments = dateRangeOrders.filter(order => order.paymentMethod === 'upi');
+    const cashPayments = dateRangeOrders.filter(order => order.paymentMethod === 'cash');
+    const cardPayments = dateRangeOrders.filter(order => order.paymentMethod === 'card');
     
     return {
-      total: todayOrders.length,
+      total: dateRangeOrders.length,
       dinein: dineinOrders.length,
       delivery: deliveryOrders.length,
-      revenue: todayOrders.reduce((sum, order) => sum + order.totalAmount, 0)
+      revenue: dateRangeOrders.reduce((sum, order) => sum + order.totalAmount, 0),
+      upiRevenue: upiPayments.reduce((sum, order) => sum + order.totalAmount, 0),
+      cashRevenue: cashPayments.reduce((sum, order) => sum + order.totalAmount, 0),
+      cardRevenue: cardPayments.reduce((sum, order) => sum + order.totalAmount, 0),
+      upiCount: upiPayments.length,
+      cashCount: cashPayments.length,
+      cardCount: cardPayments.length
     };
   };
 
@@ -314,7 +341,7 @@ const OrdersPage: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `orders_${selectedTab}_${selectedDate}.csv`;
+      a.download = `orders_${selectedTab}_${startDate}_to_${endDate}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
       
@@ -351,11 +378,11 @@ const OrdersPage: React.FC = () => {
     <DashboardLayout title="Orders">
       <div className="space-y-6">
         {/* Header Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Orders Today</p>
+                <p className="text-sm text-gray-500">Total Orders</p>
                 <p className="text-2xl font-bold">{stats.total}</p>
               </div>
               <Receipt className="w-8 h-8 text-blue-500" />
@@ -385,12 +412,54 @@ const OrdersPage: React.FC = () => {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Revenue Today</p>
+                <p className="text-sm text-gray-500">Total Revenue</p>
                 <p className="text-2xl font-bold text-green-600">
                   ₹{stats.revenue.toFixed(2)}
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-green-500" />
+            </div>
+          </Card>
+        </div>
+
+        {/* Payment Method Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Card className="p-4 border-l-4 border-l-purple-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">UPI Payments</p>
+                <p className="text-xl font-bold text-purple-600">
+                  ₹{stats.upiRevenue.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-400">{stats.upiCount} transactions</p>
+              </div>
+              <Smartphone className="w-8 h-8 text-purple-500" />
+            </div>
+          </Card>
+          
+          <Card className="p-4 border-l-4 border-l-green-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Cash Payments</p>
+                <p className="text-xl font-bold text-green-600">
+                  ₹{stats.cashRevenue.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-400">{stats.cashCount} transactions</p>
+              </div>
+              <DollarSign className="w-8 h-8 text-green-500" />
+            </div>
+          </Card>
+          
+          <Card className="p-4 border-l-4 border-l-blue-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Card Payments</p>
+                <p className="text-xl font-bold text-blue-600">
+                  ₹{stats.cardRevenue.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-400">{stats.cardCount} transactions</p>
+              </div>
+              <CreditCard className="w-8 h-8 text-blue-500" />
             </div>
           </Card>
         </div>
@@ -423,28 +492,39 @@ const OrdersPage: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-3 flex-1 lg:max-w-md">
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                icon={<Calendar size={18} className="text-gray-500" />}
-                className="flex-1"
-              />
+            <div className="flex flex-col lg:flex-row gap-3 flex-1 lg:max-w-xl">
+              <div className="flex flex-col sm:flex-row gap-2 flex-1">
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  icon={<Calendar size={18} className="text-gray-500" />}
+                  placeholder="Start Date"
+                  className="flex-1"
+                />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  icon={<Calendar size={18} className="text-gray-500" />}
+                  placeholder="End Date"
+                  className="flex-1"
+                />
+              </div>
               
               <Input
                 placeholder="Search orders..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 icon={<Search size={18} className="text-gray-500" />}
-                className="flex-1"
+                className="flex-1 lg:max-w-xs"
               />
               
               <Button
                 variant="outline"
                 onClick={handleExport}
                 disabled={filteredOrders.length === 0}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 whitespace-nowrap"
               >
                 <Download size={16} />
                 Export
@@ -459,9 +539,9 @@ const OrdersPage: React.FC = () => {
             <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No orders found</h3>
             <p className="text-gray-500">
-              {searchTerm || selectedDate !== new Date().toISOString().split('T')[0]
+              {searchTerm || startDate !== endDate || startDate !== new Date().toISOString().split('T')[0]
                 ? 'No orders match your filters'
-                : `No ${selectedTab} orders for ${formatDate(new Date(selectedDate))}`
+                : `No ${selectedTab} orders for selected date range`
               }
             </p>
           </Card>

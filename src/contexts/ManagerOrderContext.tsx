@@ -77,7 +77,7 @@ export const ManagerOrderProvider: React.FC<ManagerOrderProviderProps> = ({ chil
     };
     
     loadGstSettings();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   // Calculate order totals
   const calculateOrderTotals = useCallback((items: OrderItem[]) => {
@@ -477,7 +477,7 @@ export const ManagerOrderProvider: React.FC<ManagerOrderProviderProps> = ({ chil
     try {
       // First try to load from localStorage
       const key = getManagerOrderStorageKey(orderId);
-      let stored = localStorage.getItem(key);
+      const stored = localStorage.getItem(key);
       
       if (stored) {
         const parsed = JSON.parse(stored);
@@ -538,7 +538,7 @@ export const ManagerOrderProvider: React.FC<ManagerOrderProviderProps> = ({ chil
     try {
       // First try to load from localStorage
       const key = getManagerOrderStorageKey(orderId);
-      let stored = localStorage.getItem(key);
+      const stored = localStorage.getItem(key);
       
       if (stored) {
         const parsed = JSON.parse(stored);

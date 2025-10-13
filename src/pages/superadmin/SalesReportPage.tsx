@@ -1,22 +1,31 @@
 import React, { useState, useMemo } from 'react';
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
-import { BarChart, FileText, Download, Calendar, Calculator } from 'lucide-react';
+import { BarChart, FileText, Download, Calendar, Calculator, Filter, Building, TrendingUp } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { useSales } from '../../contexts/SalesContext';
-import { useReturns } from '../../contexts/ReturnContext';
-import { usePurchases } from '../../contexts/PurchaseContext';
+import { useOrders } from '../../contexts/OrderContext';
+import { useFranchises } from '../../contexts/FranchiseContext';
+import { useLocations } from '../../contexts/LocationContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useFeatures } from '../../hooks/useFeatures';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import { Card } from '../../components/ui/card';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { Bar, Pie } from 'react-chartjs-2';
+
+// Register ChartJS components
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 const SuperAdminSalesReportPage: React.FC = () => {
-  const { sales, loading, error } = useSales();
-  const { returns } = useReturns();
-  const { purchases } = usePurchases();
+  const { orders, loading, error } = useOrders();
+  const { franchises } = useFranchises();
+  const { locations } = useLocations();
+  const { currentUser } = useAuth();
   const { features } = useFeatures();
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedFranchiseId, setSelectedFranchiseId] = useState<string>('all');
 
   const dateRanges = [
     {
@@ -56,84 +65,148 @@ const SuperAdminSalesReportPage: React.FC = () => {
     }
   ];
 
-  const filteredSales = useMemo(() => {
-    return sales.filter(sale => {
-      const saleDate = sale.createdAt;
-      const start = startOfDay(new Date(startDate));
-      const end = endOfDay(new Date(endDate));
-      
-      return saleDate >= start && saleDate <= end;
-    });
-  }, [sales, startDate, endDate]);
+  // Get franchise locations for filtering
+  const franchiseLocations = useMemo(() => {
+    if (selectedFranchiseId === 'all') return locations;
+    return locations.filter(location => location.franchiseId === selectedFranchiseId);
+  }, [selectedFranchiseId, locations]);
 
-  const filteredReturns = useMemo(() => {
-    if (!features.canProcessReturns()) return [];
-    
-    return returns.filter(ret => {
-      const returnDate = ret.createdAt;
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const orderDate = order.createdAt;
       const start = startOfDay(new Date(startDate));
       const end = endOfDay(new Date(endDate));
       
-      return ret.type === 'sale' && returnDate >= start && returnDate <= end;
-    });
-  }, [returns, startDate, endDate, features]);
-
-  const filteredPurchases = useMemo(() => {
-    return purchases.filter(purchase => {
-      const purchaseDate = purchase.createdAt;
-      const start = startOfDay(new Date(startDate));
-      const end = endOfDay(new Date(endDate));
+      // Filter by franchise if specified
+      const matchesFranchise = selectedFranchiseId === 'all' || 
+        franchiseLocations.some(location => location.id === order.locationId);
       
-      return purchaseDate >= start && purchaseDate <= end;
+      // Only include settled orders for revenue calculations
+      return order.status === 'settled' && orderDate >= start && orderDate <= end && matchesFranchise;
     });
-  }, [purchases, startDate, endDate]);
+  }, [orders, startDate, endDate, selectedFranchiseId, franchiseLocations]);
 
   const summary = useMemo(() => {
-    const grossSales = filteredSales.reduce((sum, sale) => sum + sale.total, 0);
-    const totalReturns = features.canProcessReturns() 
-      ? filteredReturns.reduce((sum, ret) => sum + ret.total, 0)
-      : 0;
-    const netSales = grossSales - totalReturns;
+    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
+    const totalOrders = filteredOrders.length;
     
-    const grossTransactions = filteredSales.length;
-    const returnTransactions = features.canProcessReturns() ? filteredReturns.length : 0;
-    const netTransactions = grossTransactions - returnTransactions;
+    // Payment method breakdown
+    const upiOrders = filteredOrders.filter(order => order.paymentMethod === 'upi');
+    const cashOrders = filteredOrders.filter(order => order.paymentMethod === 'cash');
+    const cardOrders = filteredOrders.filter(order => order.paymentMethod === 'card');
     
-    const grossItems = filteredSales.reduce((sum, sale) => 
-      sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
-    const returnedItems = features.canProcessReturns()
-      ? filteredReturns.reduce((sum, ret) =>
-          sum + ret.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0)
-      : 0;
-    const netItems = grossItems - returnedItems;
+    const upiRevenue = upiOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
+    const cashRevenue = cashOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
+    const cardRevenue = cardOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
+    
+    // Order type breakdown
+    const dineInOrders = filteredOrders.filter(order => order.orderType === 'dinein');
+    const deliveryOrders = filteredOrders.filter(order => order.orderType === 'delivery');
+    
+    // Calculate total items sold
+    const totalItems = filteredOrders.reduce((sum, order) => 
+      sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+    
+    // Average order value
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-    const paymentMethods = filteredSales.reduce((acc, sale) => {
-      acc[sale.paymentMethod] = (acc[sale.paymentMethod] || 0) + sale.total;
+    // Franchise breakdown
+    const franchiseBreakdown = franchises.map(franchise => {
+      const franchiseOrders = filteredOrders.filter(order => {
+        const location = locations.find(loc => loc.id === order.locationId);
+        return location?.franchiseId === franchise.id;
+      });
+      
+      const franchiseRevenue = franchiseOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
+      const franchiseOrderCount = franchiseOrders.length;
+      
+      return {
+        franchiseId: franchise.id,
+        franchiseName: franchise.name,
+        revenue: franchiseRevenue,
+        orderCount: franchiseOrderCount,
+        avgOrderValue: franchiseOrderCount > 0 ? franchiseRevenue / franchiseOrderCount : 0
+      };
+    }).filter(franchise => franchise.orderCount > 0);
+
+    return {
+      totalRevenue,
+      totalOrders,
+      totalItems,
+      avgOrderValue,
+      paymentBreakdown: {
+        upi: { revenue: upiRevenue, count: upiOrders.length },
+        cash: { revenue: cashRevenue, count: cashOrders.length },
+        card: { revenue: cardRevenue, count: cardOrders.length }
+      },
+      orderTypeBreakdown: {
+        dinein: { revenue: dineInOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0), count: dineInOrders.length },
+        delivery: { revenue: deliveryOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0), count: deliveryOrders.length }
+      },
+      franchiseBreakdown
+    };
+  }, [filteredOrders, features, franchises, locations]);
+
+  // Chart data preparation
+  const paymentChartData = useMemo(() => ({
+    labels: ['UPI', 'Cash', 'Card'],
+    datasets: [{
+      label: 'Revenue by Payment Method',
+      data: [
+        summary.paymentBreakdown.upi.revenue,
+        summary.paymentBreakdown.cash.revenue,
+        summary.paymentBreakdown.card.revenue
+      ],
+      backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'],
+      borderColor: ['#059669', '#2563eb', '#d97706'],
+      borderWidth: 1
+    }]
+  }), [summary]);
+
+  const orderTypeChartData = useMemo(() => ({
+    labels: ['Dine-in', 'Delivery'],
+    datasets: [{
+      label: 'Orders by Type',
+      data: [
+        summary.orderTypeBreakdown.dinein.count,
+        summary.orderTypeBreakdown.delivery.count
+      ],
+      backgroundColor: ['#8b5cf6', '#ef4444'],
+      borderColor: ['#7c3aed', '#dc2626'],
+      borderWidth: 1
+    }]
+  }), [summary]);
+
+  const franchiseChartData = useMemo(() => ({
+    labels: summary.franchiseBreakdown.map(f => f.franchiseName),
+    datasets: [{
+      label: 'Revenue by Franchise',
+      data: summary.franchiseBreakdown.map(f => f.revenue),
+      backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'],
+      borderColor: ['#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777'],
+      borderWidth: 1
+    }]
+  }), [summary]);
+
+  // Prepare data for daily sales chart
+  const dailySalesData = useMemo(() => {
+    const dailyTotals = filteredOrders.reduce((acc, order) => {
+      const date = format(order.createdAt, 'yyyy-MM-dd');
+      acc[date] = (acc[date] || 0) + (order.total || order.totalAmount || 0);
       return acc;
     }, {} as Record<string, number>);
 
-    // Subtract returns from payment methods only if returns are enabled
-    if (features.canProcessReturns()) {
-      filteredReturns.forEach(ret => {
-        if (ret.refundMethod) {
-          paymentMethods[ret.refundMethod] = (paymentMethods[ret.refundMethod] || 0) - ret.total;
-        }
-      });
-    }
-
     return {
-      grossSales,
-      totalReturns,
-      netSales,
-      grossTransactions,
-      returnTransactions,
-      netTransactions,
-      grossItems,
-      returnedItems,
-      netItems,
-      paymentMethods
+      labels: Object.keys(dailyTotals),
+      datasets: [{
+        label: 'Daily Revenue',
+        data: Object.values(dailyTotals),
+        backgroundColor: 'rgba(34, 197, 94, 0.2)',
+        borderColor: 'rgb(34, 197, 94)',
+        borderWidth: 1
+      }]
     };
-  }, [filteredSales, filteredReturns, features]);
+  }, [filteredOrders]);
 
   const handleDateRangeSelect = (range: { start: string; end: string }) => {
     setStartDate(range.start);
@@ -141,43 +214,45 @@ const SuperAdminSalesReportPage: React.FC = () => {
   };
 
   const downloadReport = () => {
-    const headers = ['Date', 'Type', 'Invoice', 'Items', 'Payment Method', 'Amount'];
+    const headers = ['Date', 'Order #', 'Type', 'Items', 'Payment Method', 'Amount', 'Franchise', 'Location'];
     
-    // Combine sales and returns for the report (only if returns are enabled)
-    const allTransactions = [
-      ...filteredSales.map(sale => [
-        format(sale.createdAt, 'dd/MM/yyyy HH:mm'),
-        'Sale',
-        sale.invoiceNumber,
-        sale.items.reduce((sum, item) => sum + item.quantity, 0),
-        sale.paymentMethod.toUpperCase(),
-        `₹${sale.total.toFixed(2)}`
-      ]),
-      ...(features.canProcessReturns() ? filteredReturns.map(ret => [
-        format(ret.createdAt, 'dd/MM/yyyy HH:mm'),
-        'Return',
-        ret.referenceId.slice(0, 8),
-        ret.items.reduce((sum, item) => sum + item.quantity, 0),
-        (ret.refundMethod || 'CASH').toUpperCase(),
-        `-₹${ret.total.toFixed(2)}`
-      ]) : [])
-    ].sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+    // Create order data for the report
+    const orderData = filteredOrders.map(order => {
+      const location = locations.find(loc => loc.id === order.locationId);
+      const franchise = franchises.find(f => f.id === location?.franchiseId);
+      
+      return [
+        format(order.createdAt, 'dd/MM/yyyy HH:mm'),
+        order.orderNumber,
+        order.orderType === 'dinein' ? 'Dine-in' : 'Delivery',
+        order.items.reduce((sum, item) => sum + item.quantity, 0),
+        (order.paymentMethod || 'CASH').toUpperCase(),
+        `₹${(order.total || order.totalAmount || 0).toFixed(2)}`,
+        franchise?.name || 'Unknown',
+        location?.name || 'Unknown'
+      ];
+    }).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
 
     // Add summary rows
     const summaryRows = [
-      ['', '', '', '', '', ''],
-      ['SUMMARY', '', '', '', '', ''],
-      ['Gross Sales', '', '', summary.grossTransactions, '', `₹${summary.grossSales.toFixed(2)}`],
-      ...(features.canProcessReturns() ? [
-        ['Returns', '', '', summary.returnTransactions, '', `-₹${summary.totalReturns.toFixed(2)}`],
-        ['Net Sales', '', '', summary.netTransactions, '', `₹${summary.netSales.toFixed(2)}`]
-      ] : []),
-      [features.canProcessReturns() ? 'Net Items Sold' : 'Total Items Sold', '', '', summary.netItems, '', '']
+      ['', '', '', '', '', '', '', ''],
+      ['SUMMARY', '', '', '', '', '', '', ''],
+      ['Total Orders', '', '', summary.totalOrders, '', `₹${summary.totalRevenue.toFixed(2)}`, '', ''],
+      ['Average Order Value', '', '', '', '', `₹${summary.avgOrderValue.toFixed(2)}`, '', ''],
+      ['Total Items Sold', '', '', summary.totalItems, '', '', '', ''],
+      ['', 'PAYMENT BREAKDOWN', '', '', '', '', '', ''],
+      ['UPI Payments', '', '', summary.paymentBreakdown.upi.count, '', `₹${summary.paymentBreakdown.upi.revenue.toFixed(2)}`, '', ''],
+      ['Cash Payments', '', '', summary.paymentBreakdown.cash.count, '', `₹${summary.paymentBreakdown.cash.revenue.toFixed(2)}`, '', ''],
+      ['Card Payments', '', '', summary.paymentBreakdown.card.count, '', `₹${summary.paymentBreakdown.card.revenue.toFixed(2)}`, '', ''],
+      ['', 'FRANCHISE BREAKDOWN', '', '', '', '', '', ''],
+      ...summary.franchiseBreakdown.map(franchise => [
+        franchise.franchiseName, '', '', franchise.orderCount, '', `₹${franchise.revenue.toFixed(2)}`, '', ''
+      ])
     ];
 
     const csv = [
       headers.join(','),
-      ...allTransactions.map(row => row.join(',')),
+      ...orderData.map(row => row.join(',')),
       ...summaryRows.map(row => row.join(','))
     ].join('\n');
 
@@ -185,7 +260,7 @@ const SuperAdminSalesReportPage: React.FC = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `sales-report-${startDate}-to-${endDate}.csv`;
+    a.download = `franchise-orders-report-${startDate}-to-${endDate}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -193,7 +268,7 @@ const SuperAdminSalesReportPage: React.FC = () => {
   };
 
   return (
-    <DashboardLayout title="Sales Report">
+    <DashboardLayout title="Franchise Sales Report">
       <div className="space-y-4 sm:space-y-6">
         {error && <ErrorAlert message={error} />}
 
@@ -228,6 +303,37 @@ const SuperAdminSalesReportPage: React.FC = () => {
                 icon={<Calendar size={18} className="text-gray-500" />}
               />
             </div>
+
+            {/* Franchise Filter */}
+            <div className="flex items-center gap-2">
+              <Building size={18} className="text-gray-500" />
+              <label className="text-sm font-medium text-gray-700">Franchise:</label>
+              <select
+                value={selectedFranchiseId}
+                onChange={(e) => setSelectedFranchiseId(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Franchises</option>
+                {franchises.map(franchise => (
+                  <option key={franchise.id} value={franchise.id}>
+                    {franchise.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-end gap-2">
+              <Button
+                variant="primary"
+                onClick={downloadReport}
+                disabled={loading || filteredOrders.length === 0}
+                className="w-full sm:w-auto"
+              >
+                <Download size={18} className="mr-2" />
+                <span className="hidden sm:inline">Export CSV</span>
+                <span className="sm:hidden">Export</span>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -235,89 +341,236 @@ const SuperAdminSalesReportPage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-green-100 rounded-lg">
+              <div className="p-2 bg-green-100 rounded-lg">
                 <BarChart className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <p className="text-xs sm:text-sm font-medium text-gray-600">
-                  {features.canProcessReturns() ? 'Net Sales' : 'Total Sales'}
+                  Total Revenue
                 </p>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                  ₹{summary.netSales.toFixed(2)}
+                  ₹{summary.totalRevenue.toFixed(2)}
                 </h3>
-                {features.canProcessReturns() && (
-                  <p className="text-xs text-gray-500 mt-1 truncate">
-                    Gross: ₹{summary.grossSales.toFixed(2)} | Returns: ₹{summary.totalReturns.toFixed(2)}
-                  </p>
-                )}
+                <p className="text-xs text-gray-500 mt-1 truncate">
+                  From {summary.totalOrders} orders
+                </p>
               </div>
             </div>
           </div>
 
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-blue-100 rounded-lg">
+              <div className="p-2 bg-blue-100 rounded-lg">
                 <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <p className="text-xs sm:text-sm font-medium text-gray-600">
-                  {features.canProcessReturns() ? 'Net Transactions' : 'Total Transactions'}
+                  Total Orders
                 </p>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
-                  {summary.netTransactions}
+                  {summary.totalOrders}
                 </h3>
-                {features.canProcessReturns() && (
-                  <p className="text-xs text-gray-500 mt-1 truncate">
-                    Sales: {summary.grossTransactions} | Returns: {summary.returnTransactions}
-                  </p>
-                )}
+                <p className="text-xs text-gray-500 mt-1 truncate">
+                  Avg: ₹{summary.avgOrderValue.toFixed(2)}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-amber-100 rounded-lg">
-                <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
+              <div className="p-2 bg-amber-100 rounded-lg">
+                <Calculator className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <p className="text-xs sm:text-sm font-medium text-gray-600">
-                  {features.canProcessReturns() ? 'Net Items Sold' : 'Total Items Sold'}
+                  Total Items Sold
                 </p>
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
-                  {summary.netItems}
+                  {summary.totalItems}
                 </h3>
-                {features.canProcessReturns() && (
-                  <p className="text-xs text-gray-500 mt-1 truncate">
-                    Sold: {summary.grossItems} | Returned: {summary.returnedItems}
-                  </p>
-                )}
+                <p className="text-xs text-gray-500 mt-1 truncate">
+                  Across all orders
+                </p>
               </div>
             </div>
           </div>
 
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-purple-100 rounded-lg">
-                <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
               </div>
               <div className="ml-3 sm:ml-4 min-w-0">
                 <p className="text-xs sm:text-sm font-medium text-gray-600">
-                  Avg. {features.canProcessReturns() ? 'Net' : 'Total'} Sale
+                  Avg Order Value
                 </p>
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-                  ₹{(summary.netSales / (summary.netTransactions || 1)).toFixed(2)}
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
+                  ₹{summary.avgOrderValue.toFixed(2)}
                 </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Per transaction
+                <p className="text-xs text-gray-500 mt-1 truncate">
+                  Per order average
                 </p>
               </div>
             </div>
           </div>
         </div>
-        
-        {/* Combined Sales and Returns Table */}
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
+              Daily Revenue
+            </h3>
+            <div className="h-64 sm:h-80">
+              <Bar
+                data={dailySalesData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        callback: (value) => `₹${value}`
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
+              Revenue by Franchise
+            </h3>
+            <div className="h-64 sm:h-80">
+              <Bar
+                data={franchiseChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        callback: (value) => `₹${value}`
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
+              Payment Methods
+            </h3>
+            <div className="h-64 sm:h-80">
+              <Pie
+                data={paymentChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom'
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
+              Order Types
+            </h3>
+            <div className="h-64 sm:h-80">
+              <Pie
+                data={orderTypeChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: 'bottom'
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Franchise Performance Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Franchise Performance</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Franchise
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Orders
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Revenue
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Avg Order Value
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500">
+                      Loading data...
+                    </td>
+                  </tr>
+                ) : summary.franchiseBreakdown.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500">
+                      No franchise data found for the selected date range
+                    </td>
+                  </tr>
+                ) : (
+                  summary.franchiseBreakdown
+                    .sort((a, b) => b.revenue - a.revenue)
+                    .map(franchise => (
+                      <tr key={franchise.franchiseId}>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {franchise.franchiseName}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {franchise.orderCount}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          ₹{franchise.revenue.toFixed(2)}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          ₹{franchise.avgOrderValue.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Orders Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Recent Orders</h3>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -326,16 +579,19 @@ const SuperAdminSalesReportPage: React.FC = () => {
                     Date
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
+                    Order #
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Invoice
+                    Type
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Items
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Payment
+                  </th>
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Franchise
                   </th>
                   <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Amount
@@ -345,74 +601,65 @@ const SuperAdminSalesReportPage: React.FC = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan={7} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500">
                       Loading data...
                     </td>
                   </tr>
-                ) : filteredSales.length === 0 && filteredReturns.length === 0 ? (
+                ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500">
-                      No transactions found for the selected date range
+                    <td colSpan={7} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500">
+                      No orders found for the selected date range
                     </td>
                   </tr>
                 ) : (
-                  // Combine and sort sales and returns (only if returns are enabled)
-                  [...filteredSales.map(sale => ({ ...sale, type: 'sale' as const })),
-                   ...(features.canProcessReturns() ? filteredReturns.map(ret => ({ ...ret, type: 'return' as const })) : [])]
+                  filteredOrders
                     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-                    .map(transaction => (
-                      <tr key={transaction.id} className={transaction.type === 'return' ? 'bg-red-50' : ''}>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                          <span className="hidden sm:inline">{format(transaction.createdAt, 'dd/MM/yyyy HH:mm')}</span>
-                          <span className="sm:hidden">{format(transaction.createdAt, 'dd/MM HH:mm')}</span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            transaction.type === 'sale'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {transaction.type === 'sale' ? 'Sale' : 'Return'}
-                          </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
-                          <span className="hidden sm:inline">
-                            {transaction.type === 'sale' 
-                              ? (transaction as any).invoiceNumber
-                              : (transaction as any).referenceId?.slice(0, 8)
-                            }
-                          </span>
-                          <span className="sm:hidden">
-                            {transaction.type === 'sale' 
-                              ? (transaction as any).invoiceNumber?.slice(-4)
-                              : (transaction as any).referenceId?.slice(0, 4)
-                            }
-                          </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                          {transaction.items.reduce((sum, item) => sum + item.quantity, 0)}
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                          <span className="hidden sm:inline">
-                            {transaction.type === 'sale'
-                              ? (transaction as any).paymentMethod.toUpperCase()
-                              : ((transaction as any).refundMethod || 'CASH').toUpperCase()
-                            }
-                          </span>
-                          <span className="sm:hidden">
-                            {transaction.type === 'sale'
-                              ? (transaction as any).paymentMethod.charAt(0).toUpperCase()
-                              : ((transaction as any).refundMethod || 'C').charAt(0).toUpperCase()
-                            }
-                          </span>
-                        </td>
-                        <td className={`px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-right font-medium ${
-                          transaction.type === 'sale' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {transaction.type === 'sale' ? '+' : '-'}₹{transaction.total.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))
+                    .slice(0, 50) // Show last 50 orders
+                    .map(order => {
+                      const location = locations.find(loc => loc.id === order.locationId);
+                      const franchise = franchises.find(f => f.id === location?.franchiseId);
+                      
+                      return (
+                        <tr key={order.id}>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                            <span className="hidden sm:inline">{format(order.createdAt, 'dd/MM/yyyy HH:mm')}</span>
+                            <span className="sm:hidden">{format(order.createdAt, 'dd/MM HH:mm')}</span>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {order.orderNumber}
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              order.orderType === 'dinein' 
+                                ? 'bg-purple-100 text-purple-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {order.orderType === 'dinein' ? 'Dine-in' : 'Delivery'}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {order.items.reduce((sum, item) => sum + item.quantity, 0)}
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              order.paymentMethod === 'upi' 
+                                ? 'bg-green-100 text-green-800'
+                                : order.paymentMethod === 'card'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {(order.paymentMethod || 'cash').toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {franchise?.name || 'Unknown'}
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
+                            ₹{(order.total || order.totalAmount || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })
                 )}
               </tbody>
             </table>

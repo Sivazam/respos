@@ -125,7 +125,7 @@ export const StockProvider: React.FC<StockProviderProps> = ({ children }) => {
 
   useEffect(() => {
     refreshStockUpdates();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addStockUpdate = async (data: StockUpdateFormData) => {
     setError(null);

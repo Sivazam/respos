@@ -1,6 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
-import { X, Building2, User, Mail, Phone, MapPin, Calendar, CreditCard } from 'lucide-react';
+import { X, Building2, User, CreditCard } from 'lucide-react';
 import { Franchise } from '../../types';
 
 interface FranchiseDetailsModalProps {
@@ -74,6 +74,30 @@ const FranchiseDetailsModal: React.FC<FranchiseDetailsModalProps> = ({ franchise
                   <Building2 className="h-5 w-5 mr-2" />
                   Basic Information
                 </h3>
+                
+                {/* Logo Display */}
+                <div className="mb-4">
+                  <label className="text-sm font-medium text-gray-500 block mb-2">Franchise Logo</label>
+                  <div className="flex items-center space-x-4">
+                    {franchise.logoUrl ? (
+                      <img
+                        src={franchise.logoUrl}
+                        alt={`${franchise.name} logo`}
+                        className="h-16 w-16 rounded-lg object-cover border-2 border-gray-200"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 bg-gray-200 rounded-lg flex items-center justify-center border-2 border-gray-200">
+                        <span className="text-lg text-gray-500 font-medium">
+                          {franchise.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-sm text-gray-500">
+                      {franchise.logoUrl ? 'Logo uploaded' : 'No logo uploaded'}
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Franchise Name</label>

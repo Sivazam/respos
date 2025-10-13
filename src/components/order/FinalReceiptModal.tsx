@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Receipt, 
   X, 
@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import Button from '../ui/Button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { orderService } from '../../services/orderService';
+import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 
 interface FinalReceiptModalProps {
   isOpen: boolean;
@@ -40,6 +42,7 @@ interface FinalReceiptModalProps {
     cgst?: number;
     sgst?: number;
     total?: number;
+    locationId?: string;
   };
   paymentMethod: string;
   isReadOnly?: boolean;
@@ -54,8 +57,44 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
   isReadOnly = false,
   onEditPaymentMethod
 }) => {
+  const [gstSettings, setGstSettings] = useState<{ cgst: number; sgst: number }>({ cgst: 2.5, sgst: 2.5 });
   const [isProcessing, setIsProcessing] = useState(false);
   const [printStatus, setPrintStatus] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [franchiseData, setFranchiseData] = useState<{
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    logoUrl: string | null;
+    gstNumber: string | null;
+  } | null>(null);
+
+  // Fetch GST settings and franchise data when order changes
+  useEffect(() => {
+    const fetchGstSettings = async () => {
+      if (order?.locationId) {
+        try {
+          const settings = await orderService.getLocationGSTSettings(order.locationId);
+          setGstSettings(settings);
+        } catch (error) {
+          console.error('Error fetching GST settings:', error);
+          setGstSettings({ cgst: 2.5, sgst: 2.5 }); // Fallback to 2.5% each
+        }
+      }
+    };
+
+    const fetchFranchiseData = async () => {
+      if (order?.locationId) {
+        const data = await getFranchiseReceiptData(order.locationId);
+        setFranchiseData(data);
+      }
+    };
+
+    if (isOpen && order) {
+      fetchGstSettings();
+      fetchFranchiseData();
+    }
+  }, [order, isOpen]);
 
   if (!isOpen) return null;
 
@@ -65,22 +104,18 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     return order.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
   };
 
-  const calculateGST = () => {
-    if (order.gstAmount) return order.gstAmount;
-    const subtotal = calculateSubtotal();
-    return subtotal * 0.05; // 5% GST
-  };
-
   const calculateCGST = () => {
     if (order.cgstAmount) return order.cgstAmount;
     if (order.cgst) return order.cgst;
-    return calculateGST() / 2; // Split GST equally
+    const subtotal = calculateSubtotal();
+    return subtotal * (gstSettings.cgst / 100);
   };
 
   const calculateSGST = () => {
     if (order.sgstAmount) return order.sgstAmount;
     if (order.sgst) return order.sgst;
-    return calculateGST() / 2; // Split GST equally
+    const subtotal = calculateSubtotal();
+    return subtotal * (gstSettings.sgst / 100);
   };
 
   const calculateGrandTotal = () => {
@@ -181,7 +216,8 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
   const getReceiptHTMLContent = () => {
     const { date: receiptDate, time: receiptTime } = formatReceiptDate();
     const tableDisplay = getTableDisplay(order.tableNames, order.tableIds);
-    const logoUrl = 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
+    // Use franchise logo if available, otherwise use default
+    const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
     
     return `
 <!DOCTYPE html>
@@ -372,10 +408,10 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
         </div>
         
         <div class="header">
-            <div class="header-line">FORKFLOW POS</div>
-            <div class="header-subtitle">123 Main Street, City</div>
-            <div class="header-subtitle">Phone: +91 98765 43210</div>
-            <div class="header-subtitle">GSTIN: 123456789012345</div>
+            <div class="header-line">${franchiseData?.name || 'FORKFLOW POS'}</div>
+            <div class="header-subtitle">${franchiseData?.address || '123 Main Street, City'}</div>
+            <div class="header-subtitle">Phone: ${franchiseData?.phone || '+91 98765 43210'}</div>
+            ${franchiseData?.gstNumber ? `<div class="header-subtitle">GSTIN: ${franchiseData.gstNumber}</div>` : ''}
         </div>
         
         <div class="divider"></div>
@@ -429,13 +465,13 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
             </div>
             ${cgst > 0 ? `
               <div class="total-row">
-                  <div class="total-label">CGST (2.5%)</div>
+                  <div class="total-label">CGST (${gstSettings.cgst}%)</div>
                   <div class="total-value">${formatPrice(cgst)}</div>
               </div>
             ` : ''}
             ${sgst > 0 ? `
               <div class="total-row">
-                  <div class="total-label">SGST (2.5%)</div>
+                  <div class="total-label">SGST (${gstSettings.sgst}%)</div>
                   <div class="total-value">${formatPrice(sgst)}</div>
               </div>
             ` : ''}
@@ -524,7 +560,8 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
 
   const { date: receiptDate, time: receiptTime } = formatReceiptDate();
   const tableDisplay = getTableDisplay(order.tableNames, order.tableIds);
-  const logoUrl = 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
+  // Use franchise logo if available, otherwise use default
+  const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -606,10 +643,12 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
               
               {/* Header */}
               <div className="text-center mb-4">
-                <div className="text-base font-bold">FORKFLOW POS</div>
-                <div className="text-xs text-gray-600">123 Main Street, City</div>
-                <div className="text-xs text-gray-600">Phone: +91 98765 43210</div>
-                <div className="text-xs text-gray-600">GSTIN: 123456789012345</div>
+                <div className="text-base font-bold">{franchiseData?.name || 'FORKFLOW POS'}</div>
+                <div className="text-xs text-gray-600">{franchiseData?.address || '123 Main Street, City'}</div>
+                <div className="text-xs text-gray-600">Phone: {franchiseData?.phone || '+91 98765 43210'}</div>
+                {franchiseData?.gstNumber && (
+                  <div className="text-xs text-gray-600">GSTIN: {franchiseData.gstNumber}</div>
+                )}
               </div>
               
               <div className="border-t border-b border-gray-400 py-2 my-3">
@@ -662,13 +701,13 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   </div>
                   {cgst > 0 && (
                     <div className="flex justify-between">
-                      <div>CGST (2.5%)</div>
+                      <div>CGST ({gstSettings.cgst}%)</div>
                       <div>{formatPrice(cgst)}</div>
                     </div>
                   )}
                   {sgst > 0 && (
                     <div className="flex justify-between">
-                      <div>SGST (2.5%)</div>
+                      <div>SGST ({gstSettings.sgst}%)</div>
                       <div>{formatPrice(sgst)}</div>
                     </div>
                   )}

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Receipt } from 'lucide-react';
 import Button from '../ui/Button';
+import { orderService } from '../../services/orderService';
 
 interface ViewOrderModalProps {
   isOpen: boolean;
@@ -31,6 +32,27 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
   onClose,
   order
 }) => {
+  const [gstSettings, setGstSettings] = useState<{ cgst: number; sgst: number }>({ cgst: 0, sgst: 0 });
+
+  // Fetch GST settings when order changes
+  useEffect(() => {
+    const fetchGstSettings = async () => {
+      if (order?.locationId) {
+        try {
+          const settings = await orderService.getLocationGSTSettings(order.locationId);
+          setGstSettings(settings);
+        } catch (error) {
+          console.error('Error fetching GST settings:', error);
+          setGstSettings({ cgst: 0, sgst: 0 });
+        }
+      }
+    };
+
+    if (isOpen && order) {
+      fetchGstSettings();
+    }
+  }, [order, isOpen]);
+
   if (!isOpen || !order) return null;
 
   const formatTime = (date: Date | string) => {
@@ -195,10 +217,27 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
                   <span className="text-gray-600">Subtotal:</span>
                   <span className="font-medium">₹{order.subtotal?.toFixed(2) || '0.00'}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">GST (5%):</span>
-                  <span className="font-medium">₹{order.gstAmount?.toFixed(2) || '0.00'}</span>
-                </div>
+                {(gstSettings.cgst > 0 || gstSettings.sgst > 0) ? (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">CGST ({gstSettings.cgst}%):</span>
+                      <span className="font-medium">₹{((order.subtotal || 0) * gstSettings.cgst / 100).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">SGST ({gstSettings.sgst}%):</span>
+                      <span className="font-medium">₹{((order.subtotal || 0) * gstSettings.sgst / 100).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Total GST ({gstSettings.cgst + gstSettings.sgst}%):</span>
+                      <span className="font-medium">₹{order.gstAmount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">GST (0%):</span>
+                    <span className="font-medium">₹0.00</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-semibold text-lg border-t pt-2 mt-2">
                   <span className="text-gray-900">Total Amount:</span>
                   <span className="text-green-600">₹{order.totalAmount?.toFixed(2) || '0.00'}</span>

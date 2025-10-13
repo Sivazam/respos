@@ -148,13 +148,36 @@ export class OrderService {
     try {
       const orderNumber = await this.generateOrderNumber(locationId);
       
+      // Fetch table names if not provided
+      let tableNames = orderData.tableNames || [];
+      if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
+        try {
+          // Fetch table documents to get their names
+          const tablePromises = orderData.tableIds.map((tableId: string) => 
+            getDoc(doc(db, 'tables', tableId))
+          );
+          const tableDocs = await Promise.all(tablePromises);
+          
+          tableNames = tableDocs.map(tableDoc => {
+            if (tableDoc.exists()) {
+              return `Table ${tableDoc.data().name}`;
+            }
+            return tableId; // Fallback to ID if table not found
+          });
+        } catch (error) {
+          console.error('Error fetching table names:', error);
+          // Fallback to table IDs
+          tableNames = orderData.tableIds;
+        }
+      }
+      
       // Create main order document - filter out undefined fields
       const orderDoc: Record<string, any> = {
         orderNumber,
         locationId,
         franchiseId,
         tableIds: orderData.tableIds,
-        tableNames: orderData.tableNames,
+        tableNames, // Use the fetched table names
         staffId: staff.uid,
         orderType: orderData.orderType || 'dinein',
         status: 'temporary',
@@ -239,6 +262,29 @@ export class OrderService {
       const orderData = orderDoc.data();
       const locationId = orderData.locationId;
       
+      // Ensure table names are present
+      let tableNames = orderData.tableNames || [];
+      if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
+        try {
+          // Fetch table documents to get their names
+          const tablePromises = orderData.tableIds.map((tableId: string) => 
+            getDoc(doc(db, 'tables', tableId))
+          );
+          const tableDocs = await Promise.all(tablePromises);
+          
+          tableNames = tableDocs.map(tableDoc => {
+            if (tableDoc.exists()) {
+              return `Table ${tableDoc.data().name}`;
+            }
+            return tableId; // Fallback to ID if table not found
+          });
+        } catch (error) {
+          console.error('Error fetching table names:', error);
+          // Fallback to table IDs
+          tableNames = orderData.tableIds;
+        }
+      }
+      
       // Calculate totals with proper GST
       const subtotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
       const gstCalculation = await this.calculateOrderGST(subtotal, locationId);
@@ -247,6 +293,7 @@ export class OrderService {
       // Update main order
       await updateDoc(orderRef, {
         items,
+        tableNames, // Ensure table names are updated if they were missing
         subtotal,
         cgstAmount: gstCalculation.cgstAmount,
         sgstAmount: gstCalculation.sgstAmount,
@@ -542,17 +589,57 @@ export class OrderService {
 
       const orderData = orderDoc.data();
 
-      // Update the order status to completed and save payment data
+      // Fetch table names if not already present
+      let tableNames = orderData.tableNames || [];
+      if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
+        try {
+          // Fetch table documents to get their names
+          const tablePromises = orderData.tableIds.map((tableId: string) => 
+            getDoc(doc(db, 'tables', tableId))
+          );
+          const tableDocs = await Promise.all(tablePromises);
+          
+          tableNames = tableDocs.map(tableDoc => {
+            if (tableDoc.exists()) {
+              return `Table ${tableDoc.data().name}`;
+            }
+            return tableId; // Fallback to ID if table not found
+          });
+        } catch (error) {
+          console.error('Error fetching table names:', error);
+          // Fallback to table IDs
+          tableNames = orderData.tableIds;
+        }
+      }
+
+      // Calculate proper GST amounts if not already present
+      const items = orderData.items || [];
+      const subtotal = items.reduce((total: number, item: any) => total + (item.price * item.quantity), 0);
+      const gstCalculation = await this.calculateOrderGST(subtotal, orderData.locationId);
+      const totalWithTax = subtotal + gstCalculation.totalGST;
+
+      // Use pendingPaymentMethod if available, otherwise use provided paymentData
+      const paymentMethodToUse = orderData.pendingPaymentMethod || paymentData.paymentMethod || 'cash';
+
+      // Update the order status to completed and save payment data with proper tax amounts
       await updateDoc(orderRef, {
         status: 'completed',
         paymentData: {
-          paymentMethod: paymentData.paymentMethod || 'cash',
-          amount: paymentData.amount || orderData.totalAmount,
+          paymentMethod: paymentMethodToUse,
+          amount: paymentData.amount || totalWithTax,
           settledAt: paymentData.settledAt || serverTimestamp(),
           settledBy: paymentData.settledBy || null
         },
+        tableNames, // Update table names if they were missing
+        subtotal,
+        cgstAmount: gstCalculation.cgstAmount,
+        sgstAmount: gstCalculation.sgstAmount,
+        gstAmount: gstCalculation.totalGST,
+        totalAmount: totalWithTax,
         completedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        // Clear pendingPaymentMethod after successful settlement
+        pendingPaymentMethod: null
       });
 
       // Remove the order from Firestore manager_pending_orders collection
@@ -575,103 +662,9 @@ export class OrderService {
 
       // Create order history entry
       await this.createOrderHistoryEntry(orderId, orderData.locationId, 'settled', paymentData.settledBy || 'manager', {
-        paymentMethod: paymentData.paymentMethod,
+        paymentMethod: paymentMethodToUse,
         amount: paymentData.amount
       });
-
-      // Also add to completed orders localStorage for manager dashboard visibility
-      const completedOrderData = {
-        id: orderId,
-        orderNumber: orderData.orderNumber,
-        tableIds: orderData.tableIds || [],
-        tableNames: orderData.tableNames || [],
-        items: orderData.items || [],
-        totalAmount: orderData.totalAmount,
-        status: 'settled',
-        orderType: orderData.orderType || 'dinein',
-        orderMode: orderData.orderMode,
-        createdAt: orderData.createdAt?.toDate?.() || orderData.createdAt,
-        updatedAt: new Date(),
-        settledAt: paymentData.settledAt?.toDate?.() || new Date(),
-        staffId: orderData.staffId || paymentData.settledBy || 'manager',
-        paymentMethod: paymentData.paymentMethod || 'cash',
-        locationId: orderData.locationId
-      };
-
-      // Save to completed orders for all users with location access
-      const completedOrdersKey = `completed_orders_${orderData.locationId}`;
-      const existingCompletedOrders = JSON.parse(localStorage.getItem(completedOrdersKey) || '[]');
-      existingCompletedOrders.push(completedOrderData);
-      localStorage.setItem(completedOrdersKey, JSON.stringify(existingCompletedOrders));
-
-      // Also save to user-specific completed orders
-      const userCompletedOrdersKey = `completed_orders_${paymentData.settledBy || 'manager'}`;
-      const userCompletedOrders = JSON.parse(localStorage.getItem(userCompletedOrdersKey) || '[]');
-      userCompletedOrders.push(completedOrderData);
-      localStorage.setItem(userCompletedOrdersKey, JSON.stringify(userCompletedOrders));
-
-      // Also save to admin and owner completed orders for visibility
-      const adminCompletedOrdersKey = `completed_orders_admin`;
-      const adminCompletedOrders = JSON.parse(localStorage.getItem(adminCompletedOrdersKey) || '[]');
-      adminCompletedOrders.push(completedOrderData);
-      localStorage.setItem(adminCompletedOrdersKey, JSON.stringify(adminCompletedOrders));
-
-      const ownerCompletedOrdersKey = `completed_orders_owner`;
-      const ownerCompletedOrders = JSON.parse(localStorage.getItem(ownerCompletedOrdersKey) || '[]');
-      ownerCompletedOrders.push(completedOrderData);
-      localStorage.setItem(ownerCompletedOrdersKey, JSON.stringify(ownerCompletedOrders));
-
-      // Also save to sales collection for admin dashboard visibility
-      try {
-        const saleData = {
-          id: orderId,
-          invoiceNumber: orderData.orderNumber,
-          createdAt: completedOrderData.createdAt,
-          updatedAt: new Date(),
-          total: orderData.totalAmount,
-          subtotal: orderData.subtotal || orderData.totalAmount,
-          cgstAmount: orderData.cgstAmount || 0,
-          sgstAmount: orderData.sgstAmount || 0,
-          gstAmount: orderData.gstAmount || 0,
-          paymentMethod: paymentData.paymentMethod || 'cash',
-          paymentStatus: 'paid',
-          status: 'completed',
-          items: orderData.items || [],
-          customerName: orderData.customerName || 'Walk-in Customer',
-          staffId: orderData.staffId || paymentData.settledBy || 'manager',
-          locationId: orderData.locationId,
-          orderType: orderData.orderType || 'dinein',
-          tableNames: orderData.tableNames || [],
-          notes: orderData.notes
-        };
-
-        // Save to sales localStorage
-        const salesKey = `sales_${orderData.locationId || 'default'}`;
-        const existingSales = JSON.parse(localStorage.getItem(salesKey) || '[]');
-        existingSales.push(saleData);
-        localStorage.setItem(salesKey, JSON.stringify(existingSales));
-
-        // Also save to general sales
-        const generalSalesKey = 'sales';
-        const generalSales = JSON.parse(localStorage.getItem(generalSalesKey) || '[]');
-        generalSales.push(saleData);
-        localStorage.setItem(generalSalesKey, JSON.stringify(generalSales));
-
-        // Also save to Firestore sales collection for admin dashboard visibility
-        try {
-          const salesRef = collection(db, 'sales');
-          await addDoc(salesRef, {
-            ...saleData,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        } catch (firestoreError) {
-          console.error('Failed to save to Firestore sales:', firestoreError);
-        }
-
-      } catch (error) {
-        console.error('Failed to save to sales collection:', error);
-      }
 
       console.log('✅ Order settled successfully:', orderId);
     } catch (error) {
@@ -834,8 +827,19 @@ export class OrderService {
       // Remove from temporary orders
       await this.removeTemporaryOrder(orderId);
 
+      // Remove from manager pending orders
+      await this.removeManagerPendingOrder(orderId);
+
+      // Update table status to available (release tables)
+      if (orderData.tableIds && orderData.tableIds.length > 0) {
+        await this.updateTablesStatus(orderData.tableIds, 'available', undefined, orderData.locationId);
+      }
+
       // Create order history entry
-      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'cancelled', staffId, {});
+      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'cancelled', staffId, {
+        tableIds: orderData.tableIds,
+        orderType: orderData.orderType
+      });
 
       console.log('✅ Order deleted successfully:', orderId);
     } catch (error) {
@@ -870,13 +874,36 @@ export class OrderService {
     try {
       const orderNumber = `MGR-${Date.now().toString().slice(-6)}`;
       
+      // Fetch table names if not provided
+      let tableNames = orderData.tableNames || [];
+      if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
+        try {
+          // Fetch table documents to get their names
+          const tablePromises = orderData.tableIds.map((tableId: string) => 
+            getDoc(doc(db, 'tables', tableId))
+          );
+          const tableDocs = await Promise.all(tablePromises);
+          
+          tableNames = tableDocs.map(tableDoc => {
+            if (tableDoc.exists()) {
+              return `Table ${tableDoc.data().name}`;
+            }
+            return tableId; // Fallback to ID if table not found
+          });
+        } catch (error) {
+          console.error('Error fetching table names:', error);
+          // Fallback to table IDs
+          tableNames = orderData.tableIds;
+        }
+      }
+      
       // Create main order document
       const orderDoc: Record<string, any> = {
         orderNumber,
         locationId,
         franchiseId,
         tableIds: orderData.tableIds,
-        tableNames: orderData.tableNames,
+        tableNames, // Use the fetched table names
         staffId: manager.uid,
         orderType: orderData.orderType || 'dinein',
         status: 'ongoing',
@@ -958,6 +985,42 @@ export class OrderService {
     });
     
     await batch.commit();
+  }
+
+  // Update order pending payment method
+  async updateOrderPendingPaymentMethod(orderId: string, paymentMethod: 'cash' | 'card' | 'upi'): Promise<void> {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      
+      await updateDoc(orderRef, {
+        pendingPaymentMethod: paymentMethod,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log('✅ Pending payment method updated:', orderId, paymentMethod);
+    } catch (error) {
+      console.error('Error updating pending payment method:', error);
+      throw error;
+    }
+  }
+
+  // Get user details by ID
+  async getUserDetails(userId: string): Promise<{ email: string; role: string; displayName?: string } | null> {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return {
+          email: userData.email || 'Unknown',
+          role: userData.role || 'Unknown',
+          displayName: userData.displayName
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      return null;
+    }
   }
 
   private async createOrderHistoryEntry(

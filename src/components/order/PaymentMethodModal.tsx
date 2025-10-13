@@ -7,13 +7,15 @@ interface PaymentMethodModalProps {
   onClose: () => void;
   onSelect: (paymentMethod: 'cash' | 'card' | 'upi') => void;
   isProcessing?: boolean;
+  selectedPaymentMethod?: 'cash' | 'card' | 'upi';
 }
 
 const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
   isOpen,
   onClose,
   onSelect,
-  isProcessing = false
+  isProcessing = false,
+  selectedPaymentMethod
 }) => {
   if (!isOpen) return null;
 
@@ -45,17 +47,17 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
           <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
         </div>
 
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full w-full mx-4">
           <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
+              <h3 className="text-base sm:text-lg leading-6 font-medium text-gray-900">
                 Select Payment Method
               </h3>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-500"
+                className="text-gray-400 hover:text-gray-500 p-1 rounded-lg hover:bg-gray-100 transition-colors"
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5 sm:h-6 sm:w-6" />
               </button>
             </div>
             
@@ -67,16 +69,20 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                     key={method.id}
                     onClick={() => onSelect(method.id)}
                     disabled={isProcessing}
-                    className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-blue-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`w-full flex items-center p-3 sm:p-4 border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      selectedPaymentMethod === method.id
+                        ? 'bg-blue-50 border-blue-500 hover:bg-blue-100'
+                        : 'border-gray-200 hover:bg-gray-50 hover:border-blue-300'
+                    }`}
                   >
                     <div className="flex-shrink-0">
-                      <Icon className="h-6 w-6 text-gray-600" />
+                      <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600" />
                     </div>
-                    <div className="ml-4 text-left">
-                      <div className="text-sm font-medium text-gray-900">
+                    <div className="ml-3 sm:ml-4 text-left flex-1 min-w-0">
+                      <div className="text-sm sm:text-base font-medium text-gray-900 truncate">
                         {method.name}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-xs sm:text-sm text-gray-500 truncate">
                         {method.description}
                       </div>
                     </div>

@@ -15,7 +15,8 @@ import {
   Users,
   MapPin,
   Settings,
-  Clock
+  Clock,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatures } from '../hooks/useFeatures';
@@ -86,7 +87,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       ] : []),
       // Conditionally show reports
       ...(features.canViewSalesReports() ? [
-        { name: 'Reports', href: '/admin/reports', icon: <BarChart4 size={20} /> }
+        { name: 'Reports', href: '/admin/reports', icon: <BarChart4 size={20} /> },
+        { name: 'Staff Performance', href: '/staff-performance', icon: <TrendingUp size={20} /> }
       ] : []),
       { name: 'Settings', href: '/admin/settings', icon: <Settings size={20} /> },
     ];
@@ -102,7 +104,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       { name: 'Users', href: '/manager/users', icon: <Users size={20} /> },
       // Conditionally show reports
       ...(features.canViewSalesReports() ? [
-        { name: 'Reports', href: '/manager/reports', icon: <BarChart4 size={20} /> }
+        { name: 'Reports', href: '/manager/reports', icon: <BarChart4 size={20} /> },
+        { name: 'Staff Performance', href: '/staff-performance', icon: <TrendingUp size={20} /> }
       ] : []),
       { name: 'Settings', href: '/manager/settings', icon: <Settings size={20} /> },
     ];

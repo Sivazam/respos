@@ -232,7 +232,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { currentUser, resetPassword } = useAuth();
+  const { currentUser, loading, resetPassword } = useAuth();
   const [searchParams] = useSearchParams();
   const [prefilledEmail, setPrefilledEmail] = useState('');
   const [showApprovalMessage, setShowApprovalMessage] = useState(false);
@@ -252,7 +252,7 @@ const LoginPage: React.FC = () => {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && currentUser.role && !loading) {
       switch (currentUser.role) {
         case 'superadmin':
           navigate('/superadmin');
@@ -270,7 +270,7 @@ const LoginPage: React.FC = () => {
           navigate('/');
       }
     }
-  }, [currentUser, navigate]);
+  }, [currentUser, currentUser?.role, loading, navigate]);
 
   const handleForgotPassword = async (email: string) => {
     try {

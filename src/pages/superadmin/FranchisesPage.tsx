@@ -405,9 +405,24 @@ const FranchisesPage: React.FC = () => {
                     return (
                       <tr key={franchise.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{franchise.name}</div>
-                            <div className="text-sm text-gray-500">{franchise.address}</div>
+                          <div className="flex items-center">
+                            {franchise.logoUrl ? (
+                              <img
+                                src={franchise.logoUrl}
+                                alt={`${franchise.name} logo`}
+                                className="h-8 w-8 rounded-full object-cover mr-3"
+                              />
+                            ) : (
+                              <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
+                                <span className="text-xs text-gray-500 font-medium">
+                                  {franchise.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{franchise.name}</div>
+                              <div className="text-sm text-gray-500">{franchise.address}</div>
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

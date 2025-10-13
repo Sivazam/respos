@@ -75,7 +75,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
     };
     
     loadGstSettings();
-  }, [currentLocation, currentUser]);
+  }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   // Calculate order totals
   const calculateOrderTotals = useCallback((items: OrderItem[]) => {

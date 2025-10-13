@@ -19,7 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Card } from '../../components/ui/card';
-import ReceiptModal from '../../components/order/ReceiptModal';
+import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 import toast from 'react-hot-toast';
 
 interface PendingOrder {
@@ -500,14 +500,25 @@ const ManagerPendingOrdersPage: React.FC = () => {
 
       {/* Receipt Modal */}
       {selectedOrder && (
-        <ReceiptModal
+        <FinalReceiptModal
           isOpen={showReceiptModal}
           onClose={() => {
             setShowReceiptModal(false);
             setSelectedOrder(null);
           }}
-          order={selectedOrder}
-          onSettle={(paymentMethod) => handleSettleOrder(selectedOrder, paymentMethod)}
+          order={{
+            ...selectedOrder,
+            subtotal: selectedOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+            totalAmount: selectedOrder.totalAmount,
+            total: selectedOrder.totalAmount,
+            paymentData: {
+              paymentMethod: 'cash',
+              settledAt: new Date()
+            },
+            locationId: currentUser?.locationId
+          }}
+          paymentMethod="cash"
+          isReadOnly={true}
         />
       )}
 

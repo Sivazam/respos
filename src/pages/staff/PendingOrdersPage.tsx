@@ -17,6 +17,9 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { useTables } from '../../contexts/TableContext';
 import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplayContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLocations } from '../../contexts/LocationContext';
+import { OrderService } from '../../services/orderService';
 import { OrderItem } from '../../types';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -44,6 +47,8 @@ const StaffPendingOrdersPage: React.FC = () => {
   const { tables, releaseTable } = useTables();
   const { loadFromLocalStorage } = useTemporaryOrder();
   const { temporaryOrders, loading: contextLoading } = useTemporaryOrdersDisplay();
+  const { currentUser } = useAuth();
+  const { currentLocation } = useLocations();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'temporary' | 'ongoing'>('all');
@@ -52,6 +57,7 @@ const StaffPendingOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<any>(null);
+  const [orderCreators, setOrderCreators] = useState<{ [key: string]: { email: string; role: string; displayName?: string } }>({});
 
   // Convert temporary orders to pending orders format
   const pendingOrders = temporaryOrders.map(order => ({
@@ -67,8 +73,32 @@ const StaffPendingOrdersPage: React.FC = () => {
     status: order.status === 'temporary' ? 'temporary' : 'ongoing',
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
-    staffId: order.staffId
+    staffId: order.staffId,
+    locationId: order.locationId || currentUser?.locationId
   }));
+
+  // Fetch order creator details when orders change
+  useEffect(() => {
+    const fetchOrderCreators = async () => {
+      const creators: { [key: string]: { email: string; role: string; displayName?: string } } = {};
+      
+      for (const order of pendingOrders) {
+        // Fetch creator details if not already cached
+        if (order.staffId && !creators[order.staffId]) {
+          const creatorDetails = await OrderService.getInstance().getUserDetails(order.staffId);
+          if (creatorDetails) {
+            creators[order.staffId] = creatorDetails;
+          }
+        }
+      }
+      
+      setOrderCreators(creators);
+    };
+
+    if (pendingOrders.length > 0) {
+      fetchOrderCreators();
+    }
+  }, [pendingOrders]);
 
   // Filter orders
   const filteredOrders = pendingOrders.filter(order => {
@@ -114,23 +144,15 @@ const StaffPendingOrdersPage: React.FC = () => {
 
   // Confirm delete order
   const confirmDeleteOrder = async () => {
-    if (!orderToDelete) return;
+    if (!orderToDelete || !currentUser) return;
 
     try {
-      // For now, just release tables and show success
-      // The order will be cleaned up automatically when the context refreshes
+      console.log('🗑️ Deleting order:', orderToDelete.id, orderToDelete.orderNumber);
+      const orderService = OrderService.getInstance();
       
-      // Release tables if it's a dine-in order
-      if (orderToDelete.tableIds && orderToDelete.tableIds.length > 0) {
-        for (const tableId of orderToDelete.tableIds) {
-          try {
-            await releaseTable(tableId);
-            console.log(`Successfully released table ${tableId} for deleted order ${orderToDelete.id}`);
-          } catch (error) {
-            console.error(`Failed to release table ${tableId}:`, error);
-          }
-        }
-      }
+      // Delete the order from database (this will also release tables automatically)
+      await orderService.deleteOrder(orderToDelete.id, currentUser.uid);
+      console.log('✅ Order deleted from database and tables released automatically');
       
       toast.success(`Order ${orderToDelete.orderNumber} cancelled successfully`);
       setShowDeleteConfirm(false);
@@ -334,6 +356,24 @@ const StaffPendingOrdersPage: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <Receipt size={16} />
                         <span>{order.items.length} items</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-6 text-sm text-gray-500 mb-2">
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">Location:</span>
+                        <span>{currentLocation?.name || 'Unknown Location'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">Created by:</span>
+                        {orderCreators[order.staffId] ? (
+                          <div className="flex items-center gap-1">
+                            <span className="capitalize">{orderCreators[order.staffId].role}</span>
+                            <span>({orderCreators[order.staffId].email})</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">Loading...</span>
+                        )}
                       </div>
                     </div>
                     

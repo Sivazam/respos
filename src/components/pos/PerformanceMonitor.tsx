@@ -1,4 +1,3 @@
-'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { Activity, Zap, Database, Cpu } from 'lucide-react';

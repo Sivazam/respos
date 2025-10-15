@@ -9,7 +9,8 @@ import { useVirtualScroll, useDebounce, useRenderPerformance } from '@/hooks/use
 
 interface OptimizedProductListProps {
   products: Product[];
-  onAddToCart: (product: Product, quantity: number) => void;
+  onAddToCart?: (product: Product, quantity: number) => void;
+  onAddItem?: (product: Product) => void;
   cartItems: CartItem[];
 }
 
@@ -21,17 +22,23 @@ const ProductItem = ({
   product, 
   index, 
   cartQuantity, 
-  onAddToCart 
+  onAddToCart,
+  onAddItem
 }: { 
   product: Product; 
   index: number; 
   cartQuantity: number;
-  onAddToCart: (product: Product, quantity: number) => void;
+  onAddToCart?: (product: Product, quantity: number) => void;
+  onAddItem?: (product: Product) => void;
 }) => {
   const [quantity, setQuantity] = useState(1);
   
   const handleAddToCart = () => {
-    onAddToCart(product, quantity);
+    if (onAddToCart) {
+      onAddToCart(product, quantity);
+    } else if (onAddItem) {
+      onAddItem(product);
+    }
     setQuantity(1);
   };
   
@@ -119,6 +126,7 @@ const ProductItem = ({
 export function OptimizedProductList({ 
   products, 
   onAddToCart, 
+  onAddItem,
   cartItems 
 }: OptimizedProductListProps) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -201,6 +209,7 @@ export function OptimizedProductList({
                 index={index}
                 cartQuantity={getCartQuantity(product.id)}
                 onAddToCart={onAddToCart}
+                onAddItem={onAddItem}
               />
             ))}
           </div>

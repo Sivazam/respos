@@ -14,6 +14,7 @@ import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import { Card } from '../../components/ui/card';
 import OrderModeSelection from '../../components/order/OrderModeSelection';
+import PortionSelectionModal from '../../components/pos/PortionSelectionModal';
 import toast from 'react-hot-toast';
 
 interface TableBasedPOSPageProps {
@@ -47,6 +48,8 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [orderMode, setOrderMode] = useState<'zomato' | 'swiggy' | 'in-store'>('in-store');
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [showPortionModal, setShowPortionModal] = useState(false);
 
   // Get order context from navigation state
   const orderContext = location.state as {
@@ -147,18 +150,44 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
 
   // Handle adding items to order
   const handleAddItem = (menuItem: MenuItem) => {
-    const orderItem: OrderItem = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      menuItemId: menuItem.id,
-      name: menuItem.name,
-      price: menuItem.price,
-      quantity: 1,
-      modifications: [],
-      notes: '',
-      addedAt: new Date(),
-    };
+    if (menuItem.hasHalfPortion) {
+      setSelectedMenuItem(menuItem);
+      setShowPortionModal(true);
+    } else {
+      const orderItem: OrderItem = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        menuItemId: menuItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        quantity: 1,
+        modifications: [],
+        notes: '',
+        addedAt: new Date(),
+      };
 
-    addItemToTemporaryOrder(orderItem);
+      addItemToTemporaryOrder(orderItem);
+    }
+  };
+
+  const handlePortionSelect = (portionSize: 'half' | 'full', price: number) => {
+    if (selectedMenuItem) {
+      const orderItem: OrderItem = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        menuItemId: selectedMenuItem.id,
+        name: selectedMenuItem.name,
+        price: price,
+        quantity: 1,
+        modifications: [],
+        notes: '',
+        addedAt: new Date(),
+        portionSize: portionSize
+      };
+
+      addItemToTemporaryOrder(orderItem);
+      // Close the modal and clear selection
+      setShowPortionModal(false);
+      setSelectedMenuItem(null);
+    }
   };
 
   // Handle placing partial order
@@ -239,9 +268,8 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
         // Show loading toast
         const loadingToast = toast.loading('Saving changes...');
         
-        // Import OrderService dynamically to avoid circular imports
-        const { OrderService } = await import('../../services/orderService');
-        const orderService = OrderService.getInstance();
+        // Import orderService dynamically to avoid circular imports
+        const { orderService } = await import('../../services/orderService');
         
         // Update the order in database using OrderService
         await orderService.updateOrderItems(
@@ -552,6 +580,19 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
           </Card>
         </div>
       </div>
+
+      {/* Portion Selection Modal */}
+      {selectedMenuItem && (
+        <PortionSelectionModal
+          menuItem={selectedMenuItem}
+          isOpen={showPortionModal}
+          onClose={() => {
+            setShowPortionModal(false);
+            setSelectedMenuItem(null);
+          }}
+          onSelect={handlePortionSelect}
+        />
+      )}
     </DashboardLayout>
   );
 };

@@ -85,7 +85,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
       console.log('📤 Calling transferOrderToManager with order ID:', order.id, 'and staff ID:', currentUser.uid);
       
       try {
-        const result = await transferOrderToManager(order.id, currentUser.uid);
+        const result = await transferOrderToManager(order.id, currentUser.uid, '');
         console.log('✅ Transfer function completed successfully:', result);
       } catch (transferError) {
         console.error('❌ Transfer function failed:', transferError);
@@ -126,18 +126,16 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
 
       toast.success('Order transferred to Manager for billing');
       
-      // Call success callback
+      console.log('✅ Transfer process completed successfully');
+      
+      // Close modal immediately and call success callback
+      onClose();
+      
+      // Call success callback after closing
       if (onSuccess) {
         console.log('📞 Calling success callback');
         onSuccess();
       }
-
-      console.log('✅ Transfer process completed successfully');
-      
-      // Wait a bit before closing to ensure all operations complete
-      setTimeout(() => {
-        onClose();
-      }, 500);
       
     } catch (error) {
       console.error('❌ Error transferring order to manager:', error);

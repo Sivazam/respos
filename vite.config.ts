@@ -26,6 +26,7 @@ export default defineConfig({
       'ws-b-c-d-bb-pwzglxvcvz.cn-hongkong-vpc.fcapp.run',
       'ws-d-ffae-cdcdd-lwxvkcwlet.cn-hongkong-vpc.fcapp.run',
       'ws-be-e-a-fceba-oiwnlcyzsw.cn-hongkong-vpc.fcapp.run',
+      'ws-ceb-df-bccfd-pdrrsfijwt.cn-hongkong-vpc.fcapp.run',
       'localhost',
       '127.0.0.1',
       '.space.z.ai'

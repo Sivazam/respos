@@ -37,6 +37,7 @@ interface CompletedOrder {
   settledAt: Date;
   staffId: string;
   paymentMethod: 'cash' | 'card' | 'upi';
+  locationId?: string;
 }
 
 const OrdersPage: React.FC = () => {
@@ -113,7 +114,8 @@ const OrdersPage: React.FC = () => {
                 paymentMethod: data.paymentData?.paymentMethod || data.paymentMethod || 'cash',
                 paymentData: data.paymentData,
                 customerName: data.customerName,
-                notes: data.notes
+                notes: data.notes,
+                locationId: data.locationId
               };
             });
 
@@ -148,7 +150,8 @@ const OrdersPage: React.FC = () => {
             updatedAt: sale.updatedAt,
             settledAt: sale.createdAt,
             staffId: sale.staffId,
-            paymentMethod: sale.paymentMethod || 'cash'
+            paymentMethod: sale.paymentMethod || 'cash',
+            locationId: sale.locationId || currentUser?.locationId
           })),
           ...generalSales.map(sale => ({
             id: sale.id,
@@ -164,7 +167,8 @@ const OrdersPage: React.FC = () => {
             updatedAt: sale.updatedAt,
             settledAt: sale.createdAt,
             staffId: sale.staffId,
-            paymentMethod: sale.paymentMethod || 'cash'
+            paymentMethod: sale.paymentMethod || 'cash',
+            locationId: sale.locationId || currentUser?.locationId
           })),
           ...firestoreOrders
         ];
@@ -208,7 +212,8 @@ const OrdersPage: React.FC = () => {
             updatedAt: new Date(orderData.updatedAt),
             settledAt: new Date(orderData.settledAt),
             staffId: orderData.staffId,
-            paymentMethod: orderData.paymentMethod || 'cash'
+            paymentMethod: orderData.paymentMethod || 'cash',
+            locationId: orderData.locationId || currentUser?.locationId
           });
         }
 
@@ -651,7 +656,6 @@ const OrdersPage: React.FC = () => {
             }
           }}
           paymentMethod={selectedOrder.paymentMethod}
-          onPaymentComplete={() => {}}
           isReadOnly={true}
         />
       )}

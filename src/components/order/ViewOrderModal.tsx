@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Receipt } from 'lucide-react';
 import Button from '../ui/Button';
 import { orderService } from '../../services/orderService';
+import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 
 interface ViewOrderModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface ViewOrderModalProps {
     subtotal?: number;
     gstAmount?: number;
     totalAmount?: number;
+    locationId?: string;
   };
 }
 
@@ -33,8 +35,9 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
   order
 }) => {
   const [gstSettings, setGstSettings] = useState<{ cgst: number; sgst: number }>({ cgst: 0, sgst: 0 });
+  const [franchiseData, setFranchiseData] = useState<any>(null);
 
-  // Fetch GST settings when order changes
+  // Fetch GST settings and franchise data when order changes
   useEffect(() => {
     const fetchGstSettings = async () => {
       if (order?.locationId) {
@@ -48,8 +51,21 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
       }
     };
 
+    const fetchFranchiseData = async () => {
+      if (order?.locationId) {
+        try {
+          const data = await getFranchiseReceiptData(order.locationId);
+          setFranchiseData(data);
+        } catch (error) {
+          console.error('Error fetching franchise data:', error);
+          setFranchiseData(null);
+        }
+      }
+    };
+
     if (isOpen && order) {
       fetchGstSettings();
+      fetchFranchiseData();
     }
   }, [order, isOpen]);
 
@@ -102,6 +118,40 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
 
           {/* Content */}
           <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            {/* Franchise Details */}
+            {franchiseData && (
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-gray-900 mb-3">Restaurant Details</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Restaurant:</span>
+                    <span className="font-medium">{franchiseData.franchiseName}</span>
+                  </div>
+                  {franchiseData.franchiseAddress && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Address:</span>
+                      <span className="font-medium text-right max-w-[60%]">{franchiseData.franchiseAddress}</span>
+                    </div>
+                  )}
+                  {franchiseData.franchisePhone && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Phone:</span>
+                      <span className="font-medium">{franchiseData.franchisePhone}</span>
+                    </div>
+                  )}
+                  {franchiseData.franchiseLogo && (
+                    <div className="flex justify-center mt-3">
+                      <img 
+                        src={franchiseData.franchiseLogo} 
+                        alt="Restaurant Logo" 
+                        className="h-12 w-auto object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Order Header Info */}
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

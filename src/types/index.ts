@@ -171,6 +171,8 @@ export interface MenuItem {
   spiceLevel: 'mild' | 'medium' | 'hot' | 'extra_hot';
   restaurantId: string;
   locationId?: string; // For location-specific pricing/availability
+  hasHalfPortion?: boolean; // New field for portion variant
+  halfPortionCost?: number; // New field for half portion cost
   createdAt: Date;
   updatedAt: Date;
 }
@@ -185,6 +187,8 @@ export interface MenuItemFormData {
   isAvailable: boolean;
   preparationTime: number;
   spiceLevel: 'mild' | 'medium' | 'hot' | 'extra_hot';
+  hasHalfPortion?: boolean; // New field for portion variant
+  halfPortionCost?: number; // New field for half portion cost
 }
 
 // Legacy Product interface for backward compatibility
@@ -275,6 +279,7 @@ export interface OrderItem {
   quantity: number;
   modifications?: string[];
   notes?: string;
+  portionSize?: 'half' | 'full'; // New field for portion size
   addedAt: Date; // When item was added to track order timing
 }
 
@@ -313,6 +318,7 @@ export interface CartItem {
   quantity: number;
   modifications?: string[];
   notes?: string;
+  portionSize?: 'half' | 'full'; // New field for portion size
 }
 
 // Staff Performance Tracking

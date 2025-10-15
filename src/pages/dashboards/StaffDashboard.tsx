@@ -703,7 +703,7 @@ const StaffDashboard: React.FC = () => {
           <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Today's Summary</h2>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{completedOrders}</div>
+              <div className="text-2xl font-bold text-green-600">{staffMetrics.todayCompletedOrders}</div>
               <div className="text-sm text-gray-600">Completed</div>
             </div>
             <div className="text-center">

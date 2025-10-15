@@ -242,11 +242,12 @@ export const ManagerOrderProvider: React.FC<ManagerOrderProviderProps> = ({ chil
     const isFirstItem = managerOrder.items.length === 0;
     const now = new Date();
 
-    // Check if an identical item already exists
+    // Check if an identical item already exists (including portionSize)
     const existingItemIndex = managerOrder.items.findIndex(existingItem =>
       existingItem.menuItemId === item.menuItemId &&
       JSON.stringify(existingItem.modifications) === JSON.stringify(item.modifications) &&
-      existingItem.notes === item.notes
+      existingItem.notes === item.notes &&
+      existingItem.portionSize === item.portionSize
     );
 
     let updatedItems: OrderItem[];

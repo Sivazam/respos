@@ -35,6 +35,8 @@ import { useMenuItems } from '../../contexts/MenuItemContext';
 interface ManagerPendingOrder {
   id: string;
   orderId: string;
+  locationId?: string;
+  locationName?: string;
   order: {
     id: string;
     orderNumber: string;
@@ -55,6 +57,9 @@ interface ManagerPendingOrder {
   priority: 'normal' | 'high' | 'urgent';
   assignedTo?: string;
   transferNotes?: string;
+  createdBy?: string;
+  createdByName?: string;
+  createdAt?: Date | string | any;
 }
 
 const EnhancedManagerPendingOrdersPage: React.FC = () => {
@@ -133,6 +138,8 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
       return {
         id: pendingOrder.id || '',
         orderId: pendingOrder.orderId || pendingOrder.order?.id || '',
+        locationId: pendingOrder.locationId,
+        locationName: pendingOrder.locationName || 'Unknown Location',
         order: {
           ...pendingOrder.order,
           tableNames,
@@ -144,7 +151,10 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
         status: pendingOrder.status || 'pending',
         priority: pendingOrder.priority || 'normal',
         assignedTo: pendingOrder.assignedTo,
-        transferNotes: pendingOrder.transferNotes
+        transferNotes: pendingOrder.transferNotes,
+        createdBy: pendingOrder.createdBy,
+        createdByName: pendingOrder.createdByName || 'Unknown',
+        createdAt: pendingOrder.createdAt ? convertToDate(pendingOrder.createdAt) : createdAtValue
       };
     } catch (error) {
       console.error('Error processing pending order:', error, pendingOrder);
@@ -782,6 +792,18 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
                         <Receipt size={16} />
                         <span>{order.order.items.length} items</span>
                       </div>
+                      {order.locationName && (
+                        <div className="flex items-center gap-1">
+                          <MessageSquare size={16} />
+                          <span>{order.locationName}</span>
+                        </div>
+                      )}
+                      {order.createdByName && (
+                        <div className="flex items-center gap-1">
+                          <UserCheck size={16} />
+                          <span>By: {order.createdByName}</span>
+                        </div>
+                      )}
                       {order.order.customerName && (
                         <div className="flex items-center gap-1">
                           <UserCheck size={16} />

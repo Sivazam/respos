@@ -92,9 +92,12 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addItem = (cartItem: Omit<CartItem, 'id' | 'quantity'>) => {
+    console.log('🛒 CartContext.addItem called with:', cartItem);
+    
     // Check if the menu item exists and is available
     const menuItem = menuItems.find(item => item.id === cartItem.menuItemId);
     if (!menuItem || !menuItem.isAvailable) {
+      console.log('❌ Menu item not found or not available:', menuItem);
       return;
     }
 
@@ -105,14 +108,20 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     }
 
     setItems(currentItems => {
-      // Find existing item with same menuItemId, modifications, and notes
+      console.log('📦 Current cart items:', currentItems);
+      
+      // Find existing item with same menuItemId, modifications, notes, and portionSize
       const existingItem = currentItems.find(item => 
         item.menuItemId === cartItem.menuItemId &&
         JSON.stringify(item.modifications) === JSON.stringify(cartItem.modifications) &&
-        item.notes === cartItem.notes
+        item.notes === cartItem.notes &&
+        item.portionSize === cartItem.portionSize
       );
       
+      console.log('🔍 Found existing item with same portion:', existingItem);
+      
       if (existingItem) {
+        console.log('✅ Updating existing item quantity');
         return currentItems.map(item =>
           item.id === existingItem.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -120,15 +129,20 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         );
       }
       
-      return [...currentItems, {
+      console.log('➕ Adding new item to cart');
+      const newItem = {
         id: uuidv4(),
         menuItemId: cartItem.menuItemId,
         name: cartItem.name,
         price: cartItem.price,
         quantity: 1,
         modifications: cartItem.modifications || [],
-        notes: cartItem.notes || ''
-      }];
+        notes: cartItem.notes || '',
+        portionSize: cartItem.portionSize || 'full'
+      };
+      console.log('🆕 New item being added:', newItem);
+      
+      return [...currentItems, newItem];
     });
   };
 

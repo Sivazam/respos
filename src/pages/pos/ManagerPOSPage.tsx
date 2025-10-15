@@ -14,6 +14,7 @@ import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import { Card } from '../../components/ui/card';
 import OrderModeSelection from '../../components/order/OrderModeSelection';
+import PortionSelectionModal from '../../components/pos/PortionSelectionModal';
 import toast from 'react-hot-toast';
 
 interface ManagerPOSPageProps {
@@ -46,6 +47,8 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [orderMode, setOrderMode] = useState<'zomato' | 'swiggy' | 'in-store'>('in-store');
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [showPortionModal, setShowPortionModal] = useState(false);
 
   // Get order context from navigation state
   const orderContext = location.state as {
@@ -58,9 +61,9 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
 
   // Initialize manager order when component mounts
   useEffect(() => {
-    console.log('🔍 Manager POS Page - orderContext:', orderContext);
-    console.log('🔍 Manager POS Page - isManagerOrderActive:', isManagerOrderActive);
-    console.log('🔍 Manager POS Page - current managerOrder:', managerOrder);
+    console.log('🔍 Manager POS Page rendering - orderContext:', orderContext);
+    console.log('🔍 Manager POS Page rendering - isManagerOrderActive:', isManagerOrderActive);
+    console.log('🔍 Manager POS Page rendering - current managerOrder:', managerOrder);
     
     if (orderContext) {
       const initializeOrder = async () => {
@@ -146,18 +149,54 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
 
   // Handle adding items to order
   const handleAddItem = (menuItem: MenuItem) => {
-    const orderItem: OrderItem = {
-      id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      menuItemId: menuItem.id,
-      name: menuItem.name,
-      price: menuItem.price,
-      quantity: 1,
-      modifications: [],
-      notes: '',
-      addedAt: new Date(),
-    };
+    console.log('🛒 ManagerPOSPage.handleAddItem called:', menuItem);
+    
+    if (menuItem.hasHalfPortion) {
+      console.log('🍽️ Item has half portion, showing modal');
+      setSelectedMenuItem(menuItem);
+      setShowPortionModal(true);
+    } else {
+      console.log('📦 Item does not have half portion, adding directly');
+      const orderItem: OrderItem = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        menuItemId: menuItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        quantity: 1,
+        modifications: [],
+        notes: '',
+        addedAt: new Date(),
+        portionSize: 'full'
+      };
 
-    addItemToManagerOrder(orderItem);
+      addItemToManagerOrder(orderItem);
+    }
+  };
+
+  // Handle portion selection
+  const handlePortionSelect = (portionSize: 'half' | 'full', price: number) => {
+    console.log('🍽️ ManagerPOSPage.handlePortionSelect called:', { portionSize, price, selectedMenuItem });
+    
+    if (selectedMenuItem) {
+      const orderItem: OrderItem = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        menuItemId: selectedMenuItem.id,
+        name: selectedMenuItem.name,
+        price: price,
+        quantity: 1,
+        modifications: [],
+        notes: '',
+        addedAt: new Date(),
+        portionSize: portionSize
+      };
+      
+      console.log('🛒 Calling addItemToManagerOrder with:', orderItem);
+      addItemToManagerOrder(orderItem);
+      
+      // Close the modal and clear selection
+      setShowPortionModal(false);
+      setSelectedMenuItem(null);
+    }
   };
 
   // Handle placing partial order
@@ -419,7 +458,15 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     {managerOrder.items.map((item) => (
                       <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                         <div className="flex-1">
-                          <p className="font-medium text-sm">{item.name}</p>
+                          <p className="font-medium text-sm">
+                            {item.name}
+                            {item.portionSize === 'half' && (
+                              <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Half</span>
+                            )}
+                            {item.portionSize === 'full' && (
+                              <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Full</span>
+                            )}
+                          </p>
                           <p className="text-xs text-gray-500">₹{item.price} x {item.quantity}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -506,6 +553,23 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
           </Card>
         </div>
       </div>
+
+      {/* Portion Selection Modal */}
+      {selectedMenuItem && (
+        <>
+          {console.log('🔍 ManagerPOSPage rendering PortionSelectionModal:', { selectedMenuItem, showPortionModal })}
+          <PortionSelectionModal
+            menuItem={selectedMenuItem}
+            isOpen={showPortionModal}
+            onClose={() => {
+              console.log('🔍 ManagerPOSPage closing modal');
+              setShowPortionModal(false);
+              setSelectedMenuItem(null);
+            }}
+            onSelect={handlePortionSelect}
+          />
+        </>
+      )}
     </DashboardLayout>
   );
 };

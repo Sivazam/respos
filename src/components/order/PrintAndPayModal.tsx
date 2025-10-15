@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Printer, CreditCard, Smartphone, Wallet, AlertCircle, Check } from 'lucide-react';
 import Button from '../ui/Button';
+import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 
 interface PrintAndPayModalProps {
   isOpen: boolean;
@@ -19,6 +20,24 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
 }) => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
   const [isPrinting, setIsPrinting] = useState(false);
+  const [franchiseData, setFranchiseData] = useState<any>(null);
+
+  // Load franchise data when modal opens
+  useEffect(() => {
+    const loadFranchiseData = async () => {
+      if (isOpen && order?.locationId) {
+        try {
+          const data = await getFranchiseReceiptData(order.locationId);
+          setFranchiseData(data);
+        } catch (error) {
+          console.error('Error loading franchise data:', error);
+          setFranchiseData(null);
+        }
+      }
+    };
+
+    loadFranchiseData();
+  }, [isOpen, order?.locationId]);
 
   if (!isOpen || !order) return null;
 
@@ -61,7 +80,9 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
                 }
                 .business-name { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
                 .business-address { font-size: 12px; color: #666; margin-bottom: 5px; }
+                .business-phone { font-size: 12px; color: #666; margin-bottom: 5px; }
                 .gst-number { font-size: 12px; color: #666; }
+                .logo { max-height: 60px; margin-bottom: 10px; }
                 .order-info { 
                   margin-bottom: 20px; 
                   background: #f9f9f9;
@@ -103,9 +124,11 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
             </head>
             <body>
               <div class="header">
-                <div class="business-name">ForkFlow</div>
-                <div class="business-address">123 Food Street, Bangalore, Karnataka 560001</div>
-                <div class="gst-number">GSTIN: 29ABCDE1234F1Z5</div>
+                ${franchiseData?.franchiseLogo ? `<img src="${franchiseData.franchiseLogo}" alt="Restaurant Logo" class="logo" />` : ''}
+                <div class="business-name">${franchiseData?.franchiseName || 'ForkFlow'}</div>
+                <div class="business-address">${franchiseData?.franchiseAddress || '123 Food Street, Bangalore, Karnataka 560001'}</div>
+                ${franchiseData?.franchisePhone ? `<div class="business-phone">${franchiseData.franchisePhone}</div>` : ''}
+                <div class="gst-number">GSTIN: ${franchiseData?.gstNumber || '29ABCDE1234F1Z5'}</div>
               </div>
               
               <div class="order-info">

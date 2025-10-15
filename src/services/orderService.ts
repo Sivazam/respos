@@ -13,7 +13,8 @@ import {
   writeBatch,
   serverTimestamp,
   Timestamp,
-  limit
+  limit,
+  documentId
 } from 'firebase/firestore';
 import { db } from '../lib/db';
 import { Order, OrderItem, TemporaryOrder, OrderFormData, User, Table } from '../types';
@@ -28,6 +29,24 @@ export class OrderService {
       OrderService.instance = new OrderService();
     }
     return OrderService.instance;
+  }
+
+  // Get location name by ID
+  private async getLocationName(locationId: string): Promise<string> {
+    try {
+      const locationRef = doc(db, 'locations', locationId);
+      const locationDoc = await getDoc(locationRef);
+      
+      if (locationDoc.exists()) {
+        const locationData = locationDoc.data();
+        return locationData.name || locationData.displayName || 'Unknown Location';
+      }
+      
+      return 'Unknown Location';
+    } catch (error) {
+      console.error('Error fetching location name:', error);
+      return 'Unknown Location';
+    }
   }
 
   // Calculate GST using location settings
@@ -214,7 +233,9 @@ export class OrderService {
       const tempOrderDoc = {
         orderId,
         locationId,
+        locationName: await this.getLocationName(locationId),
         staffId: staff.uid,
+        staffName: staff.name || staff.email || 'Unknown Staff',
         tableIds: orderData.tableIds,
         status: 'temporary',
         sessionStartedAt: serverTimestamp(),
@@ -326,50 +347,57 @@ export class OrderService {
     notes?: string
   ): Promise<void> {
     try {
-      const orderRef = doc(db, 'orders', orderId);
-      const orderDoc = await getDoc(orderRef);
+      console.log('🔄 Starting transfer for order:', orderId, 'by staff:', staffId);
       
-      if (!orderDoc.exists()) {
-        throw new Error('Order not found');
+      // First, get the temporary order from temporary_orders collection
+      const tempOrdersQuery = query(
+        collection(db, 'temporary_orders'),
+        where('orderId', '==', orderId)
+      );
+      
+      const tempSnapshot = await getDocs(tempOrdersQuery);
+      
+      if (tempSnapshot.empty) {
+        throw new Error('Temporary order not found');
       }
-
-      const orderData = orderDoc.data();
-
-      // Update main order status
-      await updateDoc(orderRef, {
-        status: 'transferred',
-        transferredAt: serverTimestamp(),
-        transferredBy: staffId,
-        updatedAt: serverTimestamp()
-      });
-
-      // Create manager pending order entry for Firestore
+      
+      const tempOrderData = tempSnapshot.docs[0].data();
+      console.log('📋 Found temporary order:', tempOrderData);
+      
+      // Get staff name from the temporary order
+      const staffName = tempOrderData.staffName || 'Unknown Staff';
+      
+      // Create manager pending order entry with the correct structure
       const managerPendingDoc = {
-        orderId,
-        locationId: orderData.locationId,
-        franchiseId: orderData.franchiseId,
-        transferredBy: staffId,
-        transferredAt: serverTimestamp(),
+        orderId: orderId,
+        createdAt: serverTimestamp(),
+        createdBy: staffId, // Using staffId as createdBy for consistency
+        createdByName: staffName,
+        franchiseId: tempOrderData.franchiseId || '',
+        locationId: tempOrderData.locationId,
+        locationName: tempOrderData.locationName || 'Unknown Location',
+        notes: notes || 'Staff transferred order for billing',
         priority: 'normal',
         status: 'pending',
-        transferNotes: notes || '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        transferredBy: staffId,
+        transferredAt: serverTimestamp()
       };
 
+      console.log('📝 Creating manager pending order:', managerPendingDoc);
       await addDoc(collection(db, 'manager_pending_orders'), managerPendingDoc);
 
       // Remove from temporary orders
       await this.removeTemporaryOrder(orderId);
 
       // Create order history entry
-      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'transferred', staffId, {
+      await this.createOrderHistoryEntry(orderId, tempOrderData.locationId, 'transferred', staffId, {
         notes
       });
 
-      console.log('✅ Order transferred to manager:', orderId);
+      console.log('✅ Order transferred to manager successfully:', orderId);
     } catch (error) {
-      console.error('Error transferring order to manager:', error);
+      console.error('❌ Error transferring order to manager:', error);
       throw error;
     }
   }
@@ -454,7 +482,7 @@ export class OrderService {
         const batch = tempOrderIds.slice(i, i + batchSize);
         const ordersQuery = query(
           collection(db, 'orders'),
-          where('id', 'in', batch)
+          where(documentId(), 'in', batch)
         );
         
         promises.push(
@@ -941,8 +969,10 @@ export class OrderService {
       const managerPendingDoc = {
         orderId,
         locationId,
+        locationName: await this.getLocationName(locationId),
         franchiseId,
         createdBy: manager.uid,
+        createdByName: manager.name || manager.email || 'Unknown Manager',
         createdAt: serverTimestamp(),
         priority: 'normal',
         status: 'pending',
@@ -1020,6 +1050,60 @@ export class OrderService {
     } catch (error) {
       console.error('Error fetching user details:', error);
       return null;
+    }
+  }
+
+  // Get staff temporary orders directly (non-real-time)
+  async getStaffTemporaryOrders(
+    staffId: string,
+    locationId: string
+  ): Promise<TemporaryOrder[]> {
+    try {
+      const tempOrdersQuery = query(
+        collection(db, 'temporary_orders'),
+        where('staffId', '==', staffId),
+        where('locationId', '==', locationId)
+      );
+
+      const tempSnapshot = await getDocs(tempOrdersQuery);
+      const tempOrderIds = tempSnapshot.docs.map(doc => doc.data().orderId);
+      
+      if (tempOrderIds.length === 0) {
+        return [];
+      }
+
+      // Get full order details - split into multiple queries to avoid 'in' clause limits
+      const orders: TemporaryOrder[] = [];
+      const batchSize = 10;
+      
+      for (let i = 0; i < tempOrderIds.length; i += batchSize) {
+        const batch = tempOrderIds.slice(i, i + batchSize);
+        const ordersQuery = query(
+          collection(db, 'orders'),
+          where(documentId(), 'in', batch)
+        );
+        
+        const orderSnapshot = await getDocs(ordersQuery);
+        orderSnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.status === 'temporary' || data.status === 'ongoing') {
+            orders.push({
+              id: doc.id,
+              ...data,
+              createdAt: data.createdAt?.toDate(),
+              updatedAt: data.updatedAt?.toDate(),
+              sessionStartedAt: data.sessionStartedAt?.toDate()
+            } as TemporaryOrder);
+          }
+        });
+      }
+
+      // Sort client-side by createdAt descending
+      orders.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+      return orders;
+    } catch (error) {
+      console.error('Error getting staff temporary orders:', error);
+      return [];
     }
   }
 

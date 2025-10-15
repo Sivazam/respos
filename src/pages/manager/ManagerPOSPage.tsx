@@ -19,7 +19,8 @@ import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import CheckoutModal from '../../components/pos/CheckoutModal';
 import ReceiptModal from '../../components/pos/ReceiptModal';
-import { Sale, Receipt } from '../../types';
+import PortionSelectionModal from '../../components/pos/PortionSelectionModal';
+import { Sale, Receipt, MenuItem } from '../../types';
 import toast from 'react-hot-toast';
 
 const ManagerPOSPage: React.FC = () => {
@@ -52,6 +53,8 @@ const ManagerPOSPage: React.FC = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
   const [useOptimizedView, setUseOptimizedView] = useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [showPortionModal, setShowPortionModal] = useState(false);
   
   // Check if this is a table-based order
   const isTableBasedOrder = location.state?.orderType && location.state?.tableIds;
@@ -106,6 +109,38 @@ const ManagerPOSPage: React.FC = () => {
       return matchesSearch && matchesCategory && matchesStock;
     });
   }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock]);
+
+  const handleAddToCart = (menuItem: MenuItem) => {
+    if (menuItem.hasHalfPortion) {
+      setSelectedMenuItem(menuItem);
+      setShowPortionModal(true);
+    } else {
+      handleAddItem({
+        menuItemId: menuItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        modifications: [],
+        notes: '',
+        portionSize: 'full'
+      });
+    }
+  };
+
+  const handlePortionSelect = (portionSize: 'half' | 'full', price: number) => {
+    if (selectedMenuItem) {
+      handleAddItem({
+        menuItemId: selectedMenuItem.id,
+        name: selectedMenuItem.name,
+        price: price,
+        modifications: [],
+        notes: '',
+        portionSize: portionSize
+      });
+      // Close the modal and clear selection
+      setShowPortionModal(false);
+      setSelectedMenuItem(null);
+    }
+  };
 
   // Initialize manager order when component mounts
   useEffect(() => {
@@ -295,7 +330,7 @@ const ManagerPOSPage: React.FC = () => {
   const handleAddItem = (item: any) => {
     if (isTableBasedOrder && isManagerOrderActive) {
       // Use manager order context for table-based orders
-      addItemToManagerOrder({
+      const managerOrderItem = {
         ...item,
         id: item.id || `temp_${Date.now()}_${Math.random()}`,
         menuItemId: item.menuItemId || item.id,
@@ -303,8 +338,10 @@ const ManagerPOSPage: React.FC = () => {
         price: Number(item.price) || 0,
         quantity: Number(item.quantity) || 1,
         modifications: item.modifications || [],
-        notes: item.notes || ''
-      });
+        notes: item.notes || '',
+        portionSize: item.portionSize || 'full'
+      };
+      addItemToManagerOrder(managerOrderItem);
     } else {
       // Use regular cart for takeaway orders
       addItem(item);
@@ -444,12 +481,32 @@ const ManagerPOSPage: React.FC = () => {
                 {useOptimizedView ? (
                   <OptimizedProductList 
                     products={filteredProducts} 
-                    onAddItem={handleAddItem}
+                    onAddToCart={(product, quantity) => {
+                      // Find the corresponding menu item and add to cart
+                      const menuItem = filteredProducts.find(item => item.id === product.id);
+                      if (menuItem) {
+                        handleAddToCart(menuItem);
+                      }
+                    }}
+                    cartItems={displayItems.map(item => ({
+                      id: item.id,
+                      product: {
+                        id: item.menuItemId,
+                        name: item.name,
+                        price: item.price,
+                        category: '',
+                        code: item.menuItemId,
+                        description: '',
+                        stock: 999,
+                        imageUrl: undefined
+                      },
+                      quantity: item.quantity
+                    }))}
                   />
                 ) : (
                   <ProductGrid 
                     products={filteredProducts} 
-                    onAddItem={handleAddItem}
+                    onAddToCart={handleAddToCart}
                   />
                 )}
               </div>
@@ -510,6 +567,19 @@ const ManagerPOSPage: React.FC = () => {
             setShowReceipt(false);
             setCurrentReceipt(null);
           }}
+        />
+      )}
+
+      {/* Portion Selection Modal */}
+      {selectedMenuItem && (
+        <PortionSelectionModal
+          menuItem={selectedMenuItem}
+          isOpen={showPortionModal}
+          onClose={() => {
+            setShowPortionModal(false);
+            setSelectedMenuItem(null);
+          }}
+          onSelect={handlePortionSelect}
         />
       )}
     </>

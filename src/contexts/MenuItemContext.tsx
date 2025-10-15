@@ -166,7 +166,9 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
         imageUrl: itemData.imageUrl || '',
         ingredients: itemData.ingredients || [],
         allergens: itemData.allergens || [],
-        modifications: itemData.modifications || []
+        modifications: itemData.modifications || [],
+        hasHalfPortion: itemData.hasHalfPortion || false,
+        halfPortionCost: itemData.hasHalfPortion ? Number(itemData.halfPortionCost) || 0 : null
       };
 
       const docRef = await addDoc(collection(db, 'menuItems'), {

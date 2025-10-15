@@ -30,7 +30,14 @@ const Cart: React.FC<CartProps> = ({ onCheckout }) => {
         {items.map(item => (
           <div key={item.id} className="flex items-center py-3 sm:py-4 border-b">
             <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-gray-900 text-sm sm:text-base truncate">{item.name}</h4>
+              <h4 className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                {item.name}
+                {item.portionSize && (
+                  <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    {item.portionSize === 'half' ? '(Half)' : '(Full)'}
+                  </span>
+                )}
+              </h4>
               <p className="text-xs sm:text-sm text-gray-500">₹{item.price.toFixed(2)} each</p>
             </div>
             

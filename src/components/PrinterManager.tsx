@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import Button from '@/components/ui/button';
+import Input from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { printerManager, PrinterConfig, TVS_3230_DEFAULTS } from '@/lib/printerConfig';
-import { directPrintService } from '@/lib/directPrint';
+import { printerManager, PrinterConfig, TVS_3230_DEFAULTS } from '../lib/printerConfig';
+import { directPrintService } from '../lib/directPrint';
 import { Printer, Wifi, WifiOff, Plus, Settings, TestTube, Trash2, Check, X, AlertCircle, Usb } from 'lucide-react';
 
 export const PrinterManager: React.FC = () => {

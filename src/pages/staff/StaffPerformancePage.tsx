@@ -1,27 +1,48 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
-import { useOrders } from "@/hooks/useOrders";
-import { useStaff } from "@/hooks/useStaff";
-import { useLocations } from "@/hooks/useLocations";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import Button from "../../components/ui/Button";
+import Input from "../../components/ui/Input";
+import { Label } from "../../components/ui/label";
+import { Badge } from "../../components/ui/badge";
 import { Calendar, Download, Filter, TrendingUp, Users, DollarSign, ShoppingCart, Clock, Star, Trophy, Target, Zap } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 
+// Mock data for demonstration
+const mockOrders = [
+  {
+    id: "1",
+    orderNumber: "ORD-241014-001",
+    staffId: "staff1",
+    total: 1500,
+    createdAt: new Date("2024-10-14T10:30:00"),
+    items: [{ name: "Item 1", quantity: 2 }]
+  },
+  {
+    id: "2", 
+    orderNumber: "ORD-241014-002",
+    staffId: "staff2",
+    total: 800,
+    createdAt: new Date("2024-10-14T11:45:00"),
+    items: [{ name: "Item 2", quantity: 1 }]
+  }
+];
+
+const mockStaff = [
+  { uid: "staff1", displayName: "John Doe", email: "john@example.com", role: "staff", locationId: "loc1" },
+  { uid: "staff2", displayName: "Jane Smith", email: "jane@example.com", role: "staff", locationId: "loc1" }
+];
+
+const mockLocations = [
+  { id: "loc1", name: "Main Location" }
+];
+
 export default function StaffPerformance() {
-  const [user] = useAuthState(auth);
-  const { orders, loading: ordersLoading } = useOrders();
-  const { staff, loading: staffLoading } = useStaff();
-  const { locations, loading: locationsLoading } = useLocations();
+  const [user] = useState(null);
+  const [orders] = useState(mockOrders);
+  const [staff] = useState(mockStaff);
+  const [locations] = useState(mockLocations);
+  const [loading] = useState(false);
 
   // Filter states
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
@@ -171,7 +192,7 @@ export default function StaffPerformance() {
     setEndDate(format(endDate, "yyyy-MM-dd"));
   };
 
-  if (ordersLoading || staffLoading || locationsLoading) {
+  if (loading) {
     return (
       <div className="p-6">
         <div className="animate-pulse">
@@ -355,73 +376,75 @@ export default function StaffPerformance() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Staff Member</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead className="text-right">Revenue</TableHead>
-                <TableHead className="text-right">Orders</TableHead>
-                <TableHead className="text-right">Avg Order</TableHead>
-                <TableHead className="text-right">Completion Time</TableHead>
-                <TableHead>Top Selling Item</TableHead>
-                <TableHead className="text-right">Performance Score</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {staffPerformanceData.map((staff) => {
-                const performanceScore = Math.min(100, Math.round(
-                  (staff.totalRevenue / 1000) * 0.3 + 
-                  (staff.totalOrders / 10) * 0.4 + 
-                  (100 - staff.avgCompletionTime) * 0.3
-                ));
-                
-                return (
-                  <TableRow key={staff.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{staff.name}</div>
-                        <div className="text-sm text-muted-foreground">{staff.email}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {locations.find(l => l.id === staff.location)?.name || staff.location}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      ${staff.totalRevenue.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right">{staff.totalOrders}</TableCell>
-                    <TableCell className="text-right">
-                      ${staff.avgOrderValue.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {staff.avgCompletionTime}m
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {staff.topItems[0]?.name || "N/A"}
-                        {staff.topItems[0]?.quantity && (
-                          <span className="text-muted-foreground">
-                            {" "}({staff.topItems[0].quantity} sold)
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="text-sm font-medium">{performanceScore}%</div>
-                        {performanceScore >= 80 && <Trophy className="h-4 w-4 text-yellow-500" />}
-                        {performanceScore >= 60 && performanceScore < 80 && <Star className="h-4 w-4 text-blue-500" />}
-                        {performanceScore < 60 && <Target className="h-4 w-4 text-gray-400" />}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border border-gray-200">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="border border-gray-200 px-4 py-2 text-left">Staff Member</th>
+                  <th className="border border-gray-200 px-4 py-2 text-left">Location</th>
+                  <th className="border border-gray-200 px-4 py-2 text-right">Revenue</th>
+                  <th className="border border-gray-200 px-4 py-2 text-right">Orders</th>
+                  <th className="border border-gray-200 px-4 py-2 text-right">Avg Order</th>
+                  <th className="border border-gray-200 px-4 py-2 text-right">Completion Time</th>
+                  <th className="border border-gray-200 px-4 py-2 text-left">Top Selling Item</th>
+                  <th className="border border-gray-200 px-4 py-2 text-right">Performance Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffPerformanceData.map((staff) => {
+                  const performanceScore = Math.min(100, Math.round(
+                    (staff.totalRevenue / 1000) * 0.3 + 
+                    (staff.totalOrders / 10) * 0.4 + 
+                    (100 - staff.avgCompletionTime) * 0.3
+                  ));
+                  
+                  return (
+                    <tr key={staff.id} className="hover:bg-gray-50">
+                      <td className="border border-gray-200 px-4 py-2">
+                        <div>
+                          <div className="font-medium">{staff.name}</div>
+                          <div className="text-sm text-gray-500">{staff.email}</div>
+                        </div>
+                      </td>
+                      <td className="border border-gray-200 px-4 py-2">
+                        <Badge variant="outline">
+                          {locations.find(l => l.id === staff.location)?.name || staff.location}
+                        </Badge>
+                      </td>
+                      <td className="border border-gray-200 px-4 py-2 text-right font-medium">
+                        ${staff.totalRevenue.toFixed(2)}
+                      </td>
+                      <td className="border border-gray-200 px-4 py-2 text-right">{staff.totalOrders}</td>
+                      <td className="border border-gray-200 px-4 py-2 text-right">
+                        ${staff.avgOrderValue.toFixed(2)}
+                      </td>
+                      <td className="border border-gray-200 px-4 py-2 text-right">
+                        {staff.avgCompletionTime}m
+                      </td>
+                      <td className="border border-gray-200 px-4 py-2">
+                        <div className="text-sm">
+                          {staff.topItems[0]?.name || "N/A"}
+                          {staff.topItems[0]?.quantity && (
+                            <span className="text-gray-500">
+                              {" "}({staff.topItems[0].quantity} sold)
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="border border-gray-200 px-4 py-2 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="text-sm font-medium">{performanceScore}%</div>
+                          {performanceScore >= 80 && <Trophy className="h-4 w-4 text-yellow-500" />}
+                          {performanceScore >= 60 && performanceScore < 80 && <Star className="h-4 w-4 text-blue-500" />}
+                          {performanceScore < 60 && <Target className="h-4 w-4 text-gray-400" />}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 

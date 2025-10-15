@@ -23,7 +23,7 @@ interface TemporaryOrderContextType {
   checkForExistingOrder: (tableIds: string[]) => Promise<TemporaryOrder | null>;
   calculateTotals: () => { subtotal: number; gst: number; total: number; cgstAmount: number; sgstAmount: number };
   getTableNames: () => string[];
-  transferOrderToManager: (orderId: string, staffId: string) => Promise<void>;
+  transferOrderToManager: (orderId: string, staffId: string) => Promise<TemporaryOrder>;
   loadFromLocalStorage: () => TemporaryOrder | null;
   updateOrderMode: (orderMode: 'zomato' | 'swiggy' | 'in-store') => void;
   mergePartialOrder: (newItems: OrderItem[], existingOrderId: string) => Promise<TemporaryOrder>;
@@ -605,9 +605,9 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
   }, [temporaryOrder, tables]);
 
   // Transfer order to manager's pending orders
-  const transferOrderToManager = useCallback(async (orderId: string, staffId: string) => {
+  const transferOrderToManager = useCallback(async (orderId: string, staffId: string, notes?: string) => {
     try {
-      console.log('🔄 Starting transfer process for order:', orderId);
+      console.log('🔄 Starting transfer process for order:', orderId, 'by staff:', staffId, 'with notes:', notes);
       
       let order = null;
       
@@ -647,103 +647,84 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
           }
           
           if (!order) {
-            console.log('❌ Order not found in any localStorage location');
-            throw new Error('Order not found');
+            console.log('❌ Order not found in any localStorage location, checking Firestore...');
+            
+            // Try to find the order in Firestore
+            try {
+              const { doc, getDoc } = await import('firebase/firestore');
+              const { db } = await import('../lib/db');
+              
+              const orderRef = doc(db, 'orders', orderId);
+              const orderDoc = await getDoc(orderRef);
+              
+              if (orderDoc.exists()) {
+                console.log('✅ Found order in Firestore');
+                const orderData = orderDoc.data();
+                order = {
+                  id: orderDoc.id,
+                  locationId: orderData.locationId,
+                  tableIds: orderData.tableIds || [],
+                  tableNames: orderData.tableNames || [],
+                  staffId: orderData.staffId,
+                  orderType: orderData.orderType || 'dinein',
+                  orderNumber: orderData.orderNumber,
+                  items: orderData.items || [],
+                  status: orderData.status,
+                  totalAmount: orderData.totalAmount || 0,
+                  subtotal: orderData.subtotal || 0,
+                  gstAmount: orderData.gstAmount || 0,
+                  isFinalOrder: orderData.isFinalOrder || false,
+                  paymentMethod: orderData.paymentMethod,
+                  createdAt: orderData.createdAt?.toDate() || new Date(),
+                  updatedAt: orderData.updatedAt?.toDate() || new Date(),
+                  settledAt: orderData.settledAt?.toDate(),
+                  notes: orderData.notes,
+                  customerName: orderData.customerName,
+                  customerPhone: orderData.customerPhone,
+                  deliveryAddress: orderData.deliveryAddress,
+                  orderMode: orderData.orderMode,
+                  sessionStartedAt: orderData.createdAt?.toDate() || new Date(),
+                };
+                console.log('📋 Order data from Firestore:', order);
+              } else {
+                console.log('❌ Order not found in Firestore either');
+                throw new Error(`Order not found: ${orderId}`);
+              }
+            } catch (firestoreError) {
+              console.error('❌ Error checking Firestore:', firestoreError);
+              throw new Error(`Order not found: ${orderId}`);
+            }
           }
         }
       }
 
       console.log('📋 Original order:', order);
 
-      // Update order status to 'transferred' and remove staffId so it appears in manager pending orders
-      const transferredOrder: TemporaryOrder = {
-        ...order,
-        status: 'temporary', // Keep as temporary so it appears in pending orders
-        transferredAt: new Date(),
-        transferredBy: staffId,
-        updatedAt: new Date(),
-        // Remove staffId so manager can see it (based on our role filtering logic)
-        staffId: null,
-      };
-
-      console.log('🔄 Transferred order object:', transferredOrder);
-
-      // Update the order in Firestore if it exists
+      // Use the orderService to properly transfer the order
+      // This will handle updating the order status, creating manager pending record,
+      // and removing from temporary_orders collection
       try {
-        const { doc, updateDoc } = await import('firebase/firestore');
-        const { db } = await import('../lib/db');
-        
-        // Check if order exists in Firestore
-        const orderRef = doc(db, 'orders', orderId);
-        const orderDoc = await getDoc(orderRef);
-        
-        if (orderDoc.exists()) {
-          console.log('📝 Updating order in Firestore');
-          await updateDoc(orderRef, {
-            status: 'temporary',
-            staffId: null, // Remove staffId so manager can see it
-            transferredAt: new Date(),
-            transferredBy: staffId,
-            updatedAt: new Date(),
-          });
-          console.log('✅ Order updated in Firestore');
-        } else {
-          console.log('⚠️ Order not found in Firestore, saving as new order');
-          // Create the order in Firestore as a transferred order
-          const orderFormData = {
-            tableIds: transferredOrder.tableIds,
-            orderType: transferredOrder.orderType,
-            orderMode: transferredOrder.orderMode,
-            items: transferredOrder.items,
-            customerName: transferredOrder.customerName,
-            customerPhone: transferredOrder.customerPhone,
-            deliveryAddress: transferredOrder.deliveryAddress,
-            notes: transferredOrder.notes,
-            status: 'temporary',
-            transferredAt: new Date(),
-            transferredBy: staffId,
-          };
-          
-          await orderService.createTemporaryOrder(
-            orderFormData,
-            currentUser,
-            currentLocation?.id || 'default_location',
-            currentLocation?.franchiseId || 'default-franchise'
-          );
-          console.log('✅ New transferred order created in Firestore');
-        }
-      } catch (firestoreError) {
-        console.error('❌ Error updating Firestore:', firestoreError);
-        // Fallback to localStorage if Firestore fails
-        console.log('📦 Falling back to localStorage');
-        
-        const managerKey = `manager_pending_${orderId}`;
-        const managerOrderData = {
-          ...transferredOrder,
-          createdAt: transferredOrder.createdAt.toISOString(),
-          sessionStartedAt: transferredOrder.sessionStartedAt.toISOString(),
-          transferredAt: transferredOrder.transferredAt?.toISOString(),
-          updatedAt: transferredOrder.updatedAt.toISOString(),
-        };
-        
-        console.log('💾 Saving to manager pending orders with key:', managerKey);
-        localStorage.setItem(managerKey, JSON.stringify(managerOrderData));
+        console.log('🔄 Using orderService to transfer order to manager');
+        await orderService.transferOrderToManager(orderId, staffId, notes);
+        console.log('✅ Order successfully transferred to manager via orderService');
+      } catch (serviceError) {
+        console.error('❌ Error transferring order via orderService:', serviceError);
+        throw new Error(`Failed to transfer order: ${serviceError.message}`);
       }
 
-      // Update the original order status if it exists in localStorage
+      // Clear the current temporary order if it matches
+      if (temporaryOrder && temporaryOrder.id === orderId) {
+        console.log('🧹 Clearing current temporary order');
+        clearTemporaryOrder();
+      }
+
+      // Clear localStorage entries for this order
       const specificOrderKey = `temp_order_${orderId}`;
       const genericOrderKey = 'restaurant_temporary_order';
       
       if (localStorage.getItem(specificOrderKey)) {
-        console.log('🔄 Updating original order status in key:', specificOrderKey);
-        const updatedOrderData = {
-          ...transferredOrder,
-          createdAt: transferredOrder.createdAt.toISOString(),
-          sessionStartedAt: transferredOrder.sessionStartedAt.toISOString(),
-          transferredAt: transferredOrder.transferredAt?.toISOString(),
-          updatedAt: transferredOrder.updatedAt.toISOString(),
-        };
-        localStorage.setItem(specificOrderKey, JSON.stringify(updatedOrderData));
+        console.log('🗑️ Removing order from localStorage:', specificOrderKey);
+        localStorage.removeItem(specificOrderKey);
       }
       
       if (localStorage.getItem(genericOrderKey)) {
@@ -754,15 +735,20 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
         }
       }
 
-      // Clear the current temporary order if it matches
-      if (temporaryOrder && temporaryOrder.id === orderId) {
-        console.log('🧹 Clearing current temporary order');
-        clearTemporaryOrder();
-      }
-
-      console.log('✅ Order transferred to manager successfully:', transferredOrder);
+      console.log('✅ Order transferred to manager successfully:', {
+        orderId,
+        transferredBy: staffId,
+        notes
+      });
       
-      return transferredOrder;
+      // Return a minimal order object for compatibility
+      return {
+        id: orderId,
+        ...order,
+        status: 'transferred',
+        transferredAt: new Date(),
+        transferredBy: staffId,
+      };
     } catch (error) {
       console.error('❌ Error transferring order to manager:', error);
       throw error;

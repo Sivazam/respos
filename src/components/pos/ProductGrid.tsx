@@ -6,9 +6,11 @@ interface ProductGridProps {
   products: MenuItem[];
   category?: string;
   onAddToCart?: (product: MenuItem) => void;
+  onAddItem?: (product: MenuItem) => void;
 }
 
-const ProductGrid: React.FC<ProductGridProps> = ({ products, category, onAddToCart }) => {
+const ProductGrid: React.FC<ProductGridProps> = ({ products, category, onAddToCart, onAddItem }) => {
+  const handleAddToCart = onAddToCart || onAddItem;
   
   const filteredProducts = category
     ? products.filter(product => product.categoryId === category)
@@ -19,8 +21,8 @@ const ProductGrid: React.FC<ProductGridProps> = ({ products, category, onAddToCa
       {filteredProducts.map(product => (
         <button
           key={product.id}
-          onClick={() => product.isAvailable && onAddToCart && onAddToCart(product)}
-          disabled={!product.isAvailable || !onAddToCart}
+          onClick={() => product.isAvailable && handleAddToCart && handleAddToCart(product)}
+          disabled={!product.isAvailable || !handleAddToCart}
           className={`
             relative p-3 sm:p-4 rounded-lg text-left transition-all h-full min-h-[180px] sm:min-h-[200px]
             ${product.isAvailable 

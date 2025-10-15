@@ -28,6 +28,7 @@ interface CompletedOrder {
   paymentData?: any;
   customerName?: string;
   notes?: string;
+  locationId?: string;
 }
 
 const StaffOrdersPage: React.FC = () => {
@@ -86,7 +87,8 @@ const StaffOrdersPage: React.FC = () => {
                 paymentMethod: data.paymentData?.paymentMethod || data.paymentMethod || 'cash',
                 paymentData: data.paymentData,
                 customerName: data.customerName,
-                notes: data.notes
+                notes: data.notes,
+                locationId: data.locationId
               };
             });
 
@@ -130,7 +132,8 @@ const StaffOrdersPage: React.FC = () => {
             paymentMethod: orderData.paymentMethod || 'cash',
             paymentData: orderData.paymentData,
             customerName: orderData.customerName,
-            notes: orderData.notes
+            notes: orderData.notes,
+            locationId: orderData.locationId || currentUser?.locationId
           });
         }
 

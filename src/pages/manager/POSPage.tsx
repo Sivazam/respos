@@ -14,7 +14,8 @@ import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import CheckoutModal from '../../components/pos/CheckoutModal';
 import ReceiptModal from '../../components/pos/ReceiptModal';
-import { Sale, Receipt } from '../../types';
+import PortionSelectionModal from '../../components/pos/PortionSelectionModal';
+import { Sale, Receipt, MenuItem } from '../../types';
 
 const ManagerPOSPage: React.FC = () => {
   const location = useLocation();
@@ -30,6 +31,8 @@ const ManagerPOSPage: React.FC = () => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
   const [useOptimizedView, setUseOptimizedView] = useState(false);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [showPortionModal, setShowPortionModal] = useState(false);
   
   // Check if this is a table-based order
   const isTableBasedOrder = location.state?.orderType && location.state?.tableIds;
@@ -49,6 +52,38 @@ const ManagerPOSPage: React.FC = () => {
       return matchesSearch && matchesCategory && matchesStock;
     });
   }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock]);
+
+  const handleAddToCart = (menuItem: MenuItem) => {
+    if (menuItem.hasHalfPortion) {
+      setSelectedMenuItem(menuItem);
+      setShowPortionModal(true);
+    } else {
+      addItem({
+        menuItemId: menuItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        modifications: [],
+        notes: '',
+        portionSize: 'full'
+      });
+    }
+  };
+
+  const handlePortionSelect = (portionSize: 'half' | 'full', price: number) => {
+    if (selectedMenuItem) {
+      addItem({
+        menuItemId: selectedMenuItem.id,
+        name: selectedMenuItem.name,
+        price: price,
+        modifications: [],
+        notes: '',
+        portionSize: portionSize
+      });
+      // Close the modal and clear selection
+      setShowPortionModal(false);
+      setSelectedMenuItem(null);
+    }
+  };
 
   const handleCheckout = () => {
     if (items.length > 0) {
@@ -238,17 +273,11 @@ const ManagerPOSPage: React.FC = () => {
                     stock: item.isAvailable ? 999 : 0, // Use availability as stock indicator
                     imageUrl: item.imageUrl
                   }))}
-                  onAddToCart={(product) => {
+                  onAddToCart={(product, quantity) => {
                     // Find the corresponding menu item and add to cart
                     const menuItem = filteredProducts.find(item => item.id === product.id);
                     if (menuItem) {
-                      addItem({
-                        menuItemId: menuItem.id,
-                        name: menuItem.name,
-                        price: menuItem.price,
-                        modifications: [],
-                        notes: ''
-                      });
+                      handleAddToCart(menuItem);
                     }
                   }}
                   cartItems={items.map(item => ({
@@ -270,15 +299,7 @@ const ManagerPOSPage: React.FC = () => {
                 <ProductGrid
                   products={filteredProducts}
                   category={selectedCategory}
-                  onAddToCart={(menuItem) => {
-                    addItem({
-                      menuItemId: menuItem.id,
-                      name: menuItem.name,
-                      price: menuItem.price,
-                      modifications: [],
-                      notes: ''
-                    });
-                  }}
+                  onAddToCart={handleAddToCart}
                 />
               )}
             </div>
@@ -328,6 +349,19 @@ const ManagerPOSPage: React.FC = () => {
           receipt={currentReceipt}
           onClose={() => setShowReceipt(false)}
           onPrint={() => {}} // Print function is now handled internally
+        />
+      )}
+
+      {/* Portion Selection Modal */}
+      {selectedMenuItem && (
+        <PortionSelectionModal
+          menuItem={selectedMenuItem}
+          isOpen={showPortionModal}
+          onClose={() => {
+            setShowPortionModal(false);
+            setSelectedMenuItem(null);
+          }}
+          onSelect={handlePortionSelect}
         />
       )}
     </DashboardLayout>

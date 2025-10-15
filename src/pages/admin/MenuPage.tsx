@@ -225,9 +225,17 @@ const MenuPage: React.FC = () => {
                     </div>
                     
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center text-lg font-bold text-green-600">
-                        <IndianRupee size={16} className="mr-1" />
-                        {item.price.toFixed(2)}
+                      <div>
+                        <div className="flex items-center text-lg font-bold text-green-600">
+                          <IndianRupee size={16} className="mr-1" />
+                          {item.price.toFixed(2)}
+                        </div>
+                        {item.hasHalfPortion && (
+                          <div className="flex items-center text-sm text-gray-500">
+                            <IndianRupee size={12} className="mr-1" />
+                            {item.halfPortionCost?.toFixed(2)} (Half)
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <button

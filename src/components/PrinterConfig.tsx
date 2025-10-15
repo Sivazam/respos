@@ -1,12 +1,10 @@
-'use client'
-
 import React, { useState } from 'react'
-import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
+import Button from './ui/Button'
+import Input from './ui/Input'
+import { Label } from './ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Switch } from './ui/switch'
+import { Badge } from './ui/badge'
 import { Printer, Wifi, Settings, TestTube } from 'lucide-react'
 
 interface PrinterSettings {

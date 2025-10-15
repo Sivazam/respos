@@ -30,6 +30,10 @@ import StaffTablesPage from './pages/staff/TablesPage';
 import StaffCatalogPage from './pages/staff/CatalogPage';
 import StaffOrdersPage from './pages/staff/OrdersPage';
 import EnhancedStaffPendingOrdersPage from './pages/staff/EnhancedPendingOrdersPage';
+import StaffPerformancePage from './pages/staff/StaffPerformancePage';
+
+// Debug Pages
+import DebugStaffOrdersPage from './pages/debug/DebugStaffOrdersPage';
 
 // Full providers for authenticated routes
 import FullAppProviders from './components/providers/FullAppProviders';
@@ -483,6 +487,22 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['staff']}>
                             <EnhancedStaffPendingOrdersPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      <Route 
+                        path="/staff-performance" 
+                        element={
+                          <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                            <StaffPerformancePage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      <Route 
+                        path="/debug-staff-orders" 
+                        element={
+                          <ProtectedRoute allowedRoles={['staff', 'manager', 'admin']}>
+                            <DebugStaffOrdersPage />
                           </ProtectedRoute>
                         } 
                       />

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplayContext';
+import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import { useTables } from '../../contexts/TableContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { OrderItem } from '../../types';
@@ -24,8 +25,8 @@ import Input from '../../components/ui/Input';
 import { Card } from '../../components/ui/card';
 import GoForBillModal from '../../components/order/GoForBillModal';
 import ViewOrderModal from '../../components/order/ViewOrderModal';
-import toast from 'react-hot-toast';
 import { OrderService } from '../../services/orderService';
+import toast from 'react-hot-toast';
 
 interface PendingOrder {
   id: string;
@@ -39,11 +40,13 @@ interface PendingOrder {
   updatedAt: Date;
   staffId: string;
   sessionStartedAt: Date;
+  locationId?: string;
 }
 
 const EnhancedStaffPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { transferOrderToManager } = useTemporaryOrder();
   const { 
     temporaryOrders, 
     loading: ordersLoading, 
@@ -83,7 +86,8 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
       createdAt: order.createdAt || new Date(),
       updatedAt: order.updatedAt || new Date(),
       staffId: order.staffId,
-      sessionStartedAt: order.createdAt || new Date()
+      sessionStartedAt: order.createdAt || new Date(),
+      locationId: order.locationId || currentUser?.locationId
     };
   });
 
@@ -143,8 +147,7 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
   const handleTransferToManager = async (order: PendingOrder, notes?: string) => {
     setIsTransferring(true);
     try {
-      const orderService = OrderService.getInstance();
-      await orderService.transferOrderToManager(order.id, order.staffId, notes);
+      await transferOrderToManager(order.id, currentUser?.uid || order.staffId, notes);
       toast.success(`Order ${order.orderNumber} transferred to manager successfully`);
       setShowGoForBill(false);
       setSelectedOrder(null);

@@ -29,7 +29,9 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
     isVegetarian: initialData?.isVegetarian ?? true,
     isAvailable: initialData?.isAvailable ?? true,
     preparationTime: initialData?.preparationTime || 15,
-    spiceLevel: initialData?.spiceLevel || 'medium'
+    spiceLevel: initialData?.spiceLevel || 'medium',
+    hasHalfPortion: initialData?.hasHalfPortion ?? false,
+    halfPortionCost: initialData?.halfPortionCost || 0
   });
   
   const [error, setError] = useState<string>('');
@@ -57,6 +59,17 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
 
     if (!formData.description.trim()) {
       setError('Description is required');
+      return;
+    }
+
+    // Validate half portion cost if half portion is enabled
+    if (formData.hasHalfPortion && (!formData.halfPortionCost || formData.halfPortionCost <= 0)) {
+      setError('Half portion cost must be greater than 0 when half portion is enabled');
+      return;
+    }
+
+    if (formData.hasHalfPortion && formData.halfPortionCost >= formData.price) {
+      setError('Half portion cost must be less than full portion price');
       return;
     }
 
@@ -157,35 +170,6 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
           required
         />
         
-        <Input
-          label="Price (₹)"
-          type="number"
-          name="price"
-          value={formData.price}
-          onChange={handleChange}
-          placeholder="0.00"
-          min="0"
-          step="0.01"
-          required
-        />
-      </div>
-      
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Description
-        </label>
-        <textarea
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          rows={3}
-          className="w-full rounded-md border border-gray-300 py-2 px-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-          placeholder="Describe the menu item..."
-          required
-        />
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Category
@@ -205,7 +189,24 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
             ))}
           </select>
         </div>
-        
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Description
+        </label>
+        <textarea
+          name="description"
+          value={formData.description}
+          onChange={handleChange}
+          rows={3}
+          className="w-full rounded-md border border-gray-300 py-2 px-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          placeholder="Describe the menu item..."
+          required
+        />
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Prep Time (minutes)
@@ -237,6 +238,90 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
             <option value="extra_hot">Extra Hot</option>
           </select>
         </div>
+      </div>
+
+      {/* Portion Size Section */}
+      <div className="border-t pt-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Portion Options</h3>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="hasHalfPortion"
+              name="hasHalfPortion"
+              checked={formData.hasHalfPortion || false}
+              onChange={handleChange}
+              className="mr-2 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="hasHalfPortion" className="text-sm font-medium text-gray-700">
+              Enable Half Portion
+            </label>
+          </div>
+        </div>
+
+        {formData.hasHalfPortion && (
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Portion Price (₹)
+                </label>
+                <Input
+                  type="number"
+                  name="price"
+                  value={formData.price}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Half Portion Price (₹)
+                </label>
+                <Input
+                  type="number"
+                  name="halfPortionCost"
+                  value={formData.halfPortionCost || ''}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  required={formData.hasHalfPortion}
+                />
+              </div>
+            </div>
+            <p className="text-sm text-gray-500 mt-2">
+              Full portion is the default size. Half portion will be available as an option when ordering.
+            </p>
+          </div>
+        )}
+
+        {!formData.hasHalfPortion && (
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Price (₹) - Full Portion Only
+              </label>
+              <Input
+                type="number"
+                name="price"
+                value={formData.price}
+                onChange={handleChange}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <p className="text-sm text-gray-500 mt-2">
+              This item is only available in full portion size.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center space-x-6">

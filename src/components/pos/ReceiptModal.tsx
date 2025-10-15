@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Receipt } from '../../types';
-import { browserPrintService } from '@/lib/browserPrint';
+import { browserPrintService } from '../../lib/browserPrint';
 import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 
 interface ReceiptModalProps {
@@ -87,9 +87,11 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
       const quantity = item.quantity || 1;
       const price = item.price || 0;
       const itemTotal = price * quantity;
+      const portionSize = item.portionSize ? ` (${item.portionSize === 'half' ? 'Half' : 'Full'})` : '';
       
-      // Truncate item name if too long
-      const truncatedName = itemName.length > 18 ? itemName.substring(0, 15) + '...' : itemName;
+      // Truncate item name if too long (accounting for portion size)
+      const displayName = itemName + portionSize;
+      const truncatedName = displayName.length > 18 ? displayName.substring(0, 15) + '...' : displayName;
       
       content += truncatedName.padEnd(18) + 
                   quantity.toString().padStart(6) + 
@@ -266,7 +268,14 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
             {/* Items */}
             {sale.items.map(item => (
               <div key={item.id} className="grid grid-cols-12 mb-1" style={{ fontWeight: '600' }}>
-                <div className="col-span-6">{item.name}</div>
+                <div className="col-span-6">
+                  {item.name}
+                  {item.portionSize && (
+                    <span className="text-xs text-gray-600 ml-1">
+                      ({item.portionSize === 'half' ? 'Half' : 'Full'})
+                    </span>
+                  )}
+                </div>
                 <div className="col-span-2 text-right">{item.quantity}</div>
                 <div className="col-span-2 text-right">{item.price.toFixed(2)}</div>
                 <div className="col-span-2 text-right">₹{(item.quantity * item.price).toFixed(2)}</div>

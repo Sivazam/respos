@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useTables } from '../../contexts/TableContext';
-import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplayContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocations } from '../../contexts/LocationContext';
@@ -27,7 +26,8 @@ import { Card } from '../../components/ui/card';
 import GoForBillModal from '../../components/order/GoForBillModal';
 import ViewOrderModal from '../../components/order/ViewOrderModal';
 import toast from 'react-hot-toast';
-import { OrderService } from '../../services/orderService';
+import LocalStorageDebug from '../../components/debug/LocalStorageDebug';
+import { useOrderStorageCleanup } from '../../hooks/useStorageCleanup';
 
 interface PendingOrder {
   id: string;
@@ -45,7 +45,6 @@ interface PendingOrder {
 const StaffPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { tables, releaseTable } = useTables();
-  const { loadFromLocalStorage } = useTemporaryOrder();
   const { temporaryOrders, loading: contextLoading } = useTemporaryOrdersDisplay();
   const { currentUser } = useAuth();
   const { currentLocation } = useLocations();
@@ -58,6 +57,10 @@ const StaffPendingOrdersPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<any>(null);
   const [orderCreators, setOrderCreators] = useState<{ [key: string]: { email: string; role: string; displayName?: string } }>({});
+  const [showLocalStorageDebug, setShowLocalStorageDebug] = useState(false);
+  
+  // Storage cleanup hook
+  const { orderKeyCount, hasDuplicates, cleanupOrderStorage } = useOrderStorageCleanup();
 
   // Convert temporary orders to pending orders format
   const pendingOrders = temporaryOrders.map(order => ({
@@ -76,6 +79,16 @@ const StaffPendingOrdersPage: React.FC = () => {
     staffId: order.staffId,
     locationId: order.locationId || currentUser?.locationId
   }));
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Staff Pending Orders Debug:');
+    console.log('  - Temporary orders from Firestore:', temporaryOrders.length);
+    console.log('  - Pending orders (mapped):', pendingOrders.length);
+    console.log('  - Order keys in localStorage:', orderKeyCount);
+    console.log('  - Has duplicates:', hasDuplicates);
+    console.log('  - Temporary orders data:', temporaryOrders.map(o => ({ id: o.id, orderNumber: o.orderNumber, status: o.status })));
+  }, [temporaryOrders, pendingOrders, orderKeyCount, hasDuplicates]);
 
   // Fetch order creator details when orders change
   useEffect(() => {
@@ -226,6 +239,41 @@ const StaffPendingOrdersPage: React.FC = () => {
   return (
     <DashboardLayout title="Pending Orders">
       <div className="space-y-6">
+        {/* Debug Button */}
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            {(hasDuplicates || orderKeyCount > 5) && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-yellow-100 border border-yellow-300 rounded-lg">
+                <AlertCircle size={16} className="text-yellow-600" />
+                <span className="text-sm text-yellow-800">
+                  {hasDuplicates ? 'Duplicate order data detected' : `High storage usage: ${orderKeyCount} order keys`}
+                </span>
+                <Button
+                  onClick={() => {
+                    const removedKeys = cleanupOrderStorage();
+                    toast.success(`Cleared ${removedKeys.length} storage keys`);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-yellow-700 border-yellow-400 hover:bg-yellow-50"
+                >
+                  Cleanup
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          <Button
+            onClick={() => setShowLocalStorageDebug(true)}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 text-purple-600 border-purple-300"
+          >
+            <Eye size={16} />
+            Debug Local Storage
+          </Button>
+        </div>
+        
         {/* Header Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="p-4">
@@ -506,6 +554,13 @@ const StaffPendingOrdersPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Local Storage Debug Modal */}
+      {showLocalStorageDebug && (
+        <LocalStorageDebug
+          onClose={() => setShowLocalStorageDebug(false)}
+        />
       )}
     </DashboardLayout>
   );

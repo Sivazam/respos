@@ -1,11 +1,9 @@
-'use client';
-
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import Button from '../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Loader2, Database, CheckCircle, AlertCircle } from 'lucide-react';
-import { createTestData, checkExistingData } from '@/lib/createTestData';
+import { createTestData, checkExistingData } from '../../lib/createTestData';
 
 export function TestDataCreator() {
   const [isLoading, setIsLoading] = useState(false);

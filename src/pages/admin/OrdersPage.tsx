@@ -245,7 +245,8 @@ const OrdersPage: React.FC = () => {
         name: item.name,
         price: item.price || 0,
         quantity: item.quantity || 1,
-        modifications: item.modifications || []
+        modifications: item.modifications || [],
+        portionSize: item.portionSize
       })),
       customerName: order.customerName,
       notes: order.notes,
@@ -259,7 +260,8 @@ const OrdersPage: React.FC = () => {
         paymentMethod: order.paymentMethod,
         amount: totalAmount,
         settledAt: order.settledAt
-      }
+      },
+      locationId: order.locationId
     };
     
     setSelectedReceipt(receiptOrder);

@@ -236,9 +236,10 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
     const isFirstItem = temporaryOrder.items.length === 0;
     const now = new Date();
 
-    // Check if an identical item already exists (same menuItemId, modifications, and notes)
+    // Check if an identical item already exists (same menuItemId, portionSize, modifications, and notes)
     const existingItemIndex = temporaryOrder.items.findIndex(existingItem =>
       existingItem.menuItemId === item.menuItemId &&
+      existingItem.portionSize === item.portionSize &&
       JSON.stringify(existingItem.modifications) === JSON.stringify(item.modifications) &&
       existingItem.notes === item.notes
     );
@@ -291,6 +292,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
       for (const newItem of newItems) {
         const existingItemIndex = mergedItems.findIndex(item =>
           item.menuItemId === newItem.menuItemId &&
+          item.portionSize === newItem.portionSize &&
           JSON.stringify(item.modifications) === JSON.stringify(newItem.modifications) &&
           item.notes === newItem.notes
         );

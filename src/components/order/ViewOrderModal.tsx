@@ -21,6 +21,7 @@ interface ViewOrderModalProps {
       price: number;
       notes?: string;
       modifications?: string[];
+      portionSize?: 'half' | 'full';
     }>;
     subtotal?: number;
     gstAmount?: number;
@@ -219,13 +220,19 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
                           <div className="flex-1">
                             <div className="flex items-center space-x-2">
                               <span className="font-medium text-gray-900">{item.name}</span>
+                              {item.portionSize === 'half' && (
+                                <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Half</span>
+                              )}
+                              {item.portionSize === 'full' && (
+                                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Full</span>
+                              )}
                               <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
                                 x{item.quantity}
                               </span>
                             </div>
                             <div className="flex items-center space-x-4 mt-1">
                               <span className="text-sm text-gray-500">
-                                ₹{item.price} each
+                                ₹{Math.round(item.price)} each
                               </span>
                               {item.notes && (
                                 <span className="text-sm text-blue-600">
@@ -244,7 +251,7 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
                           </div>
                           <div className="text-right">
                             <span className="font-semibold text-gray-900">
-                              ₹{(item.price * item.quantity).toFixed(2)}
+                              ₹{Math.round(item.price * item.quantity)}
                             </span>
                           </div>
                         </div>
@@ -265,32 +272,32 @@ const ViewOrderModal: React.FC<ViewOrderModalProps> = ({
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">₹{order.subtotal?.toFixed(2) || '0.00'}</span>
+                  <span className="font-medium">₹{Math.round(order.subtotal || 0)}</span>
                 </div>
                 {(gstSettings.cgst > 0 || gstSettings.sgst > 0) ? (
                   <>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">CGST ({gstSettings.cgst}%):</span>
-                      <span className="font-medium">₹{((order.subtotal || 0) * gstSettings.cgst / 100).toFixed(2)}</span>
+                      <span className="font-medium">₹{Math.round((order.subtotal || 0) * gstSettings.cgst / 100)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">SGST ({gstSettings.sgst}%):</span>
-                      <span className="font-medium">₹{((order.subtotal || 0) * gstSettings.sgst / 100).toFixed(2)}</span>
+                      <span className="font-medium">₹{Math.round((order.subtotal || 0) * gstSettings.sgst / 100)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Total GST ({gstSettings.cgst + gstSettings.sgst}%):</span>
-                      <span className="font-medium">₹{order.gstAmount?.toFixed(2) || '0.00'}</span>
+                      <span className="font-medium">₹{Math.round(order.gstAmount || 0)}</span>
                     </div>
                   </>
                 ) : (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">GST (0%):</span>
-                    <span className="font-medium">₹0.00</span>
+                    <span className="font-medium">₹0</span>
                   </div>
                 )}
                 <div className="flex justify-between font-semibold text-lg border-t pt-2 mt-2">
                   <span className="text-gray-900">Total Amount:</span>
-                  <span className="text-green-600">₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
+                  <span className="text-green-600">₹{Math.round(order.totalAmount || 0)}</span>
                 </div>
               </div>
             </div>

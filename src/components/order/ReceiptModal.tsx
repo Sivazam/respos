@@ -133,7 +133,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
   };
 
   const formatPrice = (price: number) => {
-    return price.toFixed(2);
+    return Math.round(price).toString();
   };
 
   // Use franchise logo if available, otherwise use default
@@ -211,7 +211,15 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                         <div key={index} className="p-3">
                           <div className="grid grid-cols-[2fr_60px_80px_80px] gap-2 text-sm">
                             <div>
-                              <p className="font-medium break-words">{item.name}</p>
+                              <p className="font-medium break-words">
+                                {item.name}
+                                {item.portionSize === 'half' && (
+                                  <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Half</span>
+                                )}
+                                {item.portionSize === 'full' && (
+                                  <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Full</span>
+                                )}
+                              </p>
                               {item.modifications && item.modifications.length > 0 && (
                                 <p className="text-xs text-gray-500 mt-1">
                                   {item.modifications.join(', ')}
@@ -288,7 +296,15 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       const itemTotal = item.price * item.quantity;
                       return (
                         <div key={index} className="grid grid-cols-[2fr_30px_40px_40px] gap-1 mb-1 text-xs">
-                          <div className="break-words">{item.name}</div>
+                          <div className="break-words">
+                            {item.name}
+                            {item.portionSize === 'half' && (
+                              <span className="ml-1 text-xs bg-orange-100 text-orange-800 px-1 py-0.5 rounded">Half</span>
+                            )}
+                            {item.portionSize === 'full' && (
+                              <span className="ml-1 text-xs bg-green-100 text-green-800 px-1 py-0.5 rounded">Full</span>
+                            )}
+                          </div>
                           <div className="text-center">{item.quantity}</div>
                           <div className="text-right">{formatPrice(item.price)}</div>
                           <div className="text-right">{formatPrice(itemTotal)}</div>

@@ -163,6 +163,7 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
         modifications: [],
         notes: '',
         addedAt: new Date(),
+        portionSize: 'full'
       };
 
       addItemToTemporaryOrder(orderItem);
@@ -475,35 +476,45 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
               <div className="h-full flex flex-col">
                 {/* Cart Items */}
                 <div className="flex-1 overflow-y-auto mb-4">
-                  {temporaryOrder.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between py-3 border-b border-gray-100">
+                  <div className="space-y-2">
+                    {temporaryOrder.items.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                       <div className="flex-1">
-                        <h4 className="font-medium">{item.name}</h4>
+                        <h4 className="font-medium text-sm">
+                          {item.name}
+                          {item.portionSize === 'half' && (
+                            <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Half</span>
+                          )}
+                          {item.portionSize === 'full' && (
+                            <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Full</span>
+                          )}
+                        </h4>
                         <p className="text-sm text-gray-500">₹{item.price} x {item.quantity}</p>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => updateItemQuantity(item.id, item.quantity - 1)}
-                          className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                          className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm"
                         >
                           -
                         </button>
-                        <span className="w-8 text-center">{item.quantity}</span>
+                        <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
                         <button
                           onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
-                          className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                          className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm"
                         >
                           +
                         </button>
                         <button
                           onClick={() => removeItemFromTemporaryOrder(item.id)}
-                          className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-red-600 ml-2"
+                          className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-sm text-red-600"
                         >
                           ×
                         </button>
                       </div>
                     </div>
                   ))}
+                  </div>
                 </div>
 
                 {/* Order Summary */}

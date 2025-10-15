@@ -43,21 +43,6 @@ const POSPage: React.FC = () => {
   // Check if current user is a manager and this is a table-based order
   const isManagerTableOrder = isTableBasedOrder && currentUser?.role === 'manager';
   
-  // If manager is creating a table-based order, redirect to ManagerPOSPage
-  if (isManagerTableOrder) {
-    console.log('👨‍💼 Redirecting manager to ManagerPOSPage');
-    const ManagerPOS = React.lazy(() => import('./ManagerPOSPage'));
-    return (
-      <React.Suspense fallback={
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        </div>
-      }>
-        <ManagerPOS />
-      </React.Suspense>
-    );
-  }
-  
   // Get menu items for current location
   const locationMenuItems = useMemo(() => {
     return menuItems.filter(item => 
@@ -73,6 +58,21 @@ const POSPage: React.FC = () => {
       return matchesSearch && matchesCategory && matchesStock;
     });
   }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock]);
+
+  // If manager is creating a table-based order, redirect to ManagerPOSPage
+  if (isManagerTableOrder) {
+    console.log('👨‍💼 Redirecting manager to ManagerPOSPage');
+    const ManagerPOS = React.lazy(() => import('./ManagerPOSPage'));
+    return (
+      <React.Suspense fallback={
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+      }>
+        <ManagerPOS />
+      </React.Suspense>
+    );
+  }
 
   const handleAddToCart = (menuItem: MenuItem) => {
     console.log('🛒 POSPage.handleAddToCart called:', menuItem);
@@ -96,16 +96,15 @@ const POSPage: React.FC = () => {
   const handlePortionSelect = (portionSize: 'half' | 'full', price: number) => {
     console.log('🍽️ POSPage.handlePortionSelect called:', { portionSize, price, selectedMenuItem });
     if (selectedMenuItem) {
-      const cartItem = {
+      addItem({
         menuItemId: selectedMenuItem.id,
         name: selectedMenuItem.name,
         price: price,
+        portionSize: portionSize,
         modifications: [],
-        notes: '',
-        portionSize: portionSize
-      };
-      console.log('🛒 Calling addItem with:', cartItem);
-      addItem(cartItem);
+        notes: ''
+      });
+      console.log('🛒 Added item with portionSize:', portionSize);
       // Close the modal and clear selection
       setShowPortionModal(false);
       setSelectedMenuItem(null);

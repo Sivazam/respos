@@ -21,6 +21,7 @@ interface FinalReceiptModalProps {
       price: number;
       quantity: number;
       modifications?: string[];
+      portionSize?: 'half' | 'full';
     }[];
     customerName?: string;
     notes?: string;
@@ -207,9 +208,9 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
 
   const formatPrice = (price: number | undefined | null) => {
     if (price === undefined || price === null || isNaN(price)) {
-      return '0.00';
+      return '0';
     }
-    return price.toFixed(2);
+    return Math.round(price).toString();
   };
 
   // Generate HTML content for printing with proper grid layout and logo
@@ -342,6 +343,26 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
             font-style: italic;
         }
         
+        .portion-tag-half {
+            font-size: 8px;
+            background-color: #fed7aa;
+            color: #9a3412;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+        
+        .portion-tag-full {
+            font-size: 8px;
+            background-color: #bbf7d0;
+            color: #166534;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 4px;
+            font-weight: bold;
+        }
+        
         .totals {
             margin-top: 10px;
         }
@@ -440,10 +461,11 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
               const quantity = item.quantity || 1;
               const price = item.price || 0;
               const itemTotal = price * quantity;
+              const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
               
               return `
                 <div class="item">
-                    <div class="item-name">${itemName}</div>
+                    <div class="item-name">${itemName}${portionTag}</div>
                     <div class="item-qty">${quantity}</div>
                     <div class="item-price">${formatPrice(price)}</div>
                     <div class="item-total">${formatPrice(itemTotal)}</div>
@@ -678,7 +700,15 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   const itemTotal = item.price * item.quantity;
                   return (
                     <div key={index} className="grid grid-cols-[2fr_40px_50px_50px] gap-1 mb-2 text-xs font-semibold">
-                      <div className="break-words">{item.name}</div>
+                      <div className="break-words">
+                        {item.name}
+                        {item.portionSize === 'half' && (
+                          <span className="ml-1 text-xs bg-orange-100 text-orange-800 px-1 py-0.5 rounded">Half</span>
+                        )}
+                        {item.portionSize === 'full' && (
+                          <span className="ml-1 text-xs bg-green-100 text-green-800 px-1 py-0.5 rounded">Full</span>
+                        )}
+                      </div>
                       <div className="text-center">{item.quantity}</div>
                       <div className="text-right">{formatPrice(item.price)}</div>
                       <div className="text-right">{formatPrice(itemTotal)}</div>

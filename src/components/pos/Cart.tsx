@@ -32,7 +32,7 @@ const Cart: React.FC<CartProps> = ({ onCheckout }) => {
             <div className="flex-1 min-w-0">
               <h4 className="font-medium text-gray-900 text-sm sm:text-base truncate">
                 {item.name}
-                {item.portionSize && (
+                {item.portionSize && item.portionSize !== 'full' && (
                   <span className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
                     {item.portionSize === 'half' ? '(Half)' : '(Full)'}
                   </span>
@@ -40,32 +40,32 @@ const Cart: React.FC<CartProps> = ({ onCheckout }) => {
               </h4>
               <p className="text-xs sm:text-sm text-gray-500">₹{item.price.toFixed(2)} each</p>
             </div>
-            
-            <div className="flex items-center space-x-1 sm:space-x-2 ml-2">
-              <button
-                onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200"
-              >
-                <Minus size={14} />
-              </button>
               
-              <span className="w-6 sm:w-8 text-center text-sm">{item.quantity}</span>
-              
-              <button
-                onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200"
-              >
-                <Plus size={14} />
-              </button>
-              
-              <button
-                onClick={() => removeItem(item.id)}
-                className="p-1 rounded-full hover:bg-gray-100 text-red-500 ml-1 transition-colors duration-200"
-              >
-                <Trash2 size={14} />
-              </button>
+              <div className="flex items-center space-x-1 sm:space-x-2 ml-2">
+                <button
+                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200"
+                >
+                  <Minus size={14} />
+                </button>
+                
+                <span className="w-6 sm:w-8 text-center text-sm">{item.quantity}</span>
+                
+                <button
+                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200"
+                >
+                  <Plus size={14} />
+                </button>
+                
+                <button
+                  onClick={() => removeItem(item.id)}
+                  className="p-1 rounded-full hover:bg-gray-100 text-red-500 ml-1 transition-colors duration-200"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
-          </div>
         ))}
       </div>
       

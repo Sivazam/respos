@@ -48,9 +48,9 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
     
     const formatPrice = (price: number | undefined | null) => {
       if (price === undefined || price === null || isNaN(price)) {
-        return '0.00';
+        return '0';
       }
-      return price.toFixed(2);
+      return Math.round(price).toString();
     };
     
     let content = '';
@@ -277,8 +277,8 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
                   )}
                 </div>
                 <div className="col-span-2 text-right">{item.quantity}</div>
-                <div className="col-span-2 text-right">{item.price.toFixed(2)}</div>
-                <div className="col-span-2 text-right">₹{(item.quantity * item.price).toFixed(2)}</div>
+                <div className="col-span-2 text-right">{Math.round(item.price)}</div>
+                <div className="col-span-2 text-right">₹{Math.round(item.quantity * item.price)}</div>
               </div>
             ))}
 
@@ -289,24 +289,24 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
             <div className="space-y-1 mb-2">
               <div className="flex justify-between" style={{ fontWeight: '600' }}>
                 <span>Subtotal:</span>
-                <span>₹{sale.subtotal.toFixed(2)}</span>
+                <span>₹{Math.round(sale.subtotal)}</span>
               </div>
               {cgstPercentage > 0 && (
                 <div className="flex justify-between" style={{ fontWeight: '600' }}>
                   <span>CGST ({cgstPercentage.toFixed(1)}%):</span>
-                  <span>₹{sale.cgst.toFixed(2)}</span>
+                  <span>₹{Math.round(sale.cgst)}</span>
                 </div>
               )}
               {sgstPercentage > 0 && (
                 <div className="flex justify-between" style={{ fontWeight: '600' }}>
                   <span>SGST ({sgstPercentage.toFixed(1)}%):</span>
-                  <span>₹{sale.sgst.toFixed(2)}</span>
+                  <span>₹{Math.round(sale.sgst)}</span>
                 </div>
               )}
               <div className="border-t border-black pt-1 mt-1">
                 <div className="flex justify-between font-black text-lg">
                   <span>{isReturn ? 'Return Amount' : 'TOTAL'}:</span>
-                  <span>₹{sale.total.toFixed(2)}</span>
+                  <span>₹{Math.round(sale.total)}</span>
                 </div>
               </div>
             </div>

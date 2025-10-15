@@ -111,17 +111,27 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
       console.log('📦 Current cart items:', currentItems);
       
       // Find existing item with same menuItemId, modifications, notes, and portionSize
+      // This ensures different portions (Half vs Full) are treated as separate entries
       const existingItem = currentItems.find(item => 
         item.menuItemId === cartItem.menuItemId &&
-        JSON.stringify(item.modifications) === JSON.stringify(cartItem.modifications) &&
-        item.notes === cartItem.notes &&
-        item.portionSize === cartItem.portionSize
+        JSON.stringify(item.modifications || []) === JSON.stringify(cartItem.modifications || []) &&
+        (item.notes || '') === (cartItem.notes || '') &&
+        (item.portionSize || 'full') === (cartItem.portionSize || 'full')
       );
       
-      console.log('🔍 Found existing item with same portion:', existingItem);
+      console.log('🔍 Portion comparison:', {
+        existingItem: existingItem ? {
+          name: existingItem.name,
+          portionSize: existingItem.portionSize || 'full',
+          id: existingItem.id
+        } : null,
+        newItemPortion: cartItem.portionSize || 'full',
+        menuItemId: cartItem.menuItemId,
+        willCreateNewEntry: !existingItem
+      });
       
       if (existingItem) {
-        console.log('✅ Updating existing item quantity');
+        console.log('✅ Updating existing item quantity for same portion');
         return currentItems.map(item =>
           item.id === existingItem.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -129,7 +139,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         );
       }
       
-      console.log('➕ Adding new item to cart');
+      console.log('➕ Adding new item to cart with portion:', cartItem.portionSize || 'full');
       const newItem = {
         id: uuidv4(),
         menuItemId: cartItem.menuItemId,

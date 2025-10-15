@@ -23,7 +23,7 @@ const PortionSelectionModal: React.FC<PortionSelectionModalProps> = ({
       ? menuItem.halfPortionCost || 0 
       : menuItem.price;
     onSelect(portionSize, price);
-    onClose();
+    // Don't call onClose() here - let the parent handle it
   };
 
   return (

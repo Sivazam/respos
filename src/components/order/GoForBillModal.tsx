@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
-import { X, Receipt, ArrowRight, AlertCircle } from 'lucide-react';
+import { X, Receipt, ArrowRight, AlertCircle, User, CreditCard, Smartphone, Wallet } from 'lucide-react';
 import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTables } from '../../contexts/TableContext';
+import { upsertCustomerData } from '../../contexts/CustomerDataService';
+import CustomerInfoForm from '../common/CustomerInfoForm';
 import Button from '../ui/Button';
 import toast from 'react-hot-toast';
 
 interface GoForBillModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
   order?: any; // The order to transfer
 }
 
 const GoForBillModal: React.FC<GoForBillModalProps> = ({
   isOpen,
   onClose,
-  onSuccess,
   order
 }) => {
   const { currentUser } = useAuth();
@@ -24,6 +24,26 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
   const { releaseTable } = useTables();
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    phone: '',
+    city: '',
+    paymentMethod: 'cash' as 'cash' | 'card' | 'upi'
+  });
+
+  const handleCustomerInfoChange = (values: { name?: string; phone?: string; city?: string }) => {
+    setCustomerInfo(prev => ({
+      ...prev,
+      ...values
+    }));
+  };
+
+  const handlePaymentMethodChange = (paymentMethod: 'cash' | 'card' | 'upi') => {
+    setCustomerInfo(prev => ({
+      ...prev,
+      paymentMethod
+    }));
+  };
 
   if (!isOpen || !order) return null;
 
@@ -31,6 +51,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
     console.log('🔍 Transfer function called - checking prerequisites...');
     console.log('👤 Current user object:', currentUser);
     console.log('📋 Order object:', order);
+    console.log('👥 Customer info:', customerInfo);
     
     if (!currentUser) {
       console.error('❌ Cannot transfer: currentUser is null or undefined');
@@ -59,6 +80,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
 
     console.log('🚀 Starting transfer process for order:', order);
     console.log('👤 Current user:', currentUser);
+    console.log('👥 Customer info:', customerInfo);
     console.log('📋 Order details:', {
       id: order.id,
       orderNumber: order.orderNumber,
@@ -70,6 +92,24 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
     setIsProcessing(true);
 
     try {
+      // Create customer object if any customer info is provided
+      const customerObject = customerInfo.name || customerInfo.phone || customerInfo.city 
+        ? {
+            name: customerInfo.name || '',
+            phone: customerInfo.phone || '',
+            city: customerInfo.city || '',
+            paymentMethod: customerInfo.paymentMethod,
+            source: 'staff' as const,
+            timestamp: Date.now()
+          }
+        : null;
+      
+      // Update order with customer info if provided
+      if (customerObject) {
+        order.customer = customerObject;
+        console.log('👤 Added customer info to order:', customerObject);
+      }
+
       // Check localStorage before transfer
       console.log('🔍 Checking localStorage before transfer...');
       const beforeKeys = [];
@@ -85,11 +125,33 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
       console.log('📤 Calling transferOrderToManager with order ID:', order.id, 'and staff ID:', currentUser.uid);
       
       try {
-        const result = await transferOrderToManager(order.id, currentUser.uid, '');
+        const result = await transferOrderToManager(order.id, currentUser.uid, '', customerObject);
         console.log('✅ Transfer function completed successfully:', result);
       } catch (transferError) {
         console.error('❌ Transfer function failed:', transferError);
         throw transferError;
+      }
+
+      // Save customer data to customer_data collection if customer info is provided
+      if (customerInfo.name || customerInfo.phone || customerInfo.city) {
+        try {
+          console.log('🔍 Debug - Saving customer data with:', {
+            orderId: order.id,
+            customerInfo,
+            userId: currentUser.uid,
+            locationId: order.locationId
+          });
+          await upsertCustomerData(order.id, {
+            name: customerInfo.name,
+            phone: customerInfo.phone,
+            city: customerInfo.city,
+            paymentMethod: customerInfo.paymentMethod
+          }, 'staff', Date.now(), currentUser.uid || 'unknown', order.locationId || 'unknown');
+          console.log('✅ Customer data saved successfully');
+        } catch (error) {
+          console.error('❌ Error saving customer data:', error);
+          // Don't fail the transfer if customer data save fails
+        }
       }
 
       // Check localStorage after transfer
@@ -128,14 +190,11 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
       
       console.log('✅ Transfer process completed successfully');
       
-      // Close modal immediately and call success callback
+      // Close modal immediately
       onClose();
       
-      // Call success callback after closing
-      if (onSuccess) {
-        console.log('📞 Calling success callback');
-        onSuccess();
-      }
+      // Note: We don't call onSuccess callback here because the transfer is already handled
+      // The calling component should refresh its orders list based on the modal closing
       
     } catch (error) {
       console.error('❌ Error transferring order to manager:', error);
@@ -187,6 +246,57 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
               <p className="text-sm text-gray-500">
                 This will transfer <span className="font-semibold">{order.orderNumber}</span> to the Manager's pending orders queue for billing and settlement.
               </p>
+            </div>
+
+            {/* Customer Information Form */}
+            <div className="mb-6">
+              <div className="flex items-center space-x-2 mb-3">
+                <User size={16} className="text-gray-600" />
+                <h4 className="font-medium text-gray-900">Customer Information (Optional)</h4>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <CustomerInfoForm
+                  name={customerInfo.name}
+                  phone={customerInfo.phone}
+                  city={customerInfo.city}
+                  onChange={handleCustomerInfoChange}
+                  disabled={isProcessing}
+                />
+              </div>
+            </div>
+
+            {/* Payment Method Selection */}
+            <div className="mb-6">
+              <div className="flex items-center space-x-2 mb-3">
+                <Wallet size={16} className="text-gray-600" />
+                <h4 className="font-medium text-gray-900">Payment Method</h4>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="space-y-3">
+                  {[
+                    { value: 'cash', label: 'Cash', icon: Wallet, color: 'text-green-600' },
+                    { value: 'card', label: 'Card', icon: CreditCard, color: 'text-blue-600' },
+                    { value: 'upi', label: 'UPI', icon: Smartphone, color: 'text-purple-600' }
+                  ].map((method) => {
+                    const IconComponent = method.icon;
+                    return (
+                      <label key={method.value} className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value={method.value}
+                          checked={customerInfo.paymentMethod === method.value}
+                          onChange={(e) => handlePaymentMethodChange(e.target.value as 'cash' | 'card' | 'upi')}
+                          disabled={isProcessing}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <IconComponent className={`h-4 w-4 ${method.color}`} />
+                        <span className="text-sm font-medium">{method.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Order Summary */}

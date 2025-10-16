@@ -46,7 +46,6 @@ interface PendingOrder {
 const EnhancedStaffPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { transferOrderToManager } = useTemporaryOrder();
   const { 
     temporaryOrders, 
     loading: ordersLoading, 
@@ -55,8 +54,7 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
   } = useTemporaryOrdersDisplay();
   
   const { 
-    tables,
-    releaseTable
+    tables
   } = useTables();
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,7 +64,6 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<PendingOrder | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PendingOrder | null>(null);
-  const [isTransferring, setIsTransferring] = useState(false);
 
   // Convert temporary orders to pending orders format
   const pendingOrders: PendingOrder[] = temporaryOrders.map(order => {
@@ -141,27 +138,6 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
   const handleGoForBill = (order: PendingOrder) => {
     setSelectedOrder(order);
     setShowGoForBill(true);
-  };
-
-  // Handle transfer to manager
-  const handleTransferToManager = async (order: PendingOrder, notes?: string) => {
-    setIsTransferring(true);
-    try {
-      await transferOrderToManager(order.id, currentUser?.uid || order.staffId, notes);
-      toast.success(`Order ${order.orderNumber} transferred to manager successfully`);
-      setShowGoForBill(false);
-      setSelectedOrder(null);
-      
-      // Refresh orders list
-      setTimeout(() => {
-        refreshTemporaryOrders();
-      }, 1000);
-    } catch (error: any) {
-      console.error('Error transferring order:', error);
-      toast.error(error.message || 'Failed to transfer order to manager');
-    } finally {
-      setIsTransferring(false);
-    }
   };
 
   // Handle view receipt
@@ -440,13 +416,8 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
                         variant="primary"
                         size="sm"
                         onClick={() => handleGoForBill(order)}
-                        disabled={isTransferring}
                       >
-                        {isTransferring ? (
-                          <RefreshCw size={16} className="animate-spin" />
-                        ) : (
-                          'Go for Bill'
-                        )}
+                        Go for Bill
                       </Button>
                     )}
                     
@@ -471,10 +442,13 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
             onClose={() => {
               setShowGoForBill(false);
               setSelectedOrder(null);
+              // Refresh orders list after modal closes (in case transfer happened)
+              setTimeout(() => {
+                refreshTemporaryOrders();
+              }, 500);
             }}
             order={selectedOrder}
-            onSuccess={(notes) => handleTransferToManager(selectedOrder, notes)}
-            isProcessing={isTransferring}
+            // Remove onSuccess prop since transfer is handled in the modal
           />
         )}
 

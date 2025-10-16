@@ -524,7 +524,7 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
                     <span>₹{totals.subtotal}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>GST (5%)</span>
+                    <span>GST</span>
                     <span>₹{totals.gst}</span>
                   </div>
                   <div className="flex justify-between font-semibold text-lg">

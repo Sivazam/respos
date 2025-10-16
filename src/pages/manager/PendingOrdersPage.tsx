@@ -20,6 +20,7 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Card } from '../../components/ui/card';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
+import ManagerSettleModal from '../../components/manager/ManagerSettleModal';
 import toast from 'react-hot-toast';
 
 interface PendingOrder {
@@ -36,6 +37,13 @@ interface PendingOrder {
   transferredAt?: Date;
   transferredBy?: string;
   orderType: 'dinein' | 'delivery';
+  customer?: {
+    name?: string;
+    phone?: string;
+    city?: string;
+    collectedBy?: 'staff' | 'manager';
+    collectedAt?: number;
+  };
 }
 
 const ManagerPendingOrdersPage: React.FC = () => {
@@ -48,6 +56,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'transferred' | 'ongoing'>('all');
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showSettleModal, setShowSettleModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PendingOrder | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PendingOrder | null>(null);
@@ -155,6 +164,19 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const handleViewReceipt = (order: PendingOrder) => {
     setSelectedOrder(order);
     setShowReceiptModal(true);
+  };
+
+  // Handle settle order with customer info
+  const handleSettleOrderWithCustomer = (order: PendingOrder) => {
+    setSelectedOrder(order);
+    setShowSettleModal(true);
+  };
+
+  // Handle settle from modal
+  const handleSettleFromModal = async (order: any, paymentMethod: string, customerInfo?: any) => {
+    await handleSettleOrder(order, paymentMethod);
+    setShowSettleModal(false);
+    setSelectedOrder(null);
   };
 
   // Handle delete order

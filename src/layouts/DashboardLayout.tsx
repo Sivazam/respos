@@ -16,7 +16,8 @@ import {
   MapPin,
   Settings,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Database
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatures } from '../hooks/useFeatures';
@@ -65,6 +66,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       { name: 'Franchises', href: '/superadmin/franchises', icon: <MapPin size={20} /> },
       { name: 'Locations', href: '/superadmin/locations', icon: <Store size={20} /> },
       { name: 'Orders', href: '/superadmin/orders', icon: <ClipboardList size={20} /> },
+      { name: 'Userbase', href: '/userbase', icon: <Database size={20} /> },
       // Conditionally show user management
       ...(features.canManageUsers() ? [
         { name: 'Users', href: '/superadmin/users', icon: <Users size={20} /> }
@@ -81,6 +83,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       { name: 'Categories', href: '/admin/categories', icon: <Tags size={20} /> },
       { name: 'Menu Items', href: '/admin/menu', icon: <Utensils size={20} /> },
       { name: 'Orders', href: '/admin/orders', icon: <ClipboardList size={20} /> },
+      { name: 'Userbase', href: '/userbase', icon: <Database size={20} /> },
       // Conditionally show user management
       ...(features.canManageUsers() ? [
         { name: 'Users', href: '/admin/users', icon: <Users size={20} /> }
@@ -101,6 +104,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       { name: 'Catalog', href: '/manager/catalog', icon: <Tags size={20} /> },
       { name: 'Orders', href: '/manager/orders', icon: <ClipboardList size={20} /> },
       { name: 'Pending Orders', href: '/manager/pending-orders', icon: <Clock size={20} /> },
+      { name: 'Userbase', href: '/userbase', icon: <Database size={20} /> },
       { name: 'Users', href: '/manager/users', icon: <Users size={20} /> },
       // Conditionally show reports
       ...(features.canViewSalesReports() ? [

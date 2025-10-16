@@ -231,6 +231,25 @@ export interface StockUpdateFormData {
   type: 'add' | 'reduce';
 }
 
+// Customer Data Collection
+export interface Customer {
+  name?: string;
+  phone?: string;
+  city?: string;
+  collectedBy?: 'staff' | 'manager';
+  collectedAt?: number;
+}
+
+export interface CustomerData {
+  id?: string;
+  orderId?: string;
+  name?: string;
+  phone?: string;
+  city?: string;
+  timestamp: number;
+  source?: 'staff' | 'manager';
+}
+
 // Order Management - Enhanced for new POS system
 export interface Order {
   id: string;
@@ -269,6 +288,7 @@ export interface Order {
     updatedBy: string;
     note?: string;
   }>;
+  customer?: Customer; // Optional customer info collected during billing
 }
 
 export interface OrderItem {

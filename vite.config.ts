@@ -30,12 +30,27 @@ export default defineConfig({
       'ws-fcc-fb-b-eab-mhxjvtcecy.cn-hongkong-vpc.fcapp.run',
       'localhost',
       '127.0.0.1',
-      '.space.z.ai'
+      '.space.z.ai',
+      'preview-chat-22c56d13-ef54-4891-9e5d-1881d90feaf9.space.z.ai',
+      '*.space.z.ai'
     ],
   },
   preview: {
     host: '0.0.0.0',
     port: 3000,
     cors: true,
+    allowedHosts: [
+      'ws-feb-b-c-dbb-oxrsrxlavf.cn-hongkong-vpc.fcapp.run',
+      'ws-b-c-d-bb-pwzglxvcvz.cn-hongkong-vpc.fcapp.run',
+      'ws-d-ffae-cdcdd-lwxvkcwlet.cn-hongkong-vpc.fcapp.run',
+      'ws-be-e-a-fceba-oiwnlcyzsw.cn-hongkong-vpc.fcapp.run',
+      'ws-ceb-df-bccfd-pdrrsfijwt.cn-hongkong-vpc.fcapp.run',
+      'ws-fcc-fb-b-eab-mhxjvtcecy.cn-hongkong-vpc.fcapp.run',
+      'localhost',
+      '127.0.0.1',
+      '.space.z.ai',
+      'preview-chat-22c56d13-ef54-4891-9e5d-1881d90feaf9.space.z.ai',
+      '*.space.z.ai'
+    ],
   },
 });

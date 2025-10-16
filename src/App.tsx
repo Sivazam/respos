@@ -90,6 +90,9 @@ import NotFound from './pages/NotFound';
 // Order Pages
 import TableSelectionPage from './pages/order/TableSelectionPage';
 
+// Userbase Page
+import UserbasePage from './pages/userbase/UserbasePage';
+
 function App() {
   return (
     <ErrorBoundary>
@@ -445,6 +448,16 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>
                             <SalesReportPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+
+                      {/* Userbase Route - Shared by Manager, Admin, and Super Admin */}
+                      <Route 
+                        path="/userbase" 
+                        element={
+                          <ProtectedRoute allowedRoles={['manager', 'admin', 'owner', 'superadmin']}>
+                            <UserbasePage />
                           </ProtectedRoute>
                         } 
                       />

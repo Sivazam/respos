@@ -30,5 +30,10 @@ service cloud.firestore {
     match /counters/{counterId} {
       allow read, write: if request.auth != null;
     }
+    
+    // Only authenticated users can read/write customer data
+    match /customer_data/{orderId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }

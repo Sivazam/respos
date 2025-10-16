@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CreditCard, DollarSign, Smartphone, Wallet } from 'lucide-react';
 import { OrderItem } from '../../types';
 import Button from '../ui/Button';
 import { Card } from '../ui/card';
+import CustomerInfoForm from '../common/CustomerInfoForm';
+import { CustomerDataService } from '../../services/CustomerDataService';
 
 interface SettleBillModalProps {
   isOpen: boolean;
@@ -22,6 +24,43 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
   const [receivedAmount, setReceivedAmount] = useState('');
   const [notes, setNotes] = useState('');
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    phone: '',
+    city: ''
+  });
+  const [existingCustomerData, setExistingCustomerData] = useState<any>(null);
+
+  // Load existing customer data when modal opens
+  useEffect(() => {
+    if (isOpen && order?.id) {
+      const loadCustomerData = async () => {
+        try {
+          const customerData = await CustomerDataService.getCustomerDataByOrderId(order.id);
+          if (customerData) {
+            setExistingCustomerData(customerData);
+            setCustomerInfo({
+              name: customerData.name || '',
+              phone: customerData.phone || '',
+              city: customerData.city || ''
+            });
+          } else {
+            // Reset form if no existing data
+            setCustomerInfo({
+              name: '',
+              phone: '',
+              city: ''
+            });
+            setExistingCustomerData(null);
+          }
+        } catch (error) {
+          console.error('Error loading customer data:', error);
+        }
+      };
+      
+      loadCustomerData();
+    }
+  }, [isOpen, order?.id]);
 
   if (!isOpen || !order) return null;
 
@@ -43,13 +82,34 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
     return isNaN(received) ? 0 : received - calculateTotal();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // Save customer data if provided
+    if (customerInfo.name || customerInfo.phone || customerInfo.city) {
+      try {
+        await CustomerDataService.upsertCustomerData(
+          order.id,
+          customerInfo,
+          'manager',
+          Date.now()
+        );
+        console.log('✅ Customer data saved for order:', order.id);
+      } catch (error) {
+        console.error('❌ Error saving customer data:', error);
+        // Don't fail the settlement if customer data save fails
+      }
+    }
+
     const paymentData = {
       method: paymentMethod,
       amount: calculateTotal(),
       receivedAmount: paymentMethod === 'cash' ? parseFloat(receivedAmount) || calculateTotal() : calculateTotal(),
       change: paymentMethod === 'cash' ? calculateChange() : 0,
-      notes
+      notes,
+      customer: customerInfo.name || customerInfo.phone || customerInfo.city ? {
+        ...customerInfo,
+        collectedBy: 'manager' as const,
+        collectedAt: Date.now()
+      } : undefined
     };
 
     onSuccess(paymentData);
@@ -117,6 +177,19 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
             </div>
           </div>
 
+          {/* Customer Information */}
+          <div>
+            <CustomerInfoForm
+              name={customerInfo.name}
+              phone={customerInfo.phone}
+              city={customerInfo.city}
+              onChange={setCustomerInfo}
+              disabled={isProcessing}
+              showCollectedBadge={!!existingCustomerData}
+              collectedBy={existingCustomerData?.source}
+            />
+          </div>
+
           {/* Items */}
           <div>
             <h3 className="font-medium mb-3">Items</h3>
@@ -149,7 +222,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
                 <span>₹{calculateSubtotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">GST (5%):</span>
+                <span className="text-gray-600">GST:</span>
                 <span>₹{calculateGST().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold pt-2 border-t">

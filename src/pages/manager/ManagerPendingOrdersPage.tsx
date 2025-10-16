@@ -8,22 +8,16 @@ import {
   Search, 
   Clock, 
   AlertCircle, 
-  DollarSign, 
-  Receipt,
-  CreditCard,
-  Smartphone,
-  Wallet,
   Eye,
   Edit,
   Printer,
   Trash2
 } from 'lucide-react';
 import Input from '../../components/ui/Input';
-import ViewOrderModal from '../../components/order/ViewOrderModal';
-import EditOrderModal from '../../components/order/EditOrderModal';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
-import PaymentMethodModal from '../../components/order/PaymentMethodModal';
+import CustomerInfoAndPaymentModal from '../../components/CustomerInfoAndPaymentModal';
 import PaymentReceivedModal from '../../components/order/PaymentReceivedModal';
+import SettlementConfirmationModal from '../../components/SettlementConfirmationModal';
 import { orderService } from '../../services/orderService';
 import toast from 'react-hot-toast';
 
@@ -37,15 +31,17 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const [createdByFilter, setCreatedByFilter] = useState<'all' | 'staff' | 'me'>('all');
   const [showViewOrderModal, setShowViewOrderModal] = useState(false);
   const [showEditOrderModal, setShowEditOrderModal] = useState(false);
-  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
+  const [showUnifiedModal, setShowUnifiedModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showPaymentReceivedModal, setShowPaymentReceivedModal] = useState(false);
+  const [showSettlementConfirmationModal, setShowSettlementConfirmationModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderTotals, setOrderTotals] = useState<{ [key: string]: number }>({});
-  const [paymentFlow, setPaymentFlow] = useState<'print' | 'settle'>('print'); // Track which flow we're in
+  const [pendingAction, setPendingAction] = useState<'settle' | 'print' | null>(null);
   const [orderCreators, setOrderCreators] = useState<{ [key: string]: { email: string; role: string; displayName?: string } }>({});
-  const [locationNames, setLocationNames] = useState<{ [key: string]: string }>({});
+  const [existingCustomerData, setExistingCustomerData] = useState<any>(null);
+  const [dataSource, setDataSource] = useState<'staff' | 'manager' | undefined>(undefined);
 
   // Subscribe to manager pending orders
   useEffect(() => {
@@ -85,11 +81,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
     }
   }, [pendingOrders]);
 
-  // Fetch order creator details and location names when orders change
+  // Fetch order creator details when orders change
   useEffect(() => {
     const fetchOrderDetails = async () => {
       const creators: { [key: string]: { email: string; role: string; displayName?: string } } = {};
-      const locations: { [key: string]: string } = {};
       
       for (const pendingOrder of pendingOrders) {
         const order = pendingOrder.order || pendingOrder;
@@ -109,21 +104,15 @@ const ManagerPendingOrdersPage: React.FC = () => {
             creators[order.transferredBy] = transferDetails;
           }
         }
-        
-        // Set location name (we already have currentLocation)
-        if (order.locationId && !locations[order.locationId]) {
-          locations[order.locationId] = currentLocation?.name || 'Unknown Location';
-        }
       }
       
       setOrderCreators(creators);
-      setLocationNames(locations);
     };
 
     if (pendingOrders.length > 0) {
       fetchOrderDetails();
     }
-  }, [pendingOrders, currentLocation]);
+  }, [pendingOrders]);
 
   // Filter pending orders
   const filteredOrders = useMemo(() => {
@@ -152,7 +141,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   }, [pendingOrders, searchTerm, createdByFilter, currentUser?.uid, orderCreators]);
 
   // Handle settle bill
-  const handleSettleBill = (order: any) => {
+  const handleSettleBill = async (order: any) => {
     const orderData = order.order || order;
     
     // Find the latest order data from pendingOrders state
@@ -163,18 +152,93 @@ const ManagerPendingOrdersPage: React.FC = () => {
     
     const latestOrderData = latestPendingOrder?.order || latestPendingOrder || orderData;
     
+    console.log('💰 Settle bill - latest data from pendingOrders:', {
+      orderId: latestOrderData.id,
+      paymentMethod: latestOrderData.paymentMethod,
+      pendingPaymentMethod: latestOrderData.pendingPaymentMethod,
+      customerInfo: latestOrderData.customerInfo
+    });
+    
     setSelectedOrder(latestOrderData);
-    setPaymentFlow('settle'); // Set flow to settle
+    setPendingAction('settle');
     
-    // Check if payment method is already set (either pendingPaymentMethod or paymentData)
-    const existingPaymentMethod = latestOrderData.pendingPaymentMethod || latestOrderData.paymentData?.paymentMethod;
-    
-    if (existingPaymentMethod) {
-      // Payment method already selected, directly show payment received confirmation
-      setShowPaymentReceivedModal(true);
-    } else {
-      // No payment method selected, show payment method selection first
-      setShowPaymentMethodModal(true);
+    // Check if customer data and payment method are already collected
+    try {
+      // First check if data exists in order document
+      const hasOrderCustomerData = latestOrderData.customerInfo && 
+        (latestOrderData.customerInfo.name || latestOrderData.customerInfo.phone || latestOrderData.customerInfo.city);
+      const hasOrderPaymentMethod = latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod;
+      
+      let customerData = null;
+      let paymentMethod = hasOrderPaymentMethod ? (latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod) : null;
+      let firestoreCustomerData = null; // Declare variable in proper scope for handleSettleBill
+      
+      // If not in order, check Firestore customer_data collection
+      if (!hasOrderCustomerData || !hasOrderPaymentMethod) {
+        const { fetchCustomerDataByOrderId } = await import('../../contexts/CustomerDataService');
+        firestoreCustomerData = await fetchCustomerDataByOrderId(latestOrderData.id);
+        
+        if (firestoreCustomerData) {
+          customerData = {
+            name: firestoreCustomerData.name,
+            phone: firestoreCustomerData.phone,
+            city: firestoreCustomerData.city
+          };
+          // Use payment method from Firestore if not in order
+          if (!paymentMethod && firestoreCustomerData.paymentMethod) {
+            paymentMethod = firestoreCustomerData.paymentMethod;
+          }
+        }
+      } else {
+        // Use data from order document
+        customerData = latestOrderData.customerInfo;
+      }
+      
+      // Combine data for the modal
+      const combinedCustomerData = customerData || {};
+      // Don't default to 'cash' - use the actual payment method or let it be undefined
+      const finalPaymentMethod = paymentMethod;
+      
+      // Store existing customer data to pass to modal if needed
+      setExistingCustomerData({
+        ...combinedCustomerData,
+        paymentMethod: finalPaymentMethod
+      });
+      
+      // Determine data source for UI badge
+      let dataSourceValue: 'staff' | 'manager' | undefined;
+      if (firestoreCustomerData) {
+        dataSourceValue = firestoreCustomerData.source;
+      } else if (hasOrderPaymentMethod || hasOrderCustomerData) {
+        dataSourceValue = 'manager'; // If data is in order document, it's from manager
+      }
+      
+      setDataSource(dataSourceValue);
+      
+      const hasCustomerData = combinedCustomerData && (combinedCustomerData.name || combinedCustomerData.phone || combinedCustomerData.city);
+      const hasPaymentMethod = finalPaymentMethod && finalPaymentMethod !== 'cash';
+      
+      console.log('🧾 Settle bill - existing data:', {
+        customerData: combinedCustomerData,
+        paymentMethod: finalPaymentMethod,
+        dataSource: dataSourceValue,
+        hasCustomerData,
+        hasPaymentMethod,
+        orderPaymentMethod: latestOrderData.paymentMethod,
+        orderPendingPaymentMethod: latestOrderData.pendingPaymentMethod
+      });
+      
+      if (hasCustomerData && hasPaymentMethod) {
+        // Both customer data and payment method are already collected, show confirmation modal
+        setShowSettlementConfirmationModal(true);
+      } else {
+        // Need to collect customer data and/or payment method
+        setShowUnifiedModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking customer data:', error);
+      // Fallback to showing modal if there's an error
+      setShowUnifiedModal(true);
     }
   };
 
@@ -203,7 +267,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   };
 
   // Handle print order
-  const handlePrintOrder = (order: any) => {
+  const handlePrintOrder = async (order: any) => {
     const orderData = order.order || order;
     
     // Find the latest order data from pendingOrders state
@@ -214,18 +278,83 @@ const ManagerPendingOrdersPage: React.FC = () => {
     
     const latestOrderData = latestPendingOrder?.order || latestPendingOrder || orderData;
     
-    setSelectedOrder(latestOrderData);
-    setPaymentFlow('print'); // Set flow to print
+    console.log('🖨️ Print order - latest data from pendingOrders:', {
+      orderId: latestOrderData.id,
+      paymentMethod: latestOrderData.paymentMethod,
+      pendingPaymentMethod: latestOrderData.pendingPaymentMethod,
+      customerInfo: latestOrderData.customerInfo
+    });
     
-    // Check if payment method is already set (either pendingPaymentMethod or paymentData)
-    const existingPaymentMethod = latestOrderData.pendingPaymentMethod || latestOrderData.paymentData?.paymentMethod;
-    if (existingPaymentMethod) {
-      // Directly show receipt with existing payment method
-      setShowReceiptModal(true);
-    } else {
-      // Show payment method selection first
-      setShowPaymentMethodModal(true);
+    setSelectedOrder(latestOrderData);
+    setPendingAction('print');
+    
+    // Fetch existing customer data to pre-fill the modal
+    try {
+      // First check if data exists in order document
+      const hasOrderCustomerData = latestOrderData.customerInfo && 
+        (latestOrderData.customerInfo.name || latestOrderData.customerInfo.phone || latestOrderData.customerInfo.city);
+      const hasOrderPaymentMethod = latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod;
+      
+      let customerData = null;
+      let paymentMethod = hasOrderPaymentMethod ? (latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod) : null;
+      let firestoreCustomerData = null; // Declare variable in proper scope for handlePrintOrder
+      
+      // If not in order, check Firestore customer_data collection
+      if (!hasOrderCustomerData || !hasOrderPaymentMethod) {
+        const { fetchCustomerDataByOrderId } = await import('../../contexts/CustomerDataService');
+        firestoreCustomerData = await fetchCustomerDataByOrderId(latestOrderData.id);
+        
+        if (firestoreCustomerData) {
+          customerData = {
+            name: firestoreCustomerData.name,
+            phone: firestoreCustomerData.phone,
+            city: firestoreCustomerData.city
+          };
+          // Use payment method from Firestore if not in order
+          if (!paymentMethod && firestoreCustomerData.paymentMethod) {
+            paymentMethod = firestoreCustomerData.paymentMethod;
+          }
+        }
+      } else {
+        // Use data from order document
+        customerData = latestOrderData.customerInfo;
+      }
+      
+      // Combine data for the modal
+      const combinedCustomerData = customerData || {};
+      // Don't default to 'cash' - use the actual payment method or let it be undefined
+      const finalPaymentMethod = paymentMethod;
+      
+      // Store existing customer data to pass to modal
+      setExistingCustomerData({
+        ...combinedCustomerData,
+        paymentMethod: finalPaymentMethod
+      });
+      
+      // Determine data source for UI badge
+      let dataSourceValue: 'staff' | 'manager' | undefined;
+      if (firestoreCustomerData) {
+        dataSourceValue = firestoreCustomerData.source;
+      } else if (hasOrderPaymentMethod || hasOrderCustomerData) {
+        dataSourceValue = 'manager'; // If data is in order document, it's from manager
+      }
+      
+      setDataSource(dataSourceValue);
+      
+      console.log('📄 Print order - existing data:', {
+        customerData: combinedCustomerData,
+        paymentMethod: finalPaymentMethod,
+        dataSource: dataSourceValue,
+        orderPaymentMethod: latestOrderData.paymentMethod,
+        orderPendingPaymentMethod: latestOrderData.pendingPaymentMethod
+      });
+    } catch (error) {
+      console.error('Error fetching customer data for print:', error);
+      setExistingCustomerData(null);
     }
+    
+    // Always show unified modal for both staff and manager orders
+    setShowUnifiedModal(true);
   };
 
   // Handle delete order
@@ -242,56 +371,162 @@ const ManagerPendingOrdersPage: React.FC = () => {
     }
   };
 
-  // Handle payment method selection
-  const handlePaymentMethodSelect = async (paymentMethod: 'cash' | 'card' | 'upi') => {
+  // Handle unified modal confirmation
+  const handleUnifiedModalConfirm = async (customerData: { name?: string; phone?: string; city?: string }, paymentMethod: string) => {
+    if (!selectedOrder || !currentUser) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Save customer data and payment method to Firestore
+      const { upsertCustomerData } = await import('../../contexts/CustomerDataService');
+      
+      console.log('🔍 Debug - ManagerPendingOrdersPage saving data with:', {
+        orderId: selectedOrder.id,
+        customerData: {
+          ...customerData,
+          paymentMethod: paymentMethod as 'cash' | 'card' | 'upi'
+        },
+        userId: currentUser?.uid,
+        locationId: selectedOrder.locationId
+      });
+      
+      await upsertCustomerData(
+        selectedOrder.id, 
+        {
+          ...customerData,
+          paymentMethod: paymentMethod as 'cash' | 'card' | 'upi'
+        }, 
+        'manager', 
+        Date.now(),
+        currentUser?.uid || 'unknown',
+        selectedOrder.locationId || 'unknown'
+      );
+      console.log('✅ Customer data and payment method saved by manager');
+      
+      // Update order document with customer info and payment method
+      await orderService.updateOrder(selectedOrder.id, {
+        customerInfo: customerData,
+        paymentMethod: paymentMethod
+      }, currentUser.uid);
+      console.log('✅ Order document updated with customer info and payment method');
+      
+      // Update local state
+      const updatedOrder = {
+        ...selectedOrder,
+        customerInfo: customerData,
+        paymentMethod: paymentMethod,
+        pendingPaymentMethod: paymentMethod
+      };
+      setSelectedOrder(updatedOrder);
+      
+      // Update the pendingOrders state to reflect the changes
+      setPendingOrders(prevOrders => {
+        const updatedOrders = prevOrders.map(pendingOrder => {
+          const orderData = pendingOrder.order || pendingOrder;
+          if (orderData.id === selectedOrder.id) {
+            const updatedOrderData = {
+              ...orderData,
+              customerInfo: customerData,
+              paymentMethod: paymentMethod,
+              pendingPaymentMethod: paymentMethod
+            };
+            console.log('🔄 Updating pending order in state:', {
+              orderId: orderData.id,
+              oldPaymentMethod: orderData.paymentMethod,
+              newPaymentMethod: paymentMethod,
+              oldPendingPaymentMethod: orderData.pendingPaymentMethod,
+              newPendingPaymentMethod: paymentMethod
+            });
+            return {
+              ...pendingOrder,
+              order: updatedOrderData
+            };
+          }
+          return pendingOrder;
+        });
+        
+        console.log('📋 Updated pendingOrders state:', updatedOrders.map(o => ({
+          id: (o.order || o).id,
+          paymentMethod: (o.order || o).paymentMethod,
+          pendingPaymentMethod: (o.order || o).pendingPaymentMethod
+        })));
+        
+        return updatedOrders;
+      });
+      
+      setShowUnifiedModal(false);
+      
+      // Handle based on which flow we're in
+      if (pendingAction === 'settle') {
+        // Settle flow - show confirmation modal
+        setShowSettlementConfirmationModal(true);
+        setPendingAction(null);
+        // Clear existing customer data after showing confirmation modal
+        setExistingCustomerData(null);
+        setDataSource(undefined);
+      } else if (pendingAction === 'print') {
+        // Print flow - show receipt with a small delay to ensure modal closes properly
+        const currentOrder = updatedOrder; // Capture the current order state
+        setTimeout(() => {
+          setSelectedOrder(currentOrder); // Ensure the order state is set
+          setShowReceiptModal(true);
+          console.log('🧾 Opening receipt modal for order:', currentOrder.id);
+          console.log('🧾 Receipt modal order data:', {
+            paymentMethod: currentOrder.paymentMethod,
+            pendingPaymentMethod: currentOrder.pendingPaymentMethod,
+            customerInfo: currentOrder.customerInfo
+          });
+        }, 200);
+        toast.success('Payment method selected!');
+        // Clear pending action after setting timeout to ensure it still executes
+        setPendingAction(null);
+        // Clear existing customer data after showing receipt modal
+        setTimeout(() => {
+          setExistingCustomerData(null);
+          setDataSource(undefined);
+        }, 300);
+      } else {
+        // Clear pending action if it's neither settle nor print
+        setPendingAction(null);
+        // Clear existing customer data for other cases
+        setExistingCustomerData(null);
+        setDataSource(undefined);
+      }
+      
+    } catch (error: any) {
+      console.error('Error processing unified modal:', error);
+      toast.error(error.message || 'Failed to process request');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle settlement confirmation
+  const handleSettlementConfirmation = async () => {
     if (!selectedOrder || !currentUser) return;
     
     setIsProcessing(true);
     try {
       const total = orderTotals[selectedOrder.id] || await calculateOrderTotal(selectedOrder);
+      const paymentMethod = selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || 'cash';
       
-      // Save pendingPaymentMethod to Firestore (not paymentData yet)
-      await orderService.updateOrderPendingPaymentMethod(selectedOrder.id, paymentMethod);
+      await orderService.settleOrder(selectedOrder.id, {
+        paymentMethod: paymentMethod,
+        amount: total,
+        settledAt: new Date(),
+        settledBy: currentUser.uid
+      });
       
-      // Update local state for the selected order only
-      const updatedOrder = {
-        ...selectedOrder,
-        pendingPaymentMethod: paymentMethod
-      };
-
-      setSelectedOrder(updatedOrder);
-      
-      // Also update the pendingOrders state to ensure consistency
-      setPendingOrders(prevOrders => 
-        prevOrders.map(pendingOrder => {
-          const order = pendingOrder.order || pendingOrder;
-          if (order.id === selectedOrder.id) {
-            return {
-              ...pendingOrder,
-              order: {
-                ...order,
-                pendingPaymentMethod: paymentMethod
-              }
-            };
-          }
-          return pendingOrder;
-        })
-      );
-      
-      setShowPaymentMethodModal(false);
-      
-      // Handle based on which flow we're in
-      if (paymentFlow === 'print') {
-        // Print flow - show receipt
-        setShowReceiptModal(true);
-        toast.success('Payment method selected!');
-      } else {
-        // Settle flow - show payment received confirmation
-        setShowPaymentReceivedModal(true);
-      }
+      toast.success('Payment received and order settled!');
+      setShowSettlementConfirmationModal(false);
+      setSelectedOrder(null);
+      setExistingCustomerData(null);
+      setDataSource(undefined);
+      setPendingAction(null);
     } catch (error) {
-      console.error('Error selecting payment method:', error);
-      toast.error('Failed to select payment method. Please try again.');
+      console.error('Error settling payment:', error);
+      toast.error('Failed to settle payment. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -311,7 +546,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
       if (!paymentMethodToUse) {
         toast.error('No payment method selected. Please select a payment method first.');
         setShowPaymentReceivedModal(false);
-        setShowPaymentMethodModal(true);
+        setShowUnifiedModal(true);
         return;
       }
       
@@ -337,8 +572,8 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle edit payment method from receipt
   const handleEditPaymentMethod = () => {
     setShowReceiptModal(false);
-    setPaymentFlow('print'); // Keep it in print flow
-    setShowPaymentMethodModal(true);
+    setPendingAction('print'); // Keep it in print flow
+    setShowUnifiedModal(true);
   };
 
   // Get table display name
@@ -606,17 +841,34 @@ const ManagerPendingOrdersPage: React.FC = () => {
         </div>
       </DashboardLayout>
 
-      {/* Payment Method Modal */}
-      <PaymentMethodModal
-        isOpen={showPaymentMethodModal}
-        onClose={() => {
-          setShowPaymentMethodModal(false);
-          setSelectedOrder(null);
-        }}
-        onSelect={handlePaymentMethodSelect}
-        isProcessing={isProcessing}
-        selectedPaymentMethod={selectedOrder?.pendingPaymentMethod}
-      />
+      {/* Unified Customer Info and Payment Modal */}
+      {showUnifiedModal && selectedOrder && (
+        <CustomerInfoAndPaymentModal
+          isOpen={showUnifiedModal}
+          onClose={() => {
+            setShowUnifiedModal(false);
+            setSelectedOrder(null);
+            setPendingAction(null);
+            setExistingCustomerData(null);
+            setDataSource(undefined);
+          }}
+          onConfirm={handleUnifiedModalConfirm}
+          order={{
+            orderId: selectedOrder.orderNumber,
+            tableNumber: getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames),
+            totalAmount: orderTotals[selectedOrder.id] || 0
+          }}
+          initialCustomerInfo={existingCustomerData ? {
+        name: existingCustomerData.name,
+        phone: existingCustomerData.phone,
+        city: existingCustomerData.city
+      } : undefined}
+          initialPaymentMethod={existingCustomerData?.paymentMethod || selectedOrder.pendingPaymentMethod || selectedOrder.paymentMethod}
+          isStaffOrder={!!selectedOrder.staffId && selectedOrder.staffId !== currentUser?.uid}
+          pendingAction={pendingAction || undefined}
+          dataSource={dataSource}
+        />
+      )}
 
       {/* Final Receipt Modal */}
       {showReceiptModal && selectedOrder && (
@@ -629,12 +881,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
           order={{
             ...selectedOrder,
             paymentData: selectedOrder.paymentData || {
-              paymentMethod: selectedOrder.pendingPaymentMethod,
+              paymentMethod: selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod,
               amount: orderTotals[selectedOrder.id] || 0,
               settledAt: new Date()
             }
           }}
-          paymentMethod={selectedOrder.pendingPaymentMethod || 'cash'}
+          paymentMethod={selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || 'cash'}
           isReadOnly={false}
           onEditPaymentMethod={handleEditPaymentMethod}
         />
@@ -650,6 +902,29 @@ const ManagerPendingOrdersPage: React.FC = () => {
         onConfirm={handlePaymentReceivedConfirm}
         isProcessing={isProcessing}
       />
+
+      {/* Settlement Confirmation Modal */}
+      {showSettlementConfirmationModal && selectedOrder && (
+        <SettlementConfirmationModal
+          isOpen={showSettlementConfirmationModal}
+          onClose={() => {
+            setShowSettlementConfirmationModal(false);
+            setSelectedOrder(null);
+            setExistingCustomerData(null);
+            setDataSource(undefined);
+            setPendingAction(null);
+          }}
+          onConfirm={handleSettlementConfirmation}
+          order={{
+            orderNumber: selectedOrder.orderNumber,
+            tableNumber: getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames),
+            totalAmount: orderTotals[selectedOrder.id] || 0
+          }}
+          customerInfo={selectedOrder.customerInfo || existingCustomerData}
+          paymentMethod={selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || existingCustomerData?.paymentMethod}
+          isProcessing={isProcessing}
+        />
+      )}
 
       {/* View Order Modal */}
       {showViewOrderModal && selectedOrder && (

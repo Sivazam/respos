@@ -23,7 +23,7 @@ interface TemporaryOrderContextType {
   checkForExistingOrder: (tableIds: string[]) => Promise<TemporaryOrder | null>;
   calculateTotals: () => { subtotal: number; gst: number; total: number; cgstAmount: number; sgstAmount: number };
   getTableNames: () => string[];
-  transferOrderToManager: (orderId: string, staffId: string) => Promise<TemporaryOrder>;
+  transferOrderToManager: (orderId: string, staffId: string, notes?: string, customer?: any) => Promise<TemporaryOrder>;
   loadFromLocalStorage: () => TemporaryOrder | null;
   updateOrderMode: (orderMode: 'zomato' | 'swiggy' | 'in-store') => void;
   mergePartialOrder: (newItems: OrderItem[], existingOrderId: string) => Promise<TemporaryOrder>;
@@ -607,9 +607,9 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
   }, [temporaryOrder, tables]);
 
   // Transfer order to manager's pending orders
-  const transferOrderToManager = useCallback(async (orderId: string, staffId: string, notes?: string) => {
+  const transferOrderToManager = useCallback(async (orderId: string, staffId: string, notes?: string, customer?: any) => {
     try {
-      console.log('🔄 Starting transfer process for order:', orderId, 'by staff:', staffId, 'with notes:', notes);
+      console.log('🔄 Starting transfer process for order:', orderId, 'by staff:', staffId, 'with notes:', notes, 'with customer:', customer);
       
       let order = null;
       
@@ -701,6 +701,16 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
       }
 
       console.log('📋 Original order:', order);
+
+      // Add customer data to order if provided
+      if (customer) {
+        console.log('👤 Adding customer data to order:', customer);
+        order = {
+          ...order,
+          customer: customer
+        };
+        console.log('✅ Updated order with customer data:', order);
+      }
 
       // Use the orderService to properly transfer the order
       // This will handle updating the order status, creating manager pending record,

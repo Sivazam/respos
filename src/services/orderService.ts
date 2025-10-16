@@ -344,10 +344,21 @@ export class OrderService {
   async transferOrderToManager(
     orderId: string,
     staffId: string,
-    notes?: string
+    notes?: string,
+    customerData?: {
+      name?: string;
+      phone?: string;
+      city?: string;
+      paymentMethod?: 'cash' | 'card' | 'upi';
+      source: 'staff' | 'manager';
+      timestamp: number;
+    }
   ): Promise<void> {
     try {
       console.log('🔄 Starting transfer for order:', orderId, 'by staff:', staffId);
+      if (customerData) {
+        console.log('👤 Customer data provided:', customerData);
+      }
       
       // First, get the temporary order from temporary_orders collection
       const tempOrdersQuery = query(
@@ -366,6 +377,22 @@ export class OrderService {
       
       // Get staff name from the temporary order
       const staffName = tempOrderData.staffName || 'Unknown Staff';
+      
+      // Update the order document with customer info if provided
+      if (customerData) {
+        const orderRef = doc(db, 'orders', orderId);
+        await updateDoc(orderRef, {
+          customerInfo: {
+            name: customerData.name || '',
+            phone: customerData.phone || '',
+            city: customerData.city || ''
+          },
+          paymentMethod: customerData.paymentMethod,
+          pendingPaymentMethod: customerData.paymentMethod,
+          updatedAt: serverTimestamp()
+        });
+        console.log('✅ Updated order document with customer info');
+      }
       
       // Create manager pending order entry with the correct structure
       const managerPendingDoc = {
@@ -392,7 +419,8 @@ export class OrderService {
 
       // Create order history entry
       await this.createOrderHistoryEntry(orderId, tempOrderData.locationId, 'transferred', staffId, {
-        notes
+        notes,
+        hasCustomerData: !!customerData
       });
 
       console.log('✅ Order transferred to manager successfully:', orderId);
@@ -803,11 +831,21 @@ export class OrderService {
         totalAmount = subtotal + gstAmount;
       }
 
+      // Handle customer info - support both old customerName and new customerInfo structure
+      let customerName = orderData.customerName; // fallback to existing value
+      if (updatedOrder.customerInfo?.name) {
+        customerName = updatedOrder.customerInfo.name;
+      } else if (updatedOrder.customerName !== undefined) {
+        customerName = updatedOrder.customerName;
+      }
+
       // Update main order
       await updateDoc(orderRef, {
         items: updatedOrder.items || orderData.items,
-        customerName: updatedOrder.customerName !== undefined ? updatedOrder.customerName : orderData.customerName,
-        notes: updatedOrder.notes !== undefined ? updatedOrder.notes : orderData.notes,
+        customerName: customerName,
+        customerInfo: updatedOrder.customerInfo || orderData.customerInfo,
+        paymentMethod: updatedOrder.paymentMethod || orderData.paymentMethod,
+        notes: updatedOrder.notes !== undefined ? updatedOrder.notes : (orderData.notes || null),
         subtotal,
         cgstAmount,
         sgstAmount,
@@ -821,8 +859,8 @@ export class OrderService {
       await this.createOrderHistoryEntry(orderId, orderData.locationId, 'updated', managerId, {
         itemsCount: updatedOrder.items?.length || 0,
         totalAmount,
-        customerName: updatedOrder.customerName,
-        notes: updatedOrder.notes
+        customerName: customerName,
+        notes: updatedOrder.notes !== undefined ? updatedOrder.notes : (orderData.notes || null)
       });
 
       console.log('✅ Order updated:', orderId);

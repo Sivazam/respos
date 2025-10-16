@@ -24,6 +24,11 @@ interface FinalReceiptModalProps {
       portionSize?: 'half' | 'full';
     }[];
     customerName?: string;
+    customerInfo?: {
+      name?: string;
+      phone?: string;
+      city?: string;
+    };
     notes?: string;
     subtotal?: number;
     cgstAmount?: number;
@@ -178,6 +183,24 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
 
   // Get the actual payment method from order data if available
   const actualPaymentMethod = order.paymentData?.paymentMethod || paymentMethod;
+
+  // Get customer information from new customerInfo structure or fallback to customerName
+  const getCustomerInfo = () => {
+    if (order.customerInfo) {
+      return {
+        name: order.customerInfo.name,
+        phone: order.customerInfo.phone,
+        city: order.customerInfo.city
+      };
+    }
+    return {
+      name: order.customerName,
+      phone: undefined,
+      city: undefined
+    };
+  };
+
+  const customerInfo = getCustomerInfo();
 
   // Function to convert table IDs to table numbers if table names are not available
   const getTableDisplay = (tableNames?: string[], tableIds?: string[]) => {
@@ -444,6 +467,9 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                <div>Order: #${order.orderNumber}</div>` : 
               `<div>Order: #${order.orderNumber}</div>`
             }
+            ${customerInfo.name ? `<div>Customer: ${customerInfo.name}</div>` : ''}
+            ${customerInfo.phone ? `<div>Phone: ${customerInfo.phone}</div>` : ''}
+            ${customerInfo.city ? `<div>City: ${customerInfo.city}</div>` : ''}
         </div>
         
         <div class="divider"></div>
@@ -684,6 +710,9 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   ) : (
                     <div>Order: #{order.orderNumber}</div>
                   )}
+                  {customerInfo.name && <div>Customer: {customerInfo.name}</div>}
+                  {customerInfo.phone && <div>Phone: {customerInfo.phone}</div>}
+                  {customerInfo.city && <div>City: {customerInfo.city}</div>}
                 </div>
               </div>
               

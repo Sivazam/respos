@@ -20,15 +20,15 @@ import {
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useEnhancedOrders } from '../../contexts/EnhancedOrderContext';
 import { useRealtimeTables } from '../../contexts/RealtimeTableContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { OrderItem } from '../../types';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Card } from '../../components/ui/card';
 import ViewOrderModal from '../../components/order/ViewOrderModal';
-import SettleBillModal from '../../components/order/SettleBillModal';
 import EditOrderModal from '../../components/order/EditOrderModal';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
-import PaymentMethodModal from '../../components/order/PaymentMethodModal';
+import CustomerInfoAndPaymentModal from '../../components/CustomerInfoAndPaymentModal';
 import toast from 'react-hot-toast';
 import { useMenuItems } from '../../contexts/MenuItemContext';
 
@@ -63,6 +63,7 @@ interface ManagerPendingOrder {
 }
 
 const EnhancedManagerPendingOrdersPage: React.FC = () => {
+  const { currentUser } = useAuth();
   const { 
     managerPendingOrders, 
     loading: ordersLoading, 
@@ -89,13 +90,13 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'pending' | 'assigned' | 'in_progress'>('all');
   const [showViewOrder, setShowViewOrder] = useState(false);
-  const [showSettleBill, setShowSettleBill] = useState(false);
   const [showEditOrder, setShowEditOrder] = useState(false);
-  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [showFinalReceipt, setShowFinalReceipt] = useState(false);
+  const [showUnifiedModal, setShowUnifiedModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ManagerPendingOrder | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('cash');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'settle' | 'print' | null>(null);
 
   // Convert manager pending orders to display format
   const displayOrders: ManagerPendingOrder[] = managerPendingOrders.map(pendingOrder => {
@@ -216,32 +217,12 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
   };
 
   // Handle settle bill
-  const handleSettleBill = (order: ManagerPendingOrder) => {
+  const handleSettleBill = async (order: ManagerPendingOrder) => {
     setSelectedOrder(order);
-    setShowSettleBill(true);
-  };
-
-  // Handle complete settlement
-  const handleCompleteSettlement = async (paymentData: any) => {
-    if (!selectedOrder) return;
-
-    setIsProcessing(true);
-    try {
-      await settleOrder(selectedOrder.orderId, paymentData);
-      toast.success(`Order ${selectedOrder.order.orderNumber} settled successfully`);
-      setShowSettleBill(false);
-      setSelectedOrder(null);
-      
-      // Refresh orders
-      setTimeout(() => {
-        refreshOrders();
-      }, 1000);
-    } catch (error: any) {
-      console.error('Error settling order:', error);
-      toast.error(error.message || 'Failed to settle order');
-    } finally {
-      setIsProcessing(false);
-    }
+    setPendingAction('settle');
+    
+    // Always show unified modal for both staff and manager orders
+    setShowUnifiedModal(true);
   };
 
   // Handle view order
@@ -250,14 +231,15 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
     setShowViewOrder(true);
   };
 
-  // Handle close modals
+  // Handle close view order
   const handleCloseViewOrder = () => {
     setShowViewOrder(false);
     setSelectedOrder(null);
   };
 
-  const handleCloseSettleBill = () => {
-    setShowSettleBill(false);
+  // Handle close edit order
+  const handleCloseEditOrder = () => {
+    setShowEditOrder(false);
     setSelectedOrder(null);
   };
 
@@ -287,22 +269,69 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
   };
 
   // Handle view/print receipt
-  const handleViewPrintReceipt = (order: ManagerPendingOrder) => {
+  const handleViewPrintReceipt = async (order: ManagerPendingOrder) => {
     setSelectedOrder(order);
-    setShowPaymentMethod(true);
+    setPendingAction('print');
+    
+    // Always show unified modal for both staff and manager orders
+    setShowUnifiedModal(true);
   };
 
-  // Handle payment method selection
-  const handlePaymentMethodSelected = (paymentMethod: 'cash' | 'card' | 'upi') => {
-    setSelectedPaymentMethod(paymentMethod);
-    setShowPaymentMethod(false);
-    setShowFinalReceipt(true);
-  };
-
-  // Handle close payment method modal
-  const handleClosePaymentMethod = () => {
-    setShowPaymentMethod(false);
-    setSelectedOrder(null);
+  // Handle unified modal confirmation
+  const handleUnifiedModalConfirm = async (customerData: { name?: string; phone?: string; city?: string }, paymentMethod: string) => {
+    if (!selectedOrder) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Save customer data to Firestore if provided
+      if (customerData.name || customerData.phone || customerData.city) {
+        const { upsertCustomerData } = await import('../../contexts/CustomerDataService');
+        await upsertCustomerData(
+          selectedOrder.orderId, 
+          customerData, 
+          'manager', 
+          Date.now(),
+          currentUser?.uid || 'unknown',
+          selectedOrder.locationId || 'unknown'
+        );
+        console.log('✅ Customer data saved by manager');
+      }
+      
+      setShowUnifiedModal(false);
+      setSelectedPaymentMethod(paymentMethod);
+      
+      // Determine which flow to continue based on what triggered the unified modal
+      if (pendingAction === 'settle') {
+        // Go directly to settlement
+        const paymentData = {
+          paymentMethod: paymentMethod,
+          amount: selectedOrder.order.totalAmount,
+          settledAt: new Date(),
+          status: 'completed'
+        };
+        
+        await settleOrder(selectedOrder.orderId, paymentData);
+        toast.success(`Order ${selectedOrder.order.orderNumber} settled successfully`);
+        
+        // Refresh orders
+        setTimeout(() => {
+          refreshOrders();
+        }, 1000);
+      } else if (pendingAction === 'print') {
+        // Show final receipt for printing
+        setShowFinalReceipt(true);
+      }
+      
+      // Clear pending action
+      setPendingAction(null);
+      
+    } catch (error: any) {
+      console.error('Error processing unified modal:', error);
+      toast.error(error.message || 'Failed to process request');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Handle save edited order
@@ -912,16 +941,6 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
           />
         )}
 
-        {showSettleBill && selectedOrder && (
-          <SettleBillModal
-            isOpen={showSettleBill}
-            onClose={handleCloseSettleBill}
-            order={selectedOrder.order}
-            onSuccess={handleCompleteSettlement}
-            isProcessing={isProcessing}
-          />
-        )}
-
         {showEditOrder && selectedOrder && (
           <EditOrderModal
             isOpen={showEditOrder}
@@ -935,16 +954,23 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
           />
         )}
 
-        {showPaymentMethod && selectedOrder && (
-          <PaymentMethodModal
-            isOpen={showPaymentMethod}
-            onClose={handleClosePaymentMethod}
-            onSelectPaymentMethod={handlePaymentMethodSelected}
-            orderDetails={{
-              orderNumber: selectedOrder.order.orderNumber,
-              totalAmount: selectedOrder.order.totalAmount,
-              customerName: selectedOrder.order.customerName
+        {showUnifiedModal && selectedOrder && (
+          <CustomerInfoAndPaymentModal
+            isOpen={showUnifiedModal}
+            onClose={() => {
+              setShowUnifiedModal(false);
+              setSelectedOrder(null);
+              setPendingAction(null);
             }}
+            onConfirm={handleUnifiedModalConfirm}
+            order={{
+              orderId: selectedOrder.order.orderNumber,
+              tableNumber: selectedOrder.order.tableNames?.join(', ') || 'N/A',
+              totalAmount: selectedOrder.order.totalAmount
+            }}
+            initialPaymentMethod={selectedPaymentMethod}
+            isStaffOrder={!!selectedOrder.createdBy && selectedOrder.createdBy !== 'manager'}
+            pendingAction={pendingAction || undefined}
           />
         )}
 

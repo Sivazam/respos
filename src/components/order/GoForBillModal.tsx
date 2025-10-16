@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Receipt, ArrowRight, AlertCircle, User, CreditCard, Smartphone, Wallet } from 'lucide-react';
 import { useTemporaryOrder } from '../../contexts/TemporaryOrderContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +30,27 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
     city: '',
     paymentMethod: 'cash' as 'cash' | 'card' | 'upi'
   });
+
+  // Pre-fill customer name with delivery type for delivery orders
+  useEffect(() => {
+    if (isOpen && order) {
+      if (order.orderType === 'delivery' && order.orderMode) {
+        // Set the delivery type as the default customer name
+        const deliveryTypeName = order.orderMode.charAt(0).toUpperCase() + order.orderMode.slice(1);
+        setCustomerInfo(prev => ({
+          ...prev,
+          name: deliveryTypeName
+        }));
+        console.log('🛵 Pre-filled customer name with delivery type:', deliveryTypeName);
+      } else {
+        // Reset to empty for non-delivery orders
+        setCustomerInfo(prev => ({
+          ...prev,
+          name: ''
+        }));
+      }
+    }
+  }, [isOpen, order]);
 
   const handleCustomerInfoChange = (values: { name?: string; phone?: string; city?: string }) => {
     setCustomerInfo(prev => ({

@@ -329,7 +329,7 @@ ${'Test Item 2'.padEnd(35)}${'1'.padStart(8)}${'200.00'.padStart(8)}${formatPric
 ${'Test Item 3'.padEnd(35)}${'3'.padStart(8)}${'100.00'.padStart(8)}${formatPrice(300)}
 ${'='.repeat(58)}
 ${'Subtotal'.padEnd(40)}${formatPrice(800)}
-${'GST'.padEnd(40)}${formatPrice(40)}
+${'GST (5%)'.padEnd(40)}${formatPrice(40)}
 ${'-'.repeat(58)}
 ${'TOTAL'.padEnd(40)}${formatPrice(840)}
 ${'='.repeat(58)}
@@ -432,7 +432,7 @@ ${centerText('Powered by FORKFLOW POS')}
     }
     
     if (gstAmount > 0 && !order.cgst && !order.sgst) {
-      content += `GST`.padEnd(40) + formatPrice(gstAmount) + '\n';
+      content += `GST (5%)`.padEnd(40) + formatPrice(gstAmount) + '\n';
     }
     
     content += '-'.repeat(58) + '\n';

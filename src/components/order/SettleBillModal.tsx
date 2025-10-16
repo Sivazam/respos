@@ -222,7 +222,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
                 <span>₹{calculateSubtotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">GST:</span>
+                <span className="text-gray-600">GST (5%):</span>
                 <span>₹{calculateGST().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold pt-2 border-t">

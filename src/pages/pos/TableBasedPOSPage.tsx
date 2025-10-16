@@ -374,6 +374,13 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
                   <p className="font-semibold">{getTableNames().join(', ')}</p>
                 </div>
               )}
+              
+              {orderContext?.orderType === 'delivery' && (
+                <div>
+                  <span className="text-sm text-gray-500">Delivery Type</span>
+                  <p className="font-semibold capitalize">{orderMode}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -524,7 +531,7 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
                     <span>₹{totals.subtotal}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>GST</span>
+                    <span>GST (5%)</span>
                     <span>₹{totals.gst}</span>
                   </div>
                   <div className="flex justify-between font-semibold text-lg">

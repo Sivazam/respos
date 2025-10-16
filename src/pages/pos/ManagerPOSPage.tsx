@@ -369,6 +369,13 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                   <p className="font-semibold">{getTableNames().join(', ')}</p>
                 </div>
               )}
+              
+              {orderContext?.orderType === 'delivery' && (
+                <div>
+                  <span className="text-sm text-gray-500">Delivery Type</span>
+                  <p className="font-semibold capitalize">{orderMode}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -449,6 +456,16 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
         <div className="w-full lg:w-96">
           <Card className="h-full p-6">
             <h3 className="text-lg font-semibold mb-4">Manager Order</h3>
+            
+            {/* Order Mode Selection for Delivery Orders */}
+            {orderContext?.orderType === 'delivery' && (
+              <div className="mb-6">
+                <OrderModeSelection
+                  selectedMode={orderMode}
+                  onModeChange={setOrderMode}
+                />
+              </div>
+            )}
             
             {managerOrder && managerOrder.items.length > 0 ? (
               <div className="flex flex-col h-full">

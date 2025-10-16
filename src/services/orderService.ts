@@ -381,16 +381,22 @@ export class OrderService {
       // Update the order document with customer info if provided
       if (customerData) {
         const orderRef = doc(db, 'orders', orderId);
-        await updateDoc(orderRef, {
-          customerInfo: {
-            name: customerData.name || '',
-            phone: customerData.phone || '',
-            city: customerData.city || ''
-          },
+        const updateData: any = {
           paymentMethod: customerData.paymentMethod,
           pendingPaymentMethod: customerData.paymentMethod,
           updatedAt: serverTimestamp()
-        });
+        };
+
+        // Only include customerInfo if there's actual customer data
+        if (customerData.name || customerData.phone || customerData.city) {
+          updateData.customerInfo = {
+            name: customerData.name || null,
+            phone: customerData.phone || null,
+            city: customerData.city || null
+          };
+        }
+
+        await updateDoc(orderRef, updateData);
         console.log('✅ Updated order document with customer info');
       }
       
@@ -839,11 +845,9 @@ export class OrderService {
         customerName = updatedOrder.customerName;
       }
 
-      // Update main order
-      await updateDoc(orderRef, {
+      // Prepare update data - only include fields that are defined
+      const updateData: any = {
         items: updatedOrder.items || orderData.items,
-        customerName: customerName,
-        customerInfo: updatedOrder.customerInfo || orderData.customerInfo,
         paymentMethod: updatedOrder.paymentMethod || orderData.paymentMethod,
         notes: updatedOrder.notes !== undefined ? updatedOrder.notes : (orderData.notes || null),
         subtotal,
@@ -853,15 +857,34 @@ export class OrderService {
         totalAmount,
         updatedAt: serverTimestamp(),
         updatedBy: managerId
-      });
+      };
+
+      // Only include customerName if it's defined (not undefined)
+      if (customerName !== undefined) {
+        updateData.customerName = customerName;
+      }
+
+      // Only include customerInfo if it's defined
+      if (updatedOrder.customerInfo !== undefined) {
+        updateData.customerInfo = updatedOrder.customerInfo;
+      }
+
+      // Update main order
+      await updateDoc(orderRef, updateData);
 
       // Create order history entry
-      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'updated', managerId, {
+      const historyData: any = {
         itemsCount: updatedOrder.items?.length || 0,
         totalAmount,
-        customerName: customerName,
         notes: updatedOrder.notes !== undefined ? updatedOrder.notes : (orderData.notes || null)
-      });
+      };
+
+      // Only include customerName in history if it's defined
+      if (customerName !== undefined) {
+        historyData.customerName = customerName;
+      }
+
+      await this.createOrderHistoryEntry(orderId, orderData.locationId, 'updated', managerId, historyData);
 
       console.log('✅ Order updated:', orderId);
     } catch (error) {

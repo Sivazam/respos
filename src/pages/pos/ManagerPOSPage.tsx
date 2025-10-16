@@ -49,6 +49,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   const [orderMode, setOrderMode] = useState<'zomato' | 'swiggy' | 'in-store'>('in-store');
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showPortionModal, setShowPortionModal] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<'menu' | 'cart'>('menu');
 
   // Get order context from navigation state
   const orderContext = location.state as {
@@ -338,9 +339,27 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
 
   return (
     <DashboardLayout title="Manager POS">
-      {/* Header with Order Info */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex items-center justify-between">
+      {/* Mobile-First Header with Compact Info */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 lg:p-4 mb-4 lg:mb-6">
+        {/* Mobile Header - Compact */}
+        <div className="flex items-center justify-between lg:hidden mb-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBack}
+            className="flex items-center gap-1 text-xs px-2 py-1"
+          >
+            <ArrowLeft size={14} />
+            Back
+          </Button>
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Total</p>
+            <p className="text-lg font-bold text-green-600">₹{totals.total}</p>
+          </div>
+        </div>
+
+        {/* Desktop Header - Full */}
+        <div className="hidden lg:flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Button
               variant="outline"
@@ -386,80 +405,143 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
             </div>
           </div>
         </div>
+
+        {/* Mobile Order Info Pills */}
+        <div className="flex flex-wrap gap-2 lg:hidden">
+          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+            {getOrderTypeDisplay()}
+          </span>
+          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
+            {getOrderFlowDisplay()}
+          </span>
+          {orderContext?.orderType === 'dinein' && getTableNames().map((table, idx) => (
+            <span key={idx} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+              {table}
+            </span>
+          ))}
+          {orderContext?.orderType === 'delivery' && (
+            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
+              {orderMode}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-12rem)]">
-        {/* Products Section */}
-        <div className="flex-1 flex flex-col min-h-0">
-          {error && <ErrorAlert message={error} />}
-          
-          {/* Search and Filters */}
-          <div className="mb-4 space-y-4">
-            <Input
-              placeholder="Search menu items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              icon={<Search size={18} className="text-gray-500" />}
-            />
+      {/* Main Content - Mobile First Responsive Layout */}
+      <div className="flex flex-col h-[calc(100vh-16rem)] lg:h-[calc(100vh-12rem)]">
+        {/* Mobile Tab Navigation */}
+        <div className="flex lg:hidden bg-white border-b border-gray-200 rounded-t-lg mb-0">
+          <button
+            onClick={() => setActiveMobileTab('menu')}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
+              activeMobileTab === 'menu'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Menu
+            {filteredProducts.length > 0 && (
+              <span className="ml-2 bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">
+                {filteredProducts.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveMobileTab('cart')}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${
+              activeMobileTab === 'cart'
+                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Manager Order
+            {managerOrder?.items.length ? (
+              <span className="ml-2 bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs">
+                {managerOrder.items.length}
+              </span>
+            ) : null}
+          </button>
+        </div>
+
+        {/* Desktop Layout - Side by Side */}
+        <div className="hidden lg:flex lg:gap-6 lg:h-full">
+          {/* Menu Section - Desktop */}
+          <div className="flex-1 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
+            <h2 className="text-lg font-semibold mb-4 flex-shrink-0">Menu Items</h2>
             
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              <button
-                onClick={() => setSelectedCategory('')}
-                className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  !selectedCategory
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                All Categories
-              </button>
-              {categories.map(category => (
+            {/* Search and Filters - Desktop */}
+            <div className="mb-4 space-y-3 flex-shrink-0">
+              <Input
+                placeholder="Search menu items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                icon={<Search size={18} className="text-gray-500" />}
+              />
+              
+              {/* Categories */}
+              <div className="flex flex-wrap gap-2">
                 <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                    selectedCategory === category.id
+                  onClick={() => setSelectedCategory('')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    !selectedCategory
                       ? 'bg-green-100 text-green-800'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >
-                  {category.name}
+                  All Categories
                 </button>
-              ))}
+                {categories.map(category => (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                      selectedCategory === category.id
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                  <div className="text-center">
+                    <p className="text-lg mb-2">No menu items found</p>
+                    <p className="text-sm">Try adjusting your search or filters</p>
+                  </div>
+                </div>
+              ) : (
+                <ProductGrid
+                  products={filteredProducts}
+                  category={selectedCategory}
+                  onAddToCart={handleAddItem}
+                />
+              )}
             </div>
           </div>
 
-          {/* Products Grid */}
-          <div className="flex-1 overflow-y-auto">
-            {loading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="flex items-center justify-center h-64 text-gray-500">
-                <div className="text-center">
-                  <p className="text-lg mb-2">No menu items found</p>
-                  <p className="text-sm">Try adjusting your search or filters</p>
-                </div>
-              </div>
-            ) : (
-              <ProductGrid
-                products={filteredProducts}
-                category={selectedCategory}
-                onAddToCart={handleAddItem}
-              />
-            )}
-          </div>
-        </div>
+          {/* Cart Section - Desktop */}
+          <div className="w-96 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <h2 className="text-lg font-semibold">Manager Order</h2>
+              {managerOrder && (
+                <span className="text-sm text-gray-500">
+                  {managerOrder.items.length} items
+                </span>
+              )}
+            </div>
 
-        {/* Cart Section */}
-        <div className="w-full lg:w-96">
-          <Card className="h-full p-6">
-            <h3 className="text-lg font-semibold mb-4">Manager Order</h3>
-            
             {/* Order Mode Selection for Delivery Orders */}
             {orderContext?.orderType === 'delivery' && (
-              <div className="mb-6">
+              <div className="mb-4 flex-shrink-0">
                 <OrderModeSelection
                   selectedMode={orderMode}
                   onModeChange={setOrderMode}
@@ -468,8 +550,8 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
             )}
             
             {managerOrder && managerOrder.items.length > 0 ? (
-              <div className="flex flex-col h-full">
-                {/* Order Items */}
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Cart Items */}
                 <div className="flex-1 overflow-y-auto mb-4">
                   <div className="space-y-2">
                     {managerOrder.items.map((item) => (
@@ -489,20 +571,20 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => updateItemQuantity(item.id, item.quantity - 1)}
-                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm"
+                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xs"
                           >
                             -
                           </button>
                           <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
                           <button
                             onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
-                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm"
+                            className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-xs"
                           >
                             +
                           </button>
                           <button
                             onClick={() => removeItemFromManagerOrder(item.id)}
-                            className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-sm text-red-600"
+                            className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-xs text-red-600 ml-2"
                           >
                             ×
                           </button>
@@ -513,7 +595,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                 </div>
 
                 {/* Order Summary */}
-                <div className="border-t pt-4 space-y-2">
+                <div className="border-t pt-4 space-y-2 flex-shrink-0">
                   <div className="flex justify-between text-sm">
                     <span>Subtotal:</span>
                     <span>₹{totals.subtotal}</span>
@@ -526,48 +608,298 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     <span>SGST:</span>
                     <span>₹{totals.sgstAmount}</span>
                   </div>
-                  <div className="flex justify-between font-bold text-lg">
+                  <div className="flex justify-between font-bold text-lg border-t pt-2">
                     <span>Total:</span>
                     <span className="text-green-600">₹{totals.total}</span>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="space-y-2 mt-4">
+                <div className="mt-4 space-y-2 flex-shrink-0">
                   {isEditingOrder ? (
-                    <Button
-                      onClick={handleSaveChanges}
-                      className="w-full"
-                    >
-                      Save Changes
-                    </Button>
+                    <>
+                      <button
+                        onClick={handleSaveChanges}
+                        className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      >
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={handleBackToPending}
+                        className="w-full bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </>
                   ) : (
-                    <Button
-                      onClick={handlePlacePartialOrder}
-                      className="w-full"
-                    >
-                      Create Partial Order
-                    </Button>
+                    <>
+                      <button
+                        onClick={handlePlacePartialOrder}
+                        className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      >
+                        Create Partial Order
+                      </button>
+                      <button
+                        onClick={handleBackToPending}
+                        className="w-full bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Back to Pending Orders
+                      </button>
+                    </>
                   )}
-                  
-                  <Button
-                    onClick={handleBackToPending}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Back to Pending Orders
-                  </Button>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
+              <div className="flex-1 flex items-center justify-center text-gray-500">
                 <div className="text-center">
                   <p className="text-lg mb-2">No items in order</p>
                   <p className="text-sm">Add items from the menu to start</p>
                 </div>
               </div>
             )}
-          </Card>
+          </div>
+        </div>
+
+        {/* Mobile Content - Tab Based */}
+        <div className="lg:hidden flex-1 flex flex-col overflow-hidden">
+          {activeMobileTab === 'menu' && (
+            <div className="flex-1 bg-white rounded-b-lg shadow-sm p-3 overflow-hidden flex flex-col">
+              {/* Mobile Search and Filters */}
+              <div className="mb-3 space-y-3 flex-shrink-0">
+                <Input
+                  placeholder="Search menu items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  icon={<Search size={18} className="text-gray-500" />}
+                />
+                
+                {/* Mobile Categories */}
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  <button
+                    onClick={() => setSelectedCategory('')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
+                      !selectedCategory
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Categories
+                  </button>
+                  {categories.map(category => (
+                    <button
+                      key={category.id}
+                      onClick={() => setSelectedCategory(category.id)}
+                      className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
+                        selectedCategory === category.id
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mobile Products Grid */}
+              <div className="flex-1 overflow-y-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="flex items-center justify-center h-64 text-gray-500">
+                    <div className="text-center">
+                      <p className="text-lg mb-2">No menu items found</p>
+                      <p className="text-sm">Try adjusting your search or filters</p>
+                    </div>
+                  </div>
+                ) : (
+                  <ProductGrid 
+                    products={filteredProducts} 
+                    onAddToCart={(menuItem) => {
+                      handleAddItem(menuItem);
+                      // Auto-switch to cart tab after adding item
+                      setActiveMobileTab('cart');
+                    }}
+                  />
+                )}
+              </div>
+              
+              {/* Mobile Cart Preview */}
+              {managerOrder && managerOrder.items.length > 0 && (
+                <div className="border-t border-gray-200 p-4 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Order Total</p>
+                      <p className="text-xl font-bold text-green-600">₹{totals.total}</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveMobileTab('cart')}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      View Cart ({managerOrder.items.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeMobileTab === 'cart' && (
+            <div className="flex-1 bg-white rounded-b-lg shadow-sm p-3 overflow-hidden flex flex-col">
+              {/* Order Mode Selection for Delivery Orders */}
+              {orderContext?.orderType === 'delivery' && (
+                <div className="mb-4 flex-shrink-0">
+                  <OrderModeSelection
+                    selectedMode={orderMode}
+                    onModeChange={setOrderMode}
+                  />
+                </div>
+              )}
+              
+              {managerOrder && managerOrder.items.length > 0 ? (
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {/* Mobile Cart Items */}
+                  <div className="flex-1 overflow-y-auto mb-4">
+                    <div className="space-y-3">
+                      {managerOrder.items.map((item) => (
+                        <div key={item.id} className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm mb-1">
+                                {item.name}
+                                {item.portionSize === 'half' && (
+                                  <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">Half</span>
+                                )}
+                                {item.portionSize === 'full' && (
+                                  <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Full</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-500">₹{item.price} x {item.quantity}</p>
+                            </div>
+                            <button
+                              onClick={() => removeItemFromManagerOrder(item.id)}
+                              className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center text-xs text-red-600 flex-shrink-0"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => updateItemQuantity(item.id, item.quantity - 1)}
+                                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-medium"
+                              >
+                                -
+                              </button>
+                              <span className="text-sm font-medium w-8 text-center">{item.quantity}</span>
+                              <button
+                                onClick={() => updateItemQuantity(item.id, item.quantity + 1)}
+                                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-medium"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <span className="font-semibold text-sm">₹{item.price * item.quantity}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mobile Order Summary */}
+                  <div className="border-t pt-4 space-y-2 flex-shrink-0">
+                    <div className="flex justify-between text-sm">
+                      <span>Subtotal:</span>
+                      <span>₹{totals.subtotal}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>CGST:</span>
+                      <span>₹{totals.cgstAmount}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>SGST:</span>
+                      <span>₹{totals.sgstAmount}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-lg border-t pt-2">
+                      <span>Total:</span>
+                      <span className="text-green-600">₹{totals.total}</span>
+                    </div>
+                  </div>
+
+                  {/* Mobile Cart Actions */}
+                  <div className="p-4 bg-white border-t border-gray-200 space-y-3">
+                    {isEditingOrder ? (
+                      <>
+                        <button
+                          onClick={handleSaveChanges}
+                          className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                        >
+                          Save Changes
+                        </button>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            onClick={handleBackToPending}
+                            className="bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => setActiveMobileTab('menu')}
+                            className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                          >
+                            Add Items
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handlePlacePartialOrder}
+                          className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                        >
+                          Create Partial Order
+                        </button>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            onClick={() => setActiveMobileTab('menu')}
+                            className="bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                          >
+                            Add Items
+                          </button>
+                          <button
+                            onClick={handleBackToPending}
+                            className="bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                          >
+                            Back to Pending
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                      </svg>
+                    </div>
+                    <p className="text-lg font-medium mb-2">No items in order</p>
+                    <p className="text-sm mb-4">Add items from the menu to get started</p>
+                    <button
+                      onClick={() => setActiveMobileTab('menu')}
+                      className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Browse Menu
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

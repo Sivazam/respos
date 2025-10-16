@@ -2,10 +2,11 @@ import React from 'react';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import Button from '../ui/Button';
+import { CartItem } from '../../types';
 
 interface CartProps {
   onCheckout: () => void;
-  items?: any[];
+  items?: CartItem[];
   subtotal?: number;
   cgst?: number;
   sgst?: number;
@@ -13,6 +14,7 @@ interface CartProps {
   onClearCart?: () => void;
   cgstRate?: number;
   sgstRate?: number;
+  onUpdateQuantity?: (itemId: string, newQuantity: number) => void;
 }
 
 const Cart: React.FC<CartProps> = ({ 
@@ -24,7 +26,8 @@ const Cart: React.FC<CartProps> = ({
   total: propTotal,
   onClearCart,
   cgstRate: propCgstRate,
-  sgstRate: propSgstRate
+  sgstRate: propSgstRate,
+  onUpdateQuantity: propOnUpdateQuantity
 }) => {
   const { 
     items: contextItems, 
@@ -80,7 +83,7 @@ const Cart: React.FC<CartProps> = ({
               
               <div className="flex items-center space-x-1 sm:space-x-2">
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                  onClick={() => (propOnUpdateQuantity || updateQuantity)(item.id, item.quantity - 1)}
                   className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200"
                 >
                   <Minus size={12} className="sm:size-14" />
@@ -89,7 +92,7 @@ const Cart: React.FC<CartProps> = ({
                 <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
                 
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                  onClick={() => (propOnUpdateQuantity || updateQuantity)(item.id, item.quantity + 1)}
                   className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200"
                 >
                   <Plus size={12} className="sm:size-14" />

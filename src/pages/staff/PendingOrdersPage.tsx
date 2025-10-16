@@ -274,71 +274,71 @@ const StaffPendingOrdersPage: React.FC = () => {
           </Button>
         </div>
         
-        {/* Header Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-4">
+        {/* Header Stats - Mobile First */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+          <Card className="p-3 lg:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Orders</p>
-                <p className="text-2xl font-bold">{pendingOrders.length}</p>
+                <p className="text-xs lg:text-sm text-gray-500">Total Orders</p>
+                <p className="text-xl lg:text-2xl font-bold">{pendingOrders.length}</p>
               </div>
-              <Receipt className="w-8 h-8 text-blue-500" />
+              <Receipt className="w-6 h-6 lg:w-8 lg:h-8 text-blue-500" />
             </div>
           </Card>
           
-          <Card className="p-4">
+          <Card className="p-3 lg:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Ongoing</p>
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-xs lg:text-sm text-gray-500">Ongoing</p>
+                <p className="text-xl lg:text-2xl font-bold text-blue-600">
                   {pendingOrders.filter(o => o.status === 'ongoing').length}
                 </p>
               </div>
-              <Clock className="w-8 h-8 text-blue-500" />
+              <Clock className="w-6 h-6 lg:w-8 lg:h-8 text-blue-500" />
             </div>
           </Card>
           
-          <Card className="p-4">
+          <Card className="p-3 lg:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Temporary</p>
-                <p className="text-2xl font-bold text-purple-600">
+                <p className="text-xs lg:text-sm text-gray-500">Temporary</p>
+                <p className="text-xl lg:text-2xl font-bold text-purple-600">
                   {pendingOrders.filter(o => o.status === 'temporary').length}
                 </p>
               </div>
-              <CheckCircle className="w-8 h-8 text-purple-500" />
+              <CheckCircle className="w-6 h-6 lg:w-8 lg:h-8 text-purple-500" />
             </div>
           </Card>
           
-          <Card className="p-4">
+          <Card className="p-3 lg:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Revenue</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-xs lg:text-sm text-gray-500">Total Revenue</p>
+                <p className="text-xl lg:text-2xl font-bold text-green-600">
                   ₹{pendingOrders.reduce((sum, order) => sum + order.totalAmount, 0).toFixed(2)}
                 </p>
               </div>
-              <DollarSign className="w-8 h-8 text-green-500" />
+              <DollarSign className="w-6 h-6 lg:w-8 lg:h-8 text-green-500" />
             </div>
           </Card>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        {/* Filters - Mobile First */}
+        <div className="flex flex-col gap-3">
           <Input
             placeholder="Search orders..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             icon={<Search size={18} className="text-gray-500" />}
-            className="flex-1"
+            className="w-full"
           />
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setSelectedStatus('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${
                 selectedStatus === 'all'
-                  ? 'bg-gray-800 text-white'
+                  ? 'bg-gray-800 text-white shadow-md'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -346,9 +346,9 @@ const StaffPendingOrdersPage: React.FC = () => {
             </button>
             <button
               onClick={() => setSelectedStatus('ongoing')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${
                 selectedStatus === 'ongoing'
-                  ? 'bg-blue-100 text-blue-800'
+                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -356,9 +356,9 @@ const StaffPendingOrdersPage: React.FC = () => {
             </button>
             <button
               onClick={() => setSelectedStatus('temporary')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${
                 selectedStatus === 'temporary'
-                  ? 'bg-purple-100 text-purple-800'
+                  ? 'bg-purple-100 text-purple-800 border border-purple-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -367,115 +367,145 @@ const StaffPendingOrdersPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Orders List */}
+        {/* Orders List - Mobile First Grid */}
         {filteredOrders.length === 0 ? (
-          <Card className="p-8 text-center">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No pending orders</h3>
-            <p className="text-gray-500">
-              {searchTerm || selectedStatus !== 'all' 
-                ? 'No orders match your filters' 
-                : 'No pending orders at the moment'
-              }
-            </p>
+          <Card className="p-6 lg:p-8 text-center">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <AlertCircle className="w-12 h-12 lg:w-16 lg:h-16 text-gray-400" />
+              <div>
+                <h3 className="text-lg lg:text-xl font-medium text-gray-900 mb-2">No pending orders</h3>
+                <p className="text-sm lg:text-base text-gray-500">
+                  {searchTerm || selectedStatus !== 'all' 
+                    ? 'No orders match your filters' 
+                    : 'No pending orders at the moment'
+                  }
+                </p>
+              </div>
+            </div>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
             {filteredOrders.map((order) => (
-              <Card key={order.id} className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-2">
-                      <h3 className="text-lg font-semibold">{order.orderNumber}</h3>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(order.status)}`}>
-                        {order.status === 'temporary' ? 'Temporary' : 'Ongoing'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-6 text-sm text-gray-600 mb-2">
-                      <div className="flex items-center gap-1">
-                        <Users size={16} />
-                        <span>{order.tableNames.join(', ')}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock size={16} />
-                        <span>{formatTime(order.createdAt)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Receipt size={16} />
-                        <span>{order.items.length} items</span>
+              <Card key={order.id} className="overflow-hidden hover:shadow-lg transition-all duration-200 hover:scale-[1.02]">
+                {/* Mobile Card Header */}
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 lg:px-6 lg:py-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">{order.orderNumber}</h3>
+                        <div className="flex items-center space-x-2">
+                          <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(order.status)}`}>
+                            {order.status === 'temporary' ? 'Temporary' : 'Ongoing'}
+                          </span>
+                          {order.tableNames.length > 0 && (
+                            <span className="flex items-center text-xs text-gray-600">
+                              <Users size={12} className="mr-1" />
+                              {order.tableNames.join(', ')}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center gap-6 text-sm text-gray-500 mb-2">
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">Location:</span>
-                        <span>{currentLocation?.name || 'Unknown Location'}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">Created by:</span>
-                        {orderCreators[order.staffId] ? (
-                          <div className="flex items-center gap-1">
-                            <span className="capitalize">{orderCreators[order.staffId].role}</span>
-                            <span>({orderCreators[order.staffId].email})</span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">Loading...</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="text-lg font-semibold text-green-600">
-                      ₹{order.totalAmount.toFixed(2)}
+                    <div className="text-right">
+                      <p className="text-xl lg:text-2xl font-bold text-green-600">₹{order.totalAmount.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">{order.items.length} items</p>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {order.status === 'ongoing' && (
-                      <Button
+                </div>
+
+                {/* Order Details */}
+                <div className="p-4 lg:p-6">
+                  <div className="space-y-3 lg:space-y-4">
+                    {/* Time and Staff Info */}
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center text-gray-600">
+                        <Clock size={14} className="mr-1" />
+                        <span>{formatTime(order.createdAt)}</span>
+                      </div>
+                      {orderCreators[order.staffId] && (
+                        <div className="text-xs text-gray-500">
+                          by {orderCreators[order.staffId].displayName || orderCreators[order.staffId].email.split('@')[0]}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Items Preview */}
+                    <div className="space-y-2">
+                      {order.items.slice(0, 3).map((item, index) => (
+                        <div key={index} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-500">{item.quantity}x</span>
+                            <span className="text-gray-900 font-medium">{item.name}</span>
+                          </div>
+                          <span className="text-gray-600">₹{(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {order.items.length > 3 && (
+                        <div className="text-xs text-gray-500 text-center pt-2">
+                          +{order.items.length - 3} more items
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons - Mobile First */}
+                <div className="px-4 py-3 lg:px-6 lg:py-4 bg-gray-50 border-t border-gray-200">
+                  <div className="flex flex-col gap-2">
+                    {/* Primary Actions */}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
                         onClick={() => handleContinueOrder(order)}
-                        variant="outline"
-                        className="flex items-center gap-2"
+                        className="flex-1 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200 transform active:scale-95 flex items-center justify-center space-x-2"
                       >
                         <Edit size={16} />
-                        Edit Order
-                      </Button>
-                    )}
-                    
-                    <Button
-                      onClick={() => handleViewReceipt(order)}
-                      variant="outline"
-                      className="flex items-center gap-2"
-                    >
-                      <Eye size={16} />
-                      View Order
-                    </Button>
-                    
-                    {order.status === 'ongoing' && (
-                      <Button
+                        <span>Continue Order</span>
+                      </button>
+                      <button
                         onClick={() => handleGoForBill(order)}
-                        className="flex items-center gap-2"
+                        className="flex-1 px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors duration-200 transform active:scale-95 flex items-center justify-center space-x-2"
                       >
-                        <Receipt size={16} />
-                        Go for Bill
-                      </Button>
-                    )}
+                        <DollarSign size={16} />
+                        <span>Go for Bill</span>
+                      </button>
+                    </div>
                     
-                    <Button
-                      onClick={() => handleDeleteOrder(order)}
-                      variant="outline"
-                      className="flex items-center gap-2 text-red-600 border-red-300 hover:bg-red-50"
-                    >
-                      <Trash2 size={16} />
-                      Cancel
-                    </Button>
+                    {/* Secondary Actions */}
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => handleViewReceipt(order)}
+                        className="p-2.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors duration-200 transform active:scale-95"
+                        title="View Receipt"
+                      >
+                        <Eye size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteOrder(order)}
+                        className="p-2.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors duration-200 transform active:scale-95"
+                        title="Cancel Order"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </Card>
             ))}
           </div>
         )}
-      </div>
+      </DashboardLayout>
+
+      {/* View Order Modal */}
+      {selectedOrder && (
+        <ViewOrderModal
+          isOpen={showViewOrder}
+          onClose={handleCloseViewOrder}
+          order={selectedOrder}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && orderToDelete && (
 
       {/* Go for Bill Modal */}
       {selectedOrder && (

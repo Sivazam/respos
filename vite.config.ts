@@ -12,10 +12,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Restaurant POS System',
+        name: 'Fork Flow - Restaurant POS',
         short_name: 'Restaurant POS',
         description: 'A comprehensive restaurant point-of-sale system with table management, order processing, and real-time menu updates.',
-        theme_color: '#dc2626',
+        // theme_color: '#dc2626',
+        theme_color: '#16610E',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',

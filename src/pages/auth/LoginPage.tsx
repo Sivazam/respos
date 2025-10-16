@@ -275,10 +275,10 @@ const LoginPage: React.FC = () => {
   const handleForgotPassword = async (email: string) => {
     try {
       await resetPassword(email);
-      alert('Password reset email sent! Please check your inbox.');
-    } catch (error) {
+      alert('Password reset email sent! Please check your inbox and spam folder.');
+    } catch (error: any) {
       console.error('Password reset error:', error);
-      alert('Failed to send password reset email. Please try again.');
+      alert(`Failed to send password reset email: ${error.message || 'Please try again.'}`);
     }
   };
 
@@ -346,8 +346,12 @@ const LoginPage: React.FC = () => {
               <div className="text-center mb-6">
                 <button
                   onClick={() => {
-                    const email = prompt('Please enter your email address:');
-                    if (email) handleForgotPassword(email);
+                    const email = window.prompt('Please enter your email address for password reset:');
+                    if (email && email.trim() && email.includes('@')) {
+                      handleForgotPassword(email.trim());
+                    } else if (email) {
+                      alert('Please enter a valid email address.');
+                    }
                   }}
                   className="text-green-200 hover:text-green-400 transition-colors duration-200 text-sm font-medium underline underline-offset-2 focus:outline-none"
                 >

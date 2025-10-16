@@ -54,6 +54,26 @@
   outline-offset: 2px;
 }
 
+/* Hide any potential network status display */
+body > div:first-child > div:has([data-network-status]),
+body > div[data-network-status],
+.network-status-indicator,
+.pwa-network-status {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Hide any potential PWA or network status overlays */
+body > div[style*="position: fixed"][style*="top: 0"][style*="left: 0"],
+body > div[style*="position: absolute"][style*="top: 0"][style*="left: 0"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

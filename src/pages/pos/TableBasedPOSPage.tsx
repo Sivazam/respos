@@ -393,75 +393,12 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-12rem)]">
-        {/* Products Section */}
-        <div className="flex-1 flex flex-col min-h-0">
-          {error && <ErrorAlert message={error} />}
-          
-          {/* Search and Filters */}
-          <div className="mb-4 space-y-4">
-            <Input
-              placeholder="Search menu items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              icon={<Search size={18} className="text-gray-500" />}
-            />
-            
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              <button
-                onClick={() => setSelectedCategory('')}
-                className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  !selectedCategory
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                All Categories
-              </button>
-              {categories.map(category => (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                    selectedCategory === category.id
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Products Grid */}
-          <div className="flex-1 overflow-y-auto">
-            {loading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="flex items-center justify-center h-64 text-gray-500">
-                <div className="text-center">
-                  <p className="text-lg mb-2">No menu items found</p>
-                  <p className="text-sm">Try adjusting your search or filters</p>
-                </div>
-              </div>
-            ) : (
-              <ProductGrid
-                products={filteredProducts}
-                category={selectedCategory}
-                onAddToCart={handleAddItem}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Cart Section */}
-        <div className="w-full lg:w-96">
-          <Card className="h-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Current Order</h2>
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-[calc(100vh-12rem)]">
+        {/* Cart Section - Mobile First */}
+        <div className="w-full lg:w-96 order-1 lg:order-2">
+          <Card className="h-full p-3 lg:p-4 lg:p-6 lg:sticky lg:top-6 flex flex-col">
+            <div className="flex items-center justify-between mb-3 lg:mb-4 flex-shrink-0">
+              <h2 className="text-base lg:text-lg font-semibold">Current Order</h2>
               {temporaryOrder && (
                 <span className="text-sm text-gray-500">
                   {temporaryOrder.items.length} items
@@ -471,7 +408,7 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
 
             {/* Order Mode Selection for Delivery Orders */}
             {orderContext?.orderType === 'delivery' && (
-              <div className="mb-6">
+              <div className="mb-4 lg:mb-6 flex-shrink-0">
                 <OrderModeSelection
                   selectedMode={orderMode}
                   onModeChange={setOrderMode}
@@ -480,9 +417,9 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
             )}
             
             {temporaryOrder && temporaryOrder.items.length > 0 ? (
-              <div className="h-full flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0">
                 {/* Cart Items */}
-                <div className="flex-1 overflow-y-auto mb-4">
+                <div className="flex-1 overflow-y-auto mb-3 lg:mb-4">
                   <div className="space-y-2">
                     {temporaryOrder.items.map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
@@ -596,6 +533,69 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
               </div>
             )}
           </Card>
+        </div>
+
+        {/* Products Section */}
+        <div className="flex-1 flex flex-col min-h-0 order-2 lg:order-1">
+          {error && <ErrorAlert message={error} />}
+          
+          {/* Search and Filters */}
+          <div className="mb-3 lg:mb-4 space-y-3 lg:space-y-4 flex-shrink-0">
+            <Input
+              placeholder="Search menu items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              icon={<Search size={18} className="text-gray-500" />}
+            />
+            
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              <button
+                onClick={() => setSelectedCategory('')}
+                className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                  !selectedCategory
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                All Categories
+              </button>
+              {categories.map(category => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                    selectedCategory === category.id
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Products Grid */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className="flex items-center justify-center h-64 text-gray-500">
+                <div className="text-center">
+                  <p className="text-lg mb-2">No menu items found</p>
+                  <p className="text-sm">Try adjusting your search or filters</p>
+                </div>
+              </div>
+            ) : (
+              <ProductGrid
+                products={filteredProducts}
+                category={selectedCategory}
+                onAddToCart={handleAddItem}
+              />
+            )}
+          </div>
         </div>
       </div>
 

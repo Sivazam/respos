@@ -336,7 +336,7 @@ const POSPage: React.FC = () => {
 
         {/* Cart Section - Only show when there are items */}
         {hasCartItems && (
-          <div className="w-full lg:w-96 bg-white rounded-lg shadow-lg p-4 lg:p-6 order-first lg:order-last">
+          <div className="w-full lg:w-96 bg-white rounded-lg shadow-lg p-4 lg:p-6 order-first lg:order-last max-h-[50vh] lg:max-h-none overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">Current Sale</h2>
             <div className="h-auto lg:h-full">
               <Cart onCheckout={handleCheckout} />

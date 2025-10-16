@@ -41,18 +41,21 @@ import FullAppProviders from './components/providers/FullAppProviders';
 // Super Admin Pages
 import SuperAdminUsersPage from './pages/superadmin/UsersPage';
 import SuperAdminOrdersPage from './pages/superadmin/OrdersPage';
-import SuperAdminFranchisesPage from './pages/superadmin/FranchisesPage';
-import SuperAdminLocationsPage from './pages/superadmin/LocationsPage';
+import FranchisesPage from './pages/superadmin/FranchisesPage';
+import LocationsPage from './pages/superadmin/LocationsPage';
 import SuperAdminSalesReportPage from './pages/superadmin/SalesReportPage';
 import SuperAdminSettingsPage from './pages/superadmin/SettingsPage';
-import SuperAdminAdvancedAnalyticsPage from './pages/superadmin/AdvancedAnalyticsPage';
+import AdvancedAnalyticsPage from './pages/superadmin/AdvancedAnalyticsPage';
+import GlobalAnalyticsPage from './pages/superadmin/GlobalAnalyticsPage';
+import SuperAdminSystemSettingsPage from './pages/superadmin/SystemSettingsPage';
 
 // Admin Pages
 import UsersPage from './pages/admin/UsersPage';
 import AdminOrdersPage from './pages/admin/OrdersPage';
-import LocationsPage from './pages/admin/LocationsPage';
-import SettingsPage from './pages/admin/SettingsPage';
+import AdminLocationsPage from './pages/admin/LocationsPage';
+import AdminSettingsPage from './pages/admin/SettingsPage';
 import MenuPage from './pages/admin/MenuPage';
+import EnhancedAdminOrdersPage from './pages/admin/EnhancedOrdersPage';
 
 // Franchise Pages
 import FranchiseUsersPage from './pages/franchise/UsersPage';
@@ -60,7 +63,7 @@ import FranchiseLocationsPage from './pages/franchise/LocationsPage';
 import FranchiseSettingsPage from './pages/franchise/FranchiseSettingsPage';
 
 // Manager Pages
-import ManagerOrdersPage from './pages/manager/OrdersPage';
+import OrdersPage from './pages/manager/OrdersPage';
 import ManagerUsersPage from './pages/manager/UsersPage';
 import ManagerSettingsPage from './pages/manager/SettingsPage';
 import ManagerMenuPage from './pages/manager/MenuPage';
@@ -80,7 +83,7 @@ import ReturnsPage from './pages/inventory/ReturnsPage';
 
 // POS Pages
 import POSPage from './pages/pos/POSPage';
-import OrdersPage from './pages/pos/OrdersPage';
+import POSOrdersPage from './pages/pos/OrdersPage';
 import ProductCatalogPage from './pages/pos/ProductCatalogPage';
 import SalesReturnsPage from './pages/pos/ReturnsPage';
 
@@ -142,7 +145,7 @@ function App() {
                         path="/superadmin/franchises" 
                         element={
                           <ProtectedRoute allowedRoles={['superadmin']}>
-                            <SuperAdminFranchisesPage />
+                            <FranchisesPage />
                           </ProtectedRoute>
                         } 
                       />
@@ -150,7 +153,7 @@ function App() {
                         path="/superadmin/locations" 
                         element={
                           <ProtectedRoute allowedRoles={['superadmin']}>
-                            <SuperAdminLocationsPage />
+                            <LocationsPage />
                           </ProtectedRoute>
                         } 
                       />
@@ -210,9 +213,26 @@ function App() {
                         path="/superadmin/analytics" 
                         element={
                           <ProtectedRoute allowedRoles={['superadmin']}>
-                            <SuperAdminAdvancedAnalyticsPage />
+                            <AdvancedAnalyticsPage />
                           </ProtectedRoute>
-                        } />
+                        } 
+                      />
+                      <Route 
+                        path="/superadmin/global-analytics" 
+                        element={
+                          <ProtectedRoute allowedRoles={['superadmin']}>
+                            <GlobalAnalyticsPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      <Route 
+                        path="/superadmin/system-settings" 
+                        element={
+                          <ProtectedRoute allowedRoles={['superadmin']}>
+                            <SuperAdminSystemSettingsPage />
+                          </ProtectedRoute>
+                        } 
+                      />
 
                       {/* Admin Routes */}
                       <Route 
@@ -227,7 +247,7 @@ function App() {
                         path="/admin/locations" 
                         element={
                           <ProtectedRoute allowedRoles={['admin']}>
-                            <LocationsPage />
+                            <AdminLocationsPage />
                           </ProtectedRoute>
                         } 
                       />
@@ -290,6 +310,14 @@ function App() {
                         } 
                       />
                       <Route 
+                        path="/admin/enhanced-orders" 
+                        element={
+                          <ProtectedRoute allowedRoles={['admin']}>
+                            <EnhancedAdminOrdersPage />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      <Route 
                         path="/admin/returns" 
                         element={
                           <ProtectedRoute allowedRoles={['admin']}>
@@ -347,7 +375,7 @@ function App() {
                         path="/admin/settings" 
                         element={
                           <ProtectedRoute allowedRoles={['admin']}>
-                            <SettingsPage />
+                            <AdminSettingsPage />
                           </ProtectedRoute>
                         } 
                       />
@@ -365,7 +393,7 @@ function App() {
                         path="/manager/orders" 
                         element={
                           <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerOrdersPage />
+                            <OrdersPage />
                           </ProtectedRoute>
                         } 
                       />
@@ -533,7 +561,7 @@ function App() {
                         path="/pos/orders" 
                         element={
                           <ProtectedRoute allowedRoles={['manager', 'staff']}>
-                            <OrdersPage />
+                            <POSOrdersPage />
                           </ProtectedRoute>
                         } 
                       />

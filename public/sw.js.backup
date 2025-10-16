@@ -17,6 +17,13 @@ const STATIC_ASSETS = [
   '/icons/icon-512x512.png'
 ];
 
+// API endpoints that will be cached for offline use
+const API_CACHE_ROUTES = [
+  { pattern: /^https:\/\/firestore\.googleapis\.com\/.*/, strategy: 'networkFirst' },
+  { pattern: /^https:\/\/firebaseio\.com\/.*/, strategy: 'networkFirst' },
+  { pattern: /^https:\/\/firebase\.googleapis\.com\/.*/, strategy: 'networkFirst' }
+];
+
 // Install event - cache static assets
 self.addEventListener('install', event => {
   console.log('[SW] Installing service worker');
@@ -69,49 +76,79 @@ self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests and external resources to avoid cache errors
-  if (request.method !== 'GET' || 
-      url.pathname.includes('/node_modules/') || 
-      (url.hostname !== 'localhost' && url.hostname !== '21.0.4.75' && url.hostname !== '127.0.0.1')) {
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  // Skip node_modules and external dependencies entirely
+  if (url.pathname.includes('/node_modules/') || 
+      (url.hostname !== 'localhost' && url.hostname !== '21.0.4.75')) {
     return; // Let browser handle these normally
   }
 
-  // Only handle navigation requests and static assets from our domain
-  if (url.origin === self.location.origin) {
-    if (isStaticAsset(request)) {
-      event.respondWith(handleStaticAsset(request));
-    } else if (request.mode === 'navigate') {
-      event.respondWith(handleNavigationRequest(request));
-    }
+  // Handle different types of requests
+  if (isAPIRequest(url)) {
+    event.respondWith(handleAPIRequest(request));
+  } else if (isStaticAsset(request)) {
+    event.respondWith(handleStaticAsset(request));
+  } else {
+    event.respondWith(handleNavigationRequest(request));
   }
 });
 
-// Handle static assets with cache-first strategy
-async function handleStaticAsset(request) {
+// Handle API requests with network-first strategy
+async function handleAPIRequest(request) {
   try {
+    // Try network first
+    const networkResponse = await fetch(request);
+    
+    // Cache successful responses
+    if (networkResponse.ok) {
+      const cache = await caches.open(RUNTIME_CACHE);
+      cache.put(request, networkResponse.clone());
+    }
+    
+    return networkResponse;
+  } catch (error) {
+    console.log('[SW] Network failed, trying cache for API request');
+    
+    // Fallback to cache
     const cachedResponse = await caches.match(request);
     if (cachedResponse) {
       return cachedResponse;
     }
+    
+    // Return offline fallback for API
+    return new Response(
+      JSON.stringify({ 
+        error: 'Offline', 
+        message: 'No network connection and cached data not available' 
+      }),
+      {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+  }
+}
 
+// Handle static assets with cache-first strategy
+async function handleStaticAsset(request) {
+  const cachedResponse = await caches.match(request);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  try {
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
       const cache = await caches.open(RUNTIME_CACHE);
-      // Don't wait for cache.put to complete to avoid blocking
-      cache.put(request, networkResponse.clone()).catch(err => 
-        console.log('[SW] Cache put failed:', err)
-      );
+      cache.put(request, networkResponse.clone());
     }
     return networkResponse;
   } catch (error) {
     console.log('[SW] Failed to fetch static asset:', request.url);
-    
-    // Try to return cached version even if network failed
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-    
     return new Response('Asset not available offline', { status: 404 });
   }
 }
@@ -131,7 +168,7 @@ async function handleNavigationRequest(request) {
       return cachedResponse;
     }
     
-    // Final fallback - simple offline page
+    // Final fallback
     return new Response(`
       <!DOCTYPE html>
       <html>
@@ -173,9 +210,19 @@ async function handleNavigationRequest(request) {
   }
 }
 
-// Helper function to identify static assets
+// Helper functions
+function isAPIRequest(url) {
+  return API_CACHE_ROUTES.some(route => route.pattern.test(url.href));
+}
+
 function isStaticAsset(request) {
   const url = new URL(request.url);
+  
+  // Skip node_modules and external dependencies
+  if (url.pathname.includes('/node_modules/') || 
+      url.hostname !== 'localhost' && url.hostname !== '21.0.4.75') {
+    return false;
+  }
   
   // Only cache specific static assets from our domain
   return request.url.includes('/icons/') || 
@@ -200,9 +247,22 @@ self.addEventListener('sync', event => {
 // Sync offline orders when back online
 async function syncOfflineOrders() {
   try {
-    console.log('[SW] Syncing offline orders...');
-    // This would sync any offline orders
-    // Implementation depends on your offline storage strategy
+    const offlineOrders = await getOfflineOrders();
+    
+    for (const order of offlineOrders) {
+      try {
+        await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(order)
+        });
+        
+        // Remove synced order from offline storage
+        await removeOfflineOrder(order.id);
+      } catch (error) {
+        console.error('[SW] Failed to sync order:', order.id, error);
+      }
+    }
   } catch (error) {
     console.error('[SW] Background sync failed:', error);
   }
@@ -252,5 +312,47 @@ self.addEventListener('notificationclick', event => {
     );
   }
 });
+
+// IndexedDB helpers for offline storage
+async function getOfflineOrders() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('ForkFlowPOSOffline', 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction(['orders'], 'readonly');
+      const store = transaction.objectStore('orders');
+      const getAllRequest = store.getAll();
+      
+      getAllRequest.onsuccess = () => resolve(getAllRequest.result);
+      getAllRequest.onerror = () => reject(getAllRequest.error);
+    };
+    
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('orders')) {
+        db.createObjectStore('orders', { keyPath: 'id' });
+      }
+    };
+  });
+}
+
+async function removeOfflineOrder(orderId) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('ForkFlowPOSOffline', 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction(['orders'], 'readwrite');
+      const store = transaction.objectStore('orders');
+      const deleteRequest = store.delete(orderId);
+      
+      deleteRequest.onsuccess = () => resolve();
+      deleteRequest.onerror = () => reject(deleteRequest.error);
+    };
+  });
+}
 
 console.log('[SW] Service worker loaded successfully');

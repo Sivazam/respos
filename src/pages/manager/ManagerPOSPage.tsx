@@ -473,49 +473,51 @@ const ManagerPOSPage: React.FC = () => {
           </div>
 
           {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6">
             {/* Products */}
-            <div className="lg:col-span-2">
-              <div className="bg-white shadow rounded-lg p-4">
-                <h2 className="text-lg font-semibold mb-4">Menu Items</h2>
-                {useOptimizedView ? (
-                  <OptimizedProductList 
-                    products={filteredProducts} 
-                    onAddToCart={(product, quantity) => {
-                      // Find the corresponding menu item and add to cart
-                      const menuItem = filteredProducts.find(item => item.id === product.id);
-                      if (menuItem) {
-                        handleAddToCart(menuItem);
-                      }
-                    }}
-                    cartItems={displayItems.map(item => ({
-                      id: item.id,
-                      product: {
-                        id: item.menuItemId,
-                        name: item.name,
-                        price: item.price,
-                        category: '',
-                        code: item.menuItemId,
-                        description: '',
-                        stock: 999,
-                        imageUrl: undefined
-                      },
-                      quantity: item.quantity
-                    }))}
-                  />
-                ) : (
-                  <ProductGrid 
-                    products={filteredProducts} 
-                    onAddToCart={handleAddToCart}
-                  />
-                )}
+            <div className="lg:col-span-2 order-2 lg:order-1">
+              <div className="bg-white shadow rounded-lg p-3 lg:p-4">
+                <h2 className="text-base lg:text-lg font-semibold mb-3 lg:mb-4">Menu Items</h2>
+                <div className="max-h-[50vh] lg:max-h-[70vh] overflow-y-auto">
+                  {useOptimizedView ? (
+                    <OptimizedProductList 
+                      products={filteredProducts} 
+                      onAddToCart={(product, quantity) => {
+                        // Find the corresponding menu item and add to cart
+                        const menuItem = filteredProducts.find(item => item.id === product.id);
+                        if (menuItem) {
+                          handleAddToCart(menuItem);
+                        }
+                      }}
+                      cartItems={displayItems.map(item => ({
+                        id: item.id,
+                        product: {
+                          id: item.menuItemId,
+                          name: item.name,
+                          price: item.price,
+                          category: '',
+                          code: item.menuItemId,
+                          description: '',
+                          stock: 999,
+                          imageUrl: undefined
+                        },
+                        quantity: item.quantity
+                      }))}
+                    />
+                  ) : (
+                    <ProductGrid 
+                      products={filteredProducts} 
+                      onAddToCart={handleAddToCart}
+                    />
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Cart */}
-            <div className="lg:col-span-1">
-              <div className="bg-white shadow rounded-lg p-4">
-                <div className="flex justify-between items-center mb-4">
+            <div className="lg:col-span-1 order-1 lg:order-2">
+              <div className="bg-white shadow rounded-lg p-3 lg:p-4 lg:sticky lg:top-6 max-h-[40vh] lg:max-h-none overflow-hidden flex flex-col">
+                <div className="flex justify-between items-center mb-3 lg:mb-4 flex-shrink-0">
                   <h2 className="text-lg font-semibold">Order Summary</h2>
                   {isTableBasedOrder && isManagerOrderActive && (
                     <button
@@ -526,17 +528,19 @@ const ManagerPOSPage: React.FC = () => {
                     </button>
                   )}
                 </div>
-                <Cart 
-                  items={displayItems}
-                  subtotal={displaySubtotal}
-                  cgst={displayCgst}
-                  sgst={displaySgst}
-                  total={displayTotal}
-                  onCheckout={handleCheckout}
-                  onClearCart={handleClearCart}
-                  cgstRate={cgstRate}
-                  sgstRate={sgstRate}
-                />
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <Cart 
+                    items={displayItems}
+                    subtotal={displaySubtotal}
+                    cgst={displayCgst}
+                    sgst={displaySgst}
+                    total={displayTotal}
+                    onCheckout={handleCheckout}
+                    onClearCart={handleClearCart}
+                    cgstRate={cgstRate}
+                    sgstRate={sgstRate}
+                  />
+                </div>
               </div>
             </div>
           </div>

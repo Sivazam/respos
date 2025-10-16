@@ -17,6 +17,9 @@ import ReceiptModal from '../../components/pos/ReceiptModal';
 import PortionSelectionModal from '../../components/pos/PortionSelectionModal';
 import { Sale, Receipt, MenuItem } from '../../types';
 
+// Lazy load components outside the component to avoid recreation on every render
+const TableBasedPOS = React.lazy(() => import('../pos/TableBasedPOSPage'));
+
 const ManagerPOSPage: React.FC = () => {
   const location = useLocation();
   const { categories } = useCategories();
@@ -152,8 +155,7 @@ const ManagerPOSPage: React.FC = () => {
 
   // If this is a table-based order, redirect to the table-based POS
   if (isTableBasedOrder) {
-    // Dynamically import and render the table-based POS
-    const TableBasedPOS = React.lazy(() => import('../pos/TableBasedPOSPage'));
+    // Render the table-based POS
     return (
       <React.Suspense fallback={
         <div className="flex items-center justify-center h-64">

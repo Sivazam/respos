@@ -467,10 +467,9 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                <div>Order: #${order.orderNumber}</div>` : 
               `<div>Order: #${order.orderNumber}</div>`
             }
-           
-             <!--${customerInfo.name ? `<div>Customer: ${customerInfo.name}</div>` : ''}-->
-             <!--${customerInfo.phone ? `<div>Phone: ${customerInfo.phone}</div>` : ''}-->
-             <!--${customerInfo.city ? `<div>City: ${customerInfo.city}</div>` : ''}-->
+            ${customerInfo.name ? `<div>Customer: ${customerInfo.name}</div>` : ''}
+            ${customerInfo.phone ? `<div>Phone: ${customerInfo.phone}</div>` : ''}
+            ${customerInfo.city ? `<div>City: ${customerInfo.city}</div>` : ''}
         </div>
         
         <div class="divider"></div>

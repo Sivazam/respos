@@ -41,6 +41,8 @@ interface PendingOrder {
   staffId: string;
   sessionStartedAt: Date;
   locationId?: string;
+  orderType: 'dinein' | 'delivery'; // Added order type
+  orderMode?: 'zomato' | 'swiggy' | 'in-store'; // Added order mode for delivery orders
 }
 
 const EnhancedStaffPendingOrdersPage: React.FC = () => {
@@ -119,13 +121,15 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
       id: order.id,
       orderNumber: order.orderNumber,
       itemsCount: order.items.length,
-      items: order.items.map(item => ({ name: item.name, quantity: item.quantity }))
+      items: order.items.map(item => ({ name: item.name, quantity: item.quantity })),
+      orderType: order.orderType,
+      orderMode: order.orderMode
     });
     
-    // Navigate to POS with order data - using the same approach as the original implementation
+    // Navigate to POS with order data - using the actual order type and mode
     navigate('/pos', { 
       state: {
-        orderType: 'dinein',
+        orderType: order.orderType || 'dinein', // Use actual order type, fallback to dinein
         tableIds: order.tableIds,
         isOngoing: true,
         fromLocation: '/staff/pending-orders',

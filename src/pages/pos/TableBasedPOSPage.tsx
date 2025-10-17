@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, ArrowLeft, Users, CreditCard, Check } from 'lucide-react';
+import { Search, ArrowLeft, Users, CreditCard, Check, Smartphone, Package, Store } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useMenuItems } from '../../contexts/MenuItemContext';
 import { useCategories } from '../../contexts/CategoryContext';
@@ -51,6 +51,7 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showPortionModal, setShowPortionModal] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'menu' | 'cart'>('menu');
+  const [showOrderModeModal, setShowOrderModeModal] = useState(false);
 
   // Get order context from navigation state
   const orderContext = location.state as {
@@ -107,6 +108,12 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
             if (existingOrder.orderType === 'delivery' && existingOrder.orderMode) {
               console.log('🔧 Setting order mode for delivery:', existingOrder.orderMode);
               setOrderMode(existingOrder.orderMode);
+            } else {
+              console.log('🔧 Order details:', {
+                orderType: existingOrder.orderType,
+                orderMode: existingOrder.orderMode,
+                reason: existingOrder.orderType !== 'delivery' ? 'Not a delivery order' : 'No order mode found'
+              });
             }
           } else {
             // Start a new temporary order with order mode for delivery
@@ -243,10 +250,26 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
     }
   };
 
+  // Get the current order type (from loaded order or context)
+  const getCurrentOrderType = () => {
+    if (temporaryOrder) {
+      return temporaryOrder.orderType;
+    }
+    return orderContext?.orderType || 'dinein';
+  };
+
+  // Get the current order mode (from loaded order or state)
+  const getCurrentOrderMode = () => {
+    if (temporaryOrder && temporaryOrder.orderMode) {
+      return temporaryOrder.orderMode;
+    }
+    return orderMode;
+  };
+
   // Get order type display
   const getOrderTypeDisplay = () => {
-    if (!orderContext) return '';
-    return orderContext.orderType === 'dinein' ? 'Dine-in' : 'Delivery';
+    const currentOrderType = getCurrentOrderType();
+    return currentOrderType === 'dinein' ? 'Dine-in' : 'Delivery';
   };
 
   // Get order flow display
@@ -387,17 +410,25 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
                 <p className="font-semibold">{getOrderFlowDisplay()}</p>
               </div>
               
-              {orderContext?.orderType === 'dinein' && (
+              {getCurrentOrderType() === 'dinein' && (
                 <div>
                   <span className="text-sm text-gray-500">Table(s)</span>
                   <p className="font-semibold">{getTableNames().join(', ')}</p>
                 </div>
               )}
               
-              {orderContext?.orderType === 'delivery' && (
-                <div>
-                  <span className="text-sm text-gray-500">Delivery Type</span>
-                  <p className="font-semibold capitalize">{orderMode}</p>
+              {getCurrentOrderType() === 'delivery' && (
+                <div className="flex items-center gap-3">
+                  <div>
+                    <span className="text-sm text-gray-500">Delivery Type</span>
+                    <p className="font-semibold capitalize">{getCurrentOrderMode()}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowOrderModeModal(true)}
+                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors"
+                  >
+                    Change
+                  </button>
                 </div>
               )}
             </div>
@@ -419,15 +450,23 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
           <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
             {getOrderFlowDisplay()}
           </span>
-          {orderContext?.orderType === 'dinein' && getTableNames().map((table, idx) => (
+          {getCurrentOrderType() === 'dinein' && getTableNames().map((table, idx) => (
             <span key={idx} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
               {table}
             </span>
           ))}
-          {orderContext?.orderType === 'delivery' && (
-            <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium capitalize">
-              {orderMode}
-            </span>
+          {getCurrentOrderType() === 'delivery' && (
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium capitalize">
+                {getCurrentOrderMode()}
+              </span>
+              <button
+                onClick={() => setShowOrderModeModal(true)}
+                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors"
+              >
+                Change
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -543,16 +582,6 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
               )}
             </div>
 
-            {/* Order Mode Selection for Delivery Orders */}
-            {orderContext?.orderType === 'delivery' && (
-              <div className="mb-4 flex-shrink-0">
-                <OrderModeSelection
-                  selectedMode={orderMode}
-                  onModeChange={setOrderMode}
-                />
-              </div>
-            )}
-            
             {temporaryOrder && temporaryOrder.items.length > 0 ? (
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Cart Items */}
@@ -758,16 +787,6 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
                   </span>
                 )}
               </div>
-
-              {/* Order Mode Selection for Delivery Orders */}
-              {orderContext?.orderType === 'delivery' && (
-                <div className="p-4 border-b border-gray-200">
-                  <OrderModeSelection
-                    selectedMode={orderMode}
-                    onModeChange={setOrderMode}
-                  />
-                </div>
-              )}
               
               {temporaryOrder && temporaryOrder.items.length > 0 ? (
                 <div className="flex-1 flex flex-col min-h-0">
@@ -903,6 +922,95 @@ const TableBasedPOSPage: React.FC<TableBasedPOSPageProps> = () => {
           )}
         </div>
       </div>
+
+      {/* Order Mode Modal */}
+      {showOrderModeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Select Order Mode</h3>
+                <button
+                  onClick={() => setShowOrderModeModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setOrderMode('zomato');
+                    setShowOrderModeModal(false);
+                  }}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
+                    orderMode === 'zomato'
+                      ? 'bg-pink-100 border-pink-300 text-pink-800'
+                      : 'bg-gray-50 border-gray-200 hover:bg-pink-50 hover:border-pink-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={orderMode === 'zomato' ? 'text-pink-600' : 'text-gray-400'}>
+                      <Smartphone size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Zomato</h4>
+                      <p className="text-sm opacity-80">Order from Zomato platform</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOrderMode('swiggy');
+                    setShowOrderModeModal(false);
+                  }}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
+                    orderMode === 'swiggy'
+                      ? 'bg-orange-100 border-orange-300 text-orange-800'
+                      : 'bg-gray-50 border-gray-200 hover:bg-orange-50 hover:border-orange-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={orderMode === 'swiggy' ? 'text-orange-600' : 'text-gray-400'}>
+                      <Package size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Swiggy</h4>
+                      <p className="text-sm opacity-80">Order from Swiggy platform</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOrderMode('in-store');
+                    setShowOrderModeModal(false);
+                  }}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
+                    orderMode === 'in-store'
+                      ? 'bg-blue-100 border-blue-300 text-blue-800'
+                      : 'bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={orderMode === 'in-store' ? 'text-blue-600' : 'text-gray-400'}>
+                      <Store size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">In-Store</h4>
+                      <p className="text-sm opacity-80">Direct in-store delivery order</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Portion Selection Modal */}
       {selectedMenuItem && (

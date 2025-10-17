@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, ArrowLeft, Users, CreditCard, Check } from 'lucide-react';
+import { Search, ArrowLeft, Users, CreditCard, Check, Smartphone, Package, Store } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useMenuItems } from '../../contexts/MenuItemContext';
 import { useCategories } from '../../contexts/CategoryContext';
@@ -50,6 +50,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showPortionModal, setShowPortionModal] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'menu' | 'cart'>('menu');
+  const [showOrderModeModal, setShowOrderModeModal] = useState(false);
 
   // Get order context from navigation state
   const orderContext = location.state as {
@@ -420,9 +421,17 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
             </span>
           ))}
           {orderContext?.orderType === 'delivery' && (
-            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
-              {orderMode}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium capitalize">
+                {orderMode}
+              </span>
+              <button
+                onClick={() => setShowOrderModeModal(true)}
+                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors"
+              >
+                Change
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -539,16 +548,6 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
               )}
             </div>
 
-            {/* Order Mode Selection for Delivery Orders */}
-            {orderContext?.orderType === 'delivery' && (
-              <div className="mb-4 flex-shrink-0">
-                <OrderModeSelection
-                  selectedMode={orderMode}
-                  onModeChange={setOrderMode}
-                />
-              </div>
-            )}
-            
             {managerOrder && managerOrder.items.length > 0 ? (
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Cart Items */}
@@ -748,15 +747,6 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
 
           {activeMobileTab === 'cart' && (
             <div className="flex-1 bg-white rounded-b-lg shadow-sm p-3 overflow-hidden flex flex-col">
-              {/* Order Mode Selection for Delivery Orders */}
-              {orderContext?.orderType === 'delivery' && (
-                <div className="mb-4 flex-shrink-0">
-                  <OrderModeSelection
-                    selectedMode={orderMode}
-                    onModeChange={setOrderMode}
-                  />
-                </div>
-              )}
               
               {managerOrder && managerOrder.items.length > 0 ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
@@ -902,6 +892,95 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
           )}
         </div>
       </div>
+
+      {/* Order Mode Modal */}
+      {showOrderModeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Select Order Mode</h3>
+                <button
+                  onClick={() => setShowOrderModeModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setOrderMode('zomato');
+                    setShowOrderModeModal(false);
+                  }}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
+                    orderMode === 'zomato'
+                      ? 'bg-pink-100 border-pink-300 text-pink-800'
+                      : 'bg-gray-50 border-gray-200 hover:bg-pink-50 hover:border-pink-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={orderMode === 'zomato' ? 'text-pink-600' : 'text-gray-400'}>
+                      <Smartphone size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Zomato</h4>
+                      <p className="text-sm opacity-80">Order from Zomato platform</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOrderMode('swiggy');
+                    setShowOrderModeModal(false);
+                  }}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
+                    orderMode === 'swiggy'
+                      ? 'bg-orange-100 border-orange-300 text-orange-800'
+                      : 'bg-gray-50 border-gray-200 hover:bg-orange-50 hover:border-orange-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={orderMode === 'swiggy' ? 'text-orange-600' : 'text-gray-400'}>
+                      <Package size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">Swiggy</h4>
+                      <p className="text-sm opacity-80">Order from Swiggy platform</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOrderMode('in-store');
+                    setShowOrderModeModal(false);
+                  }}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
+                    orderMode === 'in-store'
+                      ? 'bg-blue-100 border-blue-300 text-blue-800'
+                      : 'bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={orderMode === 'in-store' ? 'text-blue-600' : 'text-gray-400'}>
+                      <Store size={20} />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">In-Store</h4>
+                      <p className="text-sm opacity-80">Direct in-store delivery order</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Portion Selection Modal */}
       {selectedMenuItem && (

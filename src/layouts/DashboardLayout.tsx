@@ -71,7 +71,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
     if (isAnimating) return; // Prevent toggle during animation
     
     setIsAnimating(true);
-    setSidebarOpen(!sidebarOpen);
+    
+    // Use functional update to avoid state batching issues
+    setSidebarOpen(prev => !prev);
     
     // Reset animation flag after animation completes
     setTimeout(() => {
@@ -150,8 +152,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       { name: 'Users', href: '/manager/users', icon: <Users size={20} /> },
       // Conditionally show reports
       ...(features.canViewSalesReports() ? [
-        { name: 'Reports', href: '/manager/reports', icon: <BarChart4 size={20} /> }
-        // { name: 'Staff Performance', href: '/staff-performance', icon: <TrendingUp size={20} /> }
+        { name: 'Reports', href: '/manager/reports', icon: <BarChart4 size={20} /> },
+        { name: 'Staff Performance', href: '/staff-performance', icon: <TrendingUp size={20} /> }
       ] : []),
       { name: 'Settings', href: '/manager/settings', icon: <Settings size={20} /> },
     ];

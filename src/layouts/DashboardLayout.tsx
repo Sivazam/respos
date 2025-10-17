@@ -33,6 +33,7 @@ interface DashboardLayoutProps {
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   const { currentUser, logout } = useAuth();
   const { features } = useFeatures();
   const { currentLocation, locations, loading } = useLocations();
@@ -43,12 +44,53 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
     const handleResize = () => {
       if (window.innerWidth >= 768) {
         setSidebarOpen(false);
+        setIsAnimating(false);
       }
     };
     
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Close sidebar on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && sidebarOpen) {
+        closeSidebar();
+      }
+    };
+    
+    if (sidebarOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [sidebarOpen, isAnimating]);
+
+  // Debounced sidebar toggle to prevent multiple rapid clicks
+  const toggleSidebar = () => {
+    if (isAnimating) return; // Prevent toggle during animation
+    
+    setIsAnimating(true);
+    setSidebarOpen(!sidebarOpen);
+    
+    // Reset animation flag after animation completes
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 300); // Match the animation duration
+  };
+
+  // Close sidebar with animation
+  const closeSidebar = () => {
+    if (isAnimating) return; // Prevent close during animation
+    
+    setIsAnimating(true);
+    setSidebarOpen(false);
+    
+    // Reset animation flag after animation completes
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 300); // Match the animation duration
+  };
 
   const handleLogout = async () => {
     try {
@@ -142,7 +184,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
 
   const handleNavigation = (href: string) => {
     navigate(href);
-    setSidebarOpen(false); // Always close mobile sidebar on navigation
+    closeSidebar(); // Use debounced close function
   };
 
   // Check if user should see franchise selector
@@ -229,7 +271,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       {sidebarOpen && (
         <div 
           className="fixed inset-0 z-40 md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={closeSidebar}
         >
           <div className="absolute inset-0 bg-gray-600 opacity-75 animate-fadeIn"></div>
         </div>
@@ -251,7 +293,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
             </div>
             <button
               className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors duration-200"
-              onClick={() => setSidebarOpen(false)}
+              onClick={closeSidebar}
             >
               <X className="h-6 w-6" />
             </button>
@@ -351,8 +393,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
         <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
           {/* Mobile menu button */}
           <button
-            className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 md:hidden transition-colors duration-200"
-            onClick={() => setSidebarOpen(true)}
+            className={`p-2 rounded-md transition-colors duration-200 md:hidden ${
+              isAnimating 
+                ? 'text-gray-300 cursor-not-allowed' 
+                : 'text-gray-400 hover:text-gray-500 hover:bg-gray-100'
+            }`}
+            onClick={toggleSidebar}
+            disabled={isAnimating}
           >
             <Menu className="h-6 w-6" />
           </button>

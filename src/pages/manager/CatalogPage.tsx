@@ -63,11 +63,11 @@ const ManagerCatalogPage: React.FC = () => {
             <div className="flex flex-col space-y-4">
               {/* Categories - Horizontal scroll on mobile */}
               <div className="w-full">
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide">
                   <button
                     onClick={() => setSelectedCategory('')}
                     className={`
-                      px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap flex-shrink-0
+                      px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap flex-shrink-0
                       transition-all duration-200 border
                       ${!selectedCategory
                         ? 'bg-green-100 text-green-800 border-green-300 transform scale-105 shadow-sm'
@@ -82,7 +82,7 @@ const ManagerCatalogPage: React.FC = () => {
                       key={category.id}
                       onClick={() => setSelectedCategory(category.id)}
                       className={`
-                        px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap flex-shrink-0
+                        px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap flex-shrink-0
                         transition-all duration-200 border
                         ${selectedCategory === category.id
                           ? 'bg-green-100 text-green-800 border-green-300 transform scale-105 shadow-sm'
@@ -99,10 +99,10 @@ const ManagerCatalogPage: React.FC = () => {
               {/* Filter Controls - Stack on mobile */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 {/* Veg/Non-Veg Filter */}
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button
                     onClick={() => setVegFilter('all')}
-                    className={`px-2 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
+                    className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                       vegFilter === 'all' 
                         ? 'bg-gray-600 text-white' 
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -112,70 +112,70 @@ const ManagerCatalogPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setVegFilter('veg')}
-                    className={`flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                       vegFilter === 'veg' 
                         ? 'bg-green-600 text-white' 
                         : 'bg-green-100 text-green-700 hover:bg-green-200'
                     }`}
                   >
-                    <Leaf size={12} className="sm:size-14" />
+                    <Leaf size={12} className="sm:size-3" />
                     <span className="hidden sm:inline">Veg</span>
                   </button>
                   <button
                     onClick={() => setVegFilter('non-veg')}
-                    className={`flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors ${
                       vegFilter === 'non-veg' 
                         ? 'bg-red-600 text-white' 
                         : 'bg-red-100 text-red-700 hover:bg-red-200'
                     }`}
                   >
-                    <Drumstick size={12} className="sm:size-14" />
+                    <Drumstick size={12} className="sm:size-3" />
                     <span className="hidden sm:inline">Non-Veg</span>
                   </button>
                 </div>
 
                 {/* Toggles */}
-                <div className="flex gap-3 sm:gap-4">
+                <div className="flex gap-2 sm:gap-3">
                   {/* Out of Stock Toggle */}
-                  <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg">
-                    <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Show unavailable:</span>
+                  <div className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg">
+                    <span className="text-xs text-gray-600 whitespace-nowrap">Show unavailable:</span>
                     <button
                       onClick={() => setShowOutOfStock(!showOutOfStock)}
                       className="flex items-center transition-colors duration-200"
                     >
                       {showOutOfStock ? (
-                        <ToggleRight className="h-5 w-5 sm:h-6 sm:w-6 text-green-500" />
+                        <ToggleRight className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                       ) : (
-                        <ToggleLeft className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400" />
+                        <ToggleLeft className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                       )}
                     </button>
                   </div>
 
                   {/* View Toggle */}
-                  <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg">
-                    <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">View:</span>
-                    <div className="flex gap-1">
+                  <div className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg">
+                    <span className="text-xs text-gray-600 whitespace-nowrap">View:</span>
+                    <div className="flex gap-0.5">
                       <button
                         onClick={() => setUseOptimizedView(false)}
-                        className={`p-1 sm:p-1.5 rounded transition-colors duration-200 ${
+                        className={`p-1 sm:p-1 rounded transition-colors duration-200 ${
                           !useOptimizedView 
                             ? 'bg-green-100 text-green-600' 
                             : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
                         }`}
                         title="Grid View"
                       >
-                        <Grid size={14} className="sm:size-16" />
+                        <Grid size={12} className="sm:size-4" />
                       </button>
                       <button
                         onClick={() => setUseOptimizedView(true)}
-                        className={`p-1 sm:p-1.5 rounded transition-colors duration-200 ${
+                        className={`p-1 sm:p-1 rounded transition-colors duration-200 ${
                           useOptimizedView 
                             ? 'bg-green-100 text-green-600' 
                             : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
                         }`}
                         title="List View"
                       >
-                        <List size={14} className="sm:size-16" />
+                        <List size={12} className="sm:size-4" />
                       </button>
                     </div>
                   </div>

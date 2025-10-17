@@ -15,7 +15,8 @@ import UserForm from '../../components/auth/UserForm';
 const ManagerUsersPage: React.FC = () => {
   const { currentUser, approveUser } = useAuth();
   const { franchises } = useFranchises();
-  const franchise = franchises[0]; // Get first franchise if available
+  // For managers, get their specific franchise, not just the first one
+  const franchise = franchises.find(f => f.id === currentUser.franchiseId) || franchises[0];
   const { locations } = useLocations();
   
   const [users, setUsers] = useState<User[]>([]);
@@ -39,8 +40,11 @@ const ManagerUsersPage: React.FC = () => {
     setLoading(true);
     try {
       console.log('Fetching users for manager with locationId:', currentUser.locationId);
+      console.log('🏢 Using franchise:', franchise.id, '(', franchise.name, ')');
       
-      // Manager can see staff from their location and franchise
+      // Manager can see:
+      // 1. Approved staff assigned to their location
+      // 2. Pending staff who requested their location
       const q = query(
         collection(db, 'users'),
         where('franchiseId', '==', franchise.id),
@@ -54,8 +58,63 @@ const ManagerUsersPage: React.FC = () => {
         lastLogin: doc.data().lastLogin?.toDate()
       })) as User[];
       
-      console.log(`Found ${usersData.length} staff for this franchise`);
-      setUsers(usersData);
+      console.log('📊 Found', usersData.length, 'staff users in franchise');
+      
+      // Check if wstaff@m.com is in the fetched data
+      const wstaff = usersData.find(u => u.email === 'wstaff@m.com');
+      if (wstaff) {
+        console.log('✅ wstaff@m.com found:', {
+          locationId: wstaff.locationId,
+          isApproved: wstaff.isApproved,
+          locationMatch: wstaff.locationId === currentUser.locationId
+        });
+      } else {
+        console.log('❌ wstaff@m.com NOT found in fetched data');
+      }
+      
+      // Filter to only show relevant staff for this manager
+      const filteredUsersData = usersData.filter(user => {
+        // CRITICAL: Must be in the same franchise
+        if (user.franchiseId !== franchise.id) {
+          return false;
+        }
+        
+        // Show approved staff at this location
+        if (user.isApproved && user.locationId === currentUser.locationId) {
+          return true;
+        }
+        // Show pending staff who requested this location
+        if (!user.isApproved && user.requestedLocationId === currentUser.locationId) {
+          return true;
+        }
+        // EDGE CASE: Show approved staff with no locationId but in the same franchise
+        // This handles cases where staff were approved before location assignment was properly implemented
+        if (user.isApproved && !user.locationId && user.franchiseId === franchise.id) {
+          return true;
+        }
+        // EDGE CASE: Show approved staff with invalid locationId but in same franchise
+        // This handles cases where staff might have been assigned to wrong location
+        if (user.isApproved && user.locationId && user.locationId !== currentUser.locationId && user.franchiseId === franchise.id) {
+          // Only show if the staff has no proper location assignment AND manager can fix it
+          const locationExists = locations.find(loc => loc.id === user.locationId);
+          if (!locationExists) {
+            // ADDITIONAL SAFEGUARD: Don't show edge cases if manager has franchise/location mismatch
+            const managerLocation = locations.find(loc => loc.id === currentUser.locationId);
+            if (managerLocation && managerLocation.franchiseId !== franchise.id) {
+              return false;
+            }
+            // Only show to managers who can help fix location issues
+            return true;
+          } else {
+            return false;
+          }
+        }
+        
+        return false;
+      });
+      
+      console.log(`Found ${filteredUsersData.length} relevant staff for this manager (from ${usersData.length} total in franchise)`);
+      setUsers(filteredUsersData);
     } catch (err: any) {
       console.error('Error fetching users:', err);
       setError(err.message || 'Failed to fetch users');
@@ -195,7 +254,7 @@ const ManagerUsersPage: React.FC = () => {
               <strong>Managing Location:</strong> {managerLocation.name} ({managerLocation.storeName})
             </p>
             <p className="text-sm text-blue-600 mt-1">
-              You can manage staff assigned to this franchise.
+              You can manage staff assigned to this location only.
             </p>
           </div>
         ) : (
@@ -319,16 +378,14 @@ const ManagerUsersPage: React.FC = () => {
                             <div className="space-y-2">
                               <select
                                 id={`location-${user.uid}`}
-                                defaultValue={user.requestedLocationId || currentUser.locationId || ""}
+                                defaultValue={currentUser.locationId || ""}
                                 className="w-full text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 px-2 py-1"
                                 required
                               >
                                 <option value="">Select location *</option>
-                                {availableLocations.map(location => (
-                                  <option key={location.id} value={location.id}>
-                                    {location.name}
-                                  </option>
-                                ))}
+                                <option value={currentUser.locationId}>
+                                  {managerLocation?.name || 'Your Location'}
+                                </option>
                               </select>
                               {user.requestedLocationId && (
                                 <p className="text-xs text-gray-500">
@@ -341,18 +398,20 @@ const ManagerUsersPage: React.FC = () => {
                               <span className="text-sm text-gray-900">
                                 {user.locationId ? locations.find(loc => loc.id === user.locationId)?.name || 'Unknown' : 'Not assigned'}
                               </span>
-                              {availableLocations.length > 1 && (
-                                <select
-                                  value={user.locationId || ''}
-                                  onChange={(e) => handleAssignLocation(user, e.target.value)}
-                                  className="text-xs border border-gray-300 rounded px-2 py-1"
-                                  title="Change location"
-                                >
-                                  <option value="">Select location</option>
-                                  {availableLocations.map(loc => (
-                                    <option key={loc.id} value={loc.id}>{loc.name}</option>
-                                  ))}
-                                </select>
+                              {/* Allow location assignment for staff with missing/invalid locations */}
+                              {(!user.locationId || !locations.find(loc => loc.id === user.locationId)) && (
+                                <>
+                                  <span className="text-xs text-orange-600 font-medium">⚠️ Needs Location</span>
+                                  <select
+                                    value={user.locationId || ''}
+                                    onChange={(e) => handleAssignLocation(user, e.target.value)}
+                                    className="text-xs border border-orange-300 rounded px-2 py-1 bg-orange-50"
+                                    title="Assign to location"
+                                  >
+                                    <option value="">Select location</option>
+                                    <option value={currentUser.locationId}>{managerLocation?.name}</option>
+                                  </select>
+                                </>
                               )}
                             </div>
                           )}

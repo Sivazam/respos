@@ -8,13 +8,74 @@ import Button from '../../components/ui/Button';
 import { Card } from '../../components/ui/card';
 import toast from 'react-hot-toast';
 
+// Interface for grouped customer data
+interface GroupedCustomerData {
+  phone: string;
+  name: string;
+  city: string;
+  visitCount: number;
+  lastVisit: number;
+  paymentMethods: ('cash' | 'card' | 'upi')[];
+  sources: ('staff' | 'manager')[];
+  franchiseId?: string;
+}
+
 const UserbasePage: React.FC = () => {
   const { currentUser } = useAuth();
   const [customerData, setCustomerData] = useState<CustomerData[]>([]);
+  const [groupedData, setGroupedData] = useState<GroupedCustomerData[]>([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
+
+  // Function to group customer data by mobile number
+  const groupCustomerData = useCallback((data: CustomerData[]): GroupedCustomerData[] => {
+    const customerMap = new Map<string, CustomerData[]>();
+    
+    // Group by phone number
+    data.forEach(customer => {
+      const phone = customer.phone || 'unknown';
+      if (!customerMap.has(phone)) {
+        customerMap.set(phone, []);
+      }
+      customerMap.get(phone)!.push(customer);
+    });
+
+    // Process each group
+    const groupedCustomers: GroupedCustomerData[] = [];
+    
+    customerMap.forEach((customers, phone) => {
+      // Sort by timestamp descending to get most recent first
+      customers.sort((a, b) => b.timestamp - a.timestamp);
+      
+      const mostRecent = customers[0];
+      const visitCount = customers.length;
+      
+      // Get unique payment methods and sources
+      const paymentMethods = Array.from(new Set(customers.map(c => c.paymentMethod).filter(Boolean))) as ('cash' | 'card' | 'upi')[];
+      const sources = Array.from(new Set(customers.map(c => c.source))) as ('staff' | 'manager')[];
+      
+      groupedCustomers.push({
+        phone: phone === 'unknown' ? '' : phone,
+        name: mostRecent.name || '',
+        city: mostRecent.city || '',
+        visitCount,
+        lastVisit: mostRecent.timestamp,
+        paymentMethods,
+        sources,
+        franchiseId: mostRecent.franchiseId
+      });
+    });
+
+    // Sort by visit count descending, then by last visit descending
+    return groupedCustomers.sort((a, b) => {
+      if (b.visitCount !== a.visitCount) {
+        return b.visitCount - a.visitCount;
+      }
+      return b.lastVisit - a.lastVisit;
+    });
+  }, []);
 
   // Set default date range to today
   useEffect(() => {
@@ -39,19 +100,53 @@ const UserbasePage: React.FC = () => {
 
       console.log('🔍 Loading customer data for range:', {
         start: start.toISOString(),
-        end: end.toISOString()
+        end: end.toISOString(),
+        startTimestamp: start.getTime(),
+        endTimestamp: end.getTime(),
+        currentUserFranchiseId: currentUser?.franchiseId,
+        userRole: currentUser?.role
       });
 
-      const data = await fetchCustomerData(start.getTime(), end.getTime());
+      const data = await fetchCustomerData(start.getTime(), end.getTime(), currentUser?.franchiseId);
       setCustomerData(data);
-      console.log(`✅ Loaded ${data.length} customer records`);
+      
+      // Process grouped data
+      const grouped = groupCustomerData(data);
+      setGroupedData(grouped);
+      
+      console.log(`✅ Loaded ${data.length} customer records, grouped into ${grouped.length} unique customers`);
+      
+      // Debug: Log first few records to understand the data structure
+      if (data.length > 0) {
+        console.log('📋 Sample records:', data.slice(0, 3).map(record => ({
+          orderId: record.orderId,
+          name: record.name,
+          phone: record.phone,
+          city: record.city,
+          timestamp: record.timestamp,
+          date: record.date,
+          franchiseId: record.franchiseId,
+          readableDate: new Date(record.timestamp).toLocaleString()
+        })));
+      }
+      
+      // Debug: Log grouped data
+      if (grouped.length > 0) {
+        console.log('👥 Sample grouped customers:', grouped.slice(0, 3).map(customer => ({
+          phone: customer.phone,
+          name: customer.name,
+          city: customer.city,
+          visitCount: customer.visitCount,
+          lastVisit: new Date(customer.lastVisit).toLocaleString()
+        })));
+      }
     } catch (error) {
       console.error('Error loading customer data:', error);
       toast.error('Failed to load customer data');
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, currentUser?.franchiseId, groupCustomerData]);
 
   // Load customer data when date range changes
   useEffect(() => {
@@ -61,13 +156,13 @@ const UserbasePage: React.FC = () => {
   }, [startDate, endDate, loadCustomerData]);
 
   const handleExportCSV = () => {
-    if (customerData.length === 0) {
+    if (groupedData.length === 0) {
       toast.error('No data to export');
       return;
     }
 
     // Filter users with phone numbers only
-    const filteredData = customerData.filter(data => data.phone && data.phone.trim() !== '');
+    const filteredData = groupedData.filter(data => data.phone && data.phone.trim() !== '');
     
     if (filteredData.length === 0) {
       toast.error('No users with phone numbers found to export');
@@ -78,24 +173,27 @@ const UserbasePage: React.FC = () => {
     console.log('📊 Exporting CSV with date range:', {
       startDate: new Date(startDate).toLocaleDateString(),
       endDate: new Date(endDate).toLocaleDateString(),
-      totalRecords: customerData.length,
-      recordsWithPhone: filteredData.length
+      totalUniqueCustomers: groupedData.length,
+      uniqueCustomersWithPhone: filteredData.length,
+      totalVisits: groupedData.reduce((sum, c) => sum + c.visitCount, 0)
     });
 
     setIsExporting(true);
     try {
       const startDateStr = new Date(startDate).toLocaleDateString('en-IN').replace(/\//g, '-');
       const endDateStr = new Date(endDate).toLocaleDateString('en-IN').replace(/\//g, '-');
-      const filename = `userbase_${startDateStr}_to_${endDateStr}.csv`;
+      const filename = `userbase_frequency_${startDateStr}_to_${endDateStr}.csv`;
       
-      // Create CSV content - Only Name, Phone Number, and City for users with phone numbers
-      const headers = ['Name', 'Phone Number', 'City'];
+      // Create CSV content - Name, Phone Number, City, Visit Count, Last Visit
+      const headers = ['Name', 'Phone Number', 'City', 'Visit Count', 'Last Visit'];
       const rows = filteredData.map(data => {
         const name = `"${(data.name || '').replace(/"/g, '""')}"`;
         const phone = `"${(data.phone || '').replace(/"/g, '""')}"`;
         const city = `"${(data.city || '').replace(/"/g, '""')}"`;
+        const visitCount = data.visitCount.toString();
+        const lastVisit = `"${new Date(data.lastVisit).toLocaleDateString('en-IN')}"`;
         
-        return [name, phone, city].join(',');
+        return [name, phone, city, visitCount, lastVisit].join(',');
       });
 
       const csvContent = [headers.join(','), ...rows].join('\n');
@@ -105,7 +203,7 @@ const UserbasePage: React.FC = () => {
         filename,
         headers: headers.length,
         rows: rows.length,
-        skippedRecords: customerData.length - filteredData.length,
+        skippedRecords: groupedData.length - filteredData.length,
         fileSize: `${(new Blob([csvContent]).size / 1024).toFixed(2)} KB`
       });
       
@@ -124,7 +222,7 @@ const UserbasePage: React.FC = () => {
       
       URL.revokeObjectURL(url);
       
-      toast.success(`Successfully exported ${rows.length} customer records`);
+      toast.success(`Successfully exported ${rows.length} unique customer records`);
     } catch (error) {
       console.error('Error exporting data:', error);
       toast.error('Failed to export data');
@@ -174,8 +272,8 @@ const UserbasePage: React.FC = () => {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Customers</p>
-                <p className="text-2xl font-bold">{customerData.length}</p>
+                <p className="text-sm text-gray-500">Unique Customers</p>
+                <p className="text-2xl font-bold">{groupedData.length}</p>
               </div>
               <Users className="w-8 h-8 text-blue-500" />
             </div>
@@ -186,7 +284,7 @@ const UserbasePage: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-500">With Phone</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {customerData.filter(c => c.phone).length}
+                  {groupedData.filter(c => c.phone).length}
                 </p>
               </div>
               <Users className="w-8 h-8 text-green-500" />
@@ -196,9 +294,9 @@ const UserbasePage: React.FC = () => {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Complete Profiles</p>
+                <p className="text-sm text-gray-500">Total Visits</p>
                 <p className="text-2xl font-bold text-purple-600">
-                  {customerData.filter(c => c.name && c.phone && c.city).length}
+                  {groupedData.reduce((sum, c) => sum + c.visitCount, 0)}
                 </p>
               </div>
               <Users className="w-8 h-8 text-purple-500" />
@@ -213,48 +311,67 @@ const UserbasePage: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900">Date Range Filter</h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Start Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date
-              </label>
-              <div className="relative">
-                <Calendar size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  max={endDate}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Date Inputs Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Start Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date
+                </label>
+                <div className="relative">
+                  <Calendar size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    max={endDate}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* End Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date
+                </label>
+                <div className="relative">
+                  <Calendar size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={startDate}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* End Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
-              </label>
-              <div className="relative">
-                <Calendar size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  min={startDate}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+            {/* Action Buttons Row */}
+            <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+              <Button
+                onClick={handleRefresh}
+                disabled={loading}
+                variant="outline"
+                className="flex items-center gap-2 w-full sm:w-auto"
+              >
+                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                Refresh
+              </Button>
             </div>
+          </div>
 
-            {/* Quick Date Range Buttons */}
-            <div className="flex items-end gap-2">
+          {/* Quick Date Range Buttons - Separate Row for Better Responsiveness */}
+          <div className="border-t pt-4">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleQuickDateRange(0)}
                 disabled={loading}
+                className="flex-1 min-w-[100px]"
               >
                 Today
               </Button>
@@ -263,6 +380,7 @@ const UserbasePage: React.FC = () => {
                 size="sm"
                 onClick={() => handleQuickDateRange(7)}
                 disabled={loading}
+                className="flex-1 min-w-[100px]"
               >
                 Last 7 Days
               </Button>
@@ -271,21 +389,26 @@ const UserbasePage: React.FC = () => {
                 size="sm"
                 onClick={() => handleQuickDateRange(30)}
                 disabled={loading}
+                className="flex-1 min-w-[100px]"
               >
                 Last 30 Days
               </Button>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-end gap-2">
               <Button
-                onClick={handleRefresh}
-                disabled={loading}
                 variant="outline"
-                className="flex items-center gap-2"
+                size="sm"
+                onClick={() => {
+                  // Set a very wide date range to catch all data
+                  const start = new Date();
+                  start.setFullYear(start.getFullYear() - 1); // 1 year ago
+                  const end = new Date();
+                  end.setFullYear(end.getFullYear() + 1); // 1 year in future
+                  setStartDate(start.toISOString().split('T')[0]);
+                  setEndDate(end.toISOString().split('T')[0]);
+                }}
+                disabled={loading}
+                className="flex-1 min-w-[100px] bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
               >
-                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                Refresh
+                All Time
               </Button>
             </div>
           </div>
@@ -293,7 +416,7 @@ const UserbasePage: React.FC = () => {
 
         {/* Customer Data Table */}
         <UserbaseTable
-          data={customerData}
+          data={groupedData}
           onExportCSV={handleExportCSV}
           isLoading={loading}
         />

@@ -46,6 +46,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [dietaryFilter, setDietaryFilter] = useState<'all' | 'veg' | 'non-veg'>('all');
   const [orderMode, setOrderMode] = useState<'zomato' | 'swiggy' | 'in-store'>('in-store');
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showPortionModal, setShowPortionModal] = useState(false);
@@ -146,7 +147,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   const filteredProducts = locationMenuItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || item.categoryId === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesDietary = dietaryFilter === 'all' || 
+      (dietaryFilter === 'veg' && item.isVegetarian) || 
+      (dietaryFilter === 'non-veg' && !item.isVegetarian);
+    return matchesSearch && matchesCategory && matchesDietary;
   });
 
   // Handle adding items to order
@@ -229,11 +233,8 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
         
         // Navigate to manager pending orders page
         console.log('Navigating to manager pending orders...');
-        if (orderContext?.fromLocation) {
-          navigate(orderContext.fromLocation);
-        } else {
-          navigate('/manager/pending-orders');
-        }
+        // Always navigate to pending orders for new orders, regardless of fromLocation
+        navigate('/manager/pending-orders');
       } catch (error) {
         console.error('Failed to place partial manager order:', error);
         toast.error('Failed to create partial order. Please try again.');
@@ -250,7 +251,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
     if (orderContext?.fromLocation) {
       navigate(orderContext.fromLocation);
     } else {
-      navigate('/manager');
+      navigate('/manager/pending-orders');
     }
   };
 
@@ -281,7 +282,18 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
         // Show loading toast
         const loadingToast = toast.loading('Saving changes...');
         
-        // Update the existing order in localStorage
+        // Import orderService dynamically to avoid circular imports
+        const { orderService } = await import('../../services/orderService');
+        
+        // Update the order in database using OrderService
+        await orderService.updateOrderItems(
+          managerOrder.id,
+          managerOrder.items,
+          currentUser.uid
+        );
+        console.log('✅ Manager order updated in database');
+        
+        // Update the existing order in localStorage as backup
         const updatedOrder = {
           ...managerOrder,
           updatedAt: new Date(),
@@ -309,11 +321,8 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
         });
         
         // Navigate back to manager pending orders
-        if (orderContext?.fromLocation) {
-          navigate(orderContext.fromLocation);
-        } else {
-          navigate('/manager/pending-orders');
-        }
+        // Always navigate to pending orders for edited orders, regardless of fromLocation
+        navigate('/manager/pending-orders');
       } catch (error) {
         console.error('Failed to save changes:', error);
         toast.error('Failed to save changes. Please try again.');
@@ -372,7 +381,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
               Back
             </Button>
             
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-4 flex-wrap">
               <div>
                 <span className="text-sm text-gray-500">Order Type</span>
                 <p className="font-semibold">{getOrderTypeDisplay()}</p>
@@ -391,9 +400,17 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
               )}
               
               {orderContext?.orderType === 'delivery' && (
-                <div>
-                  <span className="text-sm text-gray-500">Delivery Type</span>
-                  <p className="font-semibold capitalize">{orderMode}</p>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div>
+                    <span className="text-sm text-gray-500">Delivery Type</span>
+                    <p className="font-semibold capitalize">{orderMode}</p>
+                  </div>
+                  <button
+                    onClick={() => setShowOrderModeModal(true)}
+                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors whitespace-nowrap"
+                  >
+                    Change
+                  </button>
                 </div>
               )}
             </div>
@@ -512,6 +529,40 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     {category.name}
                   </button>
                 ))}
+              </div>
+              
+              {/* Dietary Filters */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setDietaryFilter('all')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    dietaryFilter === 'all'
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  All Food
+                </button>
+                <button
+                  onClick={() => setDietaryFilter('veg')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    dietaryFilter === 'veg'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  🟢 Veg
+                </button>
+                <button
+                  onClick={() => setDietaryFilter('non-veg')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    dietaryFilter === 'non-veg'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  🔴 Non-Veg
+                </button>
               </div>
             </div>
 
@@ -697,6 +748,40 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                       {category.name}
                     </button>
                   ))}
+                </div>
+                
+                {/* Mobile Dietary Filters */}
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  <button
+                    onClick={() => setDietaryFilter('all')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
+                      dietaryFilter === 'all'
+                        ? 'bg-orange-100 text-orange-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Food
+                  </button>
+                  <button
+                    onClick={() => setDietaryFilter('veg')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
+                      dietaryFilter === 'veg'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    🟢 Veg
+                  </button>
+                  <button
+                    onClick={() => setDietaryFilter('non-veg')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
+                      dietaryFilter === 'non-veg'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    🔴 Non-Veg
+                  </button>
                 </div>
               </div>
 

@@ -1,10 +1,21 @@
 import React from 'react';
-import { CustomerData } from '../../contexts/CustomerDataService';
 import { Card } from '../ui/card';
-import { Download, Calendar, User, Phone, MapPin } from 'lucide-react';
+import { Download, User, Phone, MapPin, TrendingUp, Calendar } from 'lucide-react';
+
+// Interface for grouped customer data
+interface GroupedCustomerData {
+  phone: string;
+  name: string;
+  city: string;
+  visitCount: number;
+  lastVisit: number;
+  paymentMethods: ('cash' | 'card' | 'upi')[];
+  sources: ('staff' | 'manager')[];
+  franchiseId?: string;
+}
 
 interface UserbaseTableProps {
-  data: CustomerData[];
+  data: GroupedCustomerData[];
   onExportCSV: () => void;
   isLoading?: boolean;
 }
@@ -19,16 +30,6 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
-    });
-  };
-
-  const formatDateTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString('en-IN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
     });
   };
 
@@ -60,9 +61,9 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Customer Data</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Customer Visit Frequency</h3>
           <p className="text-sm text-gray-500">
-            {data.length} customers found
+            {data.length} unique customers found
           </p>
         </div>
         
@@ -83,12 +84,6 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
                   <div className="flex items-center gap-2">
-                    <Calendar size={14} />
-                    Date
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
-                  <div className="flex items-center gap-2">
                     <User size={14} />
                     Name
                   </div>
@@ -106,19 +101,25 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
                   </div>
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
-                  Source
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={14} />
+                    Visits
+                  </div>
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
-                  Timestamp
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} />
+                    Last Visit
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
+                  Source
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {data.map((customer, index) => (
-                <tr key={customer.id || index} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900">
-                    {formatDate(customer.timestamp)}
-                  </td>
+                <tr key={`${customer.phone}-${index}`} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-900">
                     {customer.name || (
                       <span className="text-gray-400 italic">Not provided</span>
@@ -136,15 +137,33 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      customer.source === 'staff'
+                      customer.visitCount >= 10 
+                        ? 'bg-green-100 text-green-800'
+                        : customer.visitCount >= 5
                         ? 'bg-blue-100 text-blue-800'
-                        : 'bg-purple-100 text-purple-800'
+                        : customer.visitCount >= 2
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {customer.source === 'staff' ? 'Staff' : 'Manager'}
+                      {customer.visitCount} visit{customer.visitCount !== 1 ? 's' : ''}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">
-                    {formatDateTime(customer.timestamp)}
+                  <td className="px-4 py-3 text-gray-900">
+                    {formatDate(customer.lastVisit)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      {customer.sources.includes('staff') && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Staff
+                        </span>
+                      )}
+                      {customer.sources.includes('manager') && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          Manager
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -157,7 +176,7 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
       <div className="mt-6 pt-4 border-t border-gray-200">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
-            <p className="text-gray-500">Total Customers</p>
+            <p className="text-gray-500">Unique Customers</p>
             <p className="font-semibold text-gray-900">{data.length}</p>
           </div>
           <div>
@@ -167,15 +186,15 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
             </p>
           </div>
           <div>
-            <p className="text-gray-500">With Email</p>
+            <p className="text-gray-500">Total Visits</p>
             <p className="font-semibold text-gray-900">
-              {data.filter(c => c.name).length}
+              {data.reduce((sum, c) => sum + c.visitCount, 0)}
             </p>
           </div>
           <div>
-            <p className="text-gray-500">With City</p>
+            <p className="text-gray-500">Avg Visits/Customer</p>
             <p className="font-semibold text-gray-900">
-              {data.filter(c => c.city).length}
+              {data.length > 0 ? (data.reduce((sum, c) => sum + c.visitCount, 0) / data.length).toFixed(1) : '0'}
             </p>
           </div>
         </div>

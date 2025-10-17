@@ -30,7 +30,6 @@ import StaffTablesPage from './pages/staff/TablesPage';
 import StaffCatalogPage from './pages/staff/CatalogPage';
 import StaffOrdersPage from './pages/staff/OrdersPage';
 import EnhancedStaffPendingOrdersPage from './pages/staff/EnhancedPendingOrdersPage';
-import StaffPerformancePage from './pages/staff/StaffPerformancePage';
 
 // Debug Pages
 import DebugStaffOrdersPage from './pages/debug/DebugStaffOrdersPage';
@@ -528,14 +527,6 @@ function App() {
                         element={
                           <ProtectedRoute allowedRoles={['staff']}>
                             <EnhancedStaffPendingOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/staff-performance" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                            <StaffPerformancePage />
                           </ProtectedRoute>
                         } 
                       />

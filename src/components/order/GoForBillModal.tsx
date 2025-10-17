@@ -167,7 +167,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
             phone: customerInfo.phone,
             city: customerInfo.city,
             paymentMethod: customerInfo.paymentMethod
-          }, 'staff', Date.now(), currentUser.uid || 'unknown', order.locationId || 'unknown');
+          }, 'staff', Date.now(), currentUser.uid || 'unknown', order.locationId || 'unknown', currentUser.franchiseId);
           console.log('✅ Customer data saved successfully');
         } catch (error) {
           console.error('❌ Error saving customer data:', error);
@@ -227,7 +227,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-screen items-center justify-center p-2 sm:p-4">
         {/* Backdrop */}
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
@@ -235,154 +235,166 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
         />
 
         {/* Modal */}
-        <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="relative bg-white rounded-lg shadow-xl w-full max-h-[90vh] flex flex-col max-w-2xl">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-blue-100 rounded-full">
-                <Receipt size={24} className="text-blue-600" />
+                <Receipt size={20} className="text-blue-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Go for Bill</h2>
-                <p className="text-sm text-gray-600">Transfer order to Manager</p>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Go for Bill</h2>
+                <p className="text-xs sm:text-sm text-gray-600">Transfer order to Manager</p>
               </div>
             </div>
             <button
               onClick={onClose}
               className="p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
           {/* Content */}
-          <div className="p-6">
-            <div className="text-center mb-6">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mb-4">
-                <ArrowRight className="h-6 w-6 text-blue-600" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Transfer to Manager
-              </h3>
-              <p className="text-sm text-gray-500">
-                This will transfer <span className="font-semibold">{order.orderNumber}</span> to the Manager's pending orders queue for billing and settlement.
-              </p>
-            </div>
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              {/* Left Column */}
+              <div className="space-y-4 sm:space-y-6">
+                {/* Transfer Info */}
+                <div className="text-center">
+                  <div className="mx-auto flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 mb-3">
+                    <ArrowRight className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">
+                    Transfer to Manager
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    This will transfer <span className="font-semibold">{order.orderNumber}</span> to the Manager's pending orders queue for billing and settlement.
+                  </p>
+                </div>
 
-            {/* Customer Information Form */}
-            <div className="mb-6">
-              <div className="flex items-center space-x-2 mb-3">
-                <User size={16} className="text-gray-600" />
-                <h4 className="font-medium text-gray-900">Customer Information (Optional)</h4>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <CustomerInfoForm
-                  name={customerInfo.name}
-                  phone={customerInfo.phone}
-                  city={customerInfo.city}
-                  onChange={handleCustomerInfoChange}
-                  disabled={isProcessing}
-                />
-              </div>
-            </div>
-
-            {/* Payment Method Selection */}
-            <div className="mb-6">
-              <div className="flex items-center space-x-2 mb-3">
-                <Wallet size={16} className="text-gray-600" />
-                <h4 className="font-medium text-gray-900">Payment Method</h4>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="space-y-3">
-                  {[
-                    { value: 'cash', label: 'Cash', icon: Wallet, color: 'text-green-600' },
-                    { value: 'card', label: 'Card', icon: CreditCard, color: 'text-blue-600' },
-                    { value: 'upi', label: 'UPI', icon: Smartphone, color: 'text-purple-600' }
-                  ].map((method) => {
-                    const IconComponent = method.icon;
-                    return (
-                      <label key={method.value} className="flex items-center space-x-3 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value={method.value}
-                          checked={customerInfo.paymentMethod === method.value}
-                          onChange={(e) => handlePaymentMethodChange(e.target.value as 'cash' | 'card' | 'upi')}
-                          disabled={isProcessing}
-                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                        />
-                        <IconComponent className={`h-4 w-4 ${method.color}`} />
-                        <span className="text-sm font-medium">{method.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Order Summary */}
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <h4 className="font-medium mb-3">Order Summary</h4>
-              <div className="space-y-2 text-sm mb-4">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Order Number:</span>
-                  <span className="font-medium">{order.orderNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Table(s):</span>
-                  <span className="font-medium">{order.tableNames?.join(', ') || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Items:</span>
-                  <span className="font-medium">{order.items?.length || 0} items</span>
-                </div>
-                <div className="flex justify-between font-semibold text-base border-t pt-2">
-                  <span>Total Amount:</span>
-                  <span className="text-green-600">₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
-                </div>
-              </div>
-              
-              {/* Order Items */}
-              {order.items && order.items.length > 0 && (
+                {/* Customer Information Form */}
                 <div>
-                  <h5 className="font-medium mb-2 text-sm">Order Items:</h5>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {order.items.map((item: any, index: number) => (
-                      <div key={index} className="flex justify-between text-xs bg-white p-2 rounded border">
-                        <div className="flex-1">
-                          <span className="font-medium">{item.name}</span>
-                          {item.quantity > 1 && (
-                            <span className="text-gray-500 ml-1">x{item.quantity}</span>
-                          )}
-                          {item.notes && (
-                            <p className="text-gray-500 text-xs mt-1">Note: {item.notes}</p>
-                          )}
-                        </div>
-                        <span className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</span>
-                      </div>
-                    ))}
+                  <div className="flex items-center space-x-2 mb-3">
+                    <User size={16} className="text-gray-600" />
+                    <h4 className="font-medium text-gray-900 text-sm sm:text-base">Customer Information (Optional)</h4>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                    <CustomerInfoForm
+                      name={customerInfo.name}
+                      phone={customerInfo.phone}
+                      city={customerInfo.city}
+                      onChange={handleCustomerInfoChange}
+                      disabled={isProcessing}
+                    />
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* Info Note */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-6">
-              <div className="flex items-center space-x-2">
-                <AlertCircle size={16} className="text-blue-600" />
-                <p className="text-sm text-blue-700">
-                  Once transferred, you won't be able to edit this order. The Manager will handle billing and payment collection.
-                </p>
+                {/* Payment Method Selection */}
+                <div>
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Wallet size={16} className="text-gray-600" />
+                    <h4 className="font-medium text-gray-900 text-sm sm:text-base">Payment Method</h4>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                      {[
+                        { value: 'cash', label: 'Cash', icon: Wallet, color: 'text-green-600' },
+                        { value: 'card', label: 'Card', icon: CreditCard, color: 'text-blue-600' },
+                        { value: 'upi', label: 'UPI', icon: Smartphone, color: 'text-purple-600' }
+                      ].map((method) => {
+                        const IconComponent = method.icon;
+                        return (
+                          <label key={method.value} className="flex items-center space-x-2 cursor-pointer p-2 border rounded-lg hover:bg-white transition-colors">
+                            <input
+                              type="radio"
+                              name="paymentMethod"
+                              value={method.value}
+                              checked={customerInfo.paymentMethod === method.value}
+                              onChange={(e) => handlePaymentMethodChange(e.target.value as 'cash' | 'card' | 'upi')}
+                              disabled={isProcessing}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <IconComponent className={`h-4 w-4 ${method.color} flex-shrink-0`} />
+                            <span className="text-xs sm:text-sm font-medium">{method.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-4 sm:space-y-6">
+                {/* Order Summary */}
+                <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                  <h4 className="font-medium mb-3 text-sm sm:text-base">Order Summary</h4>
+                  <div className="space-y-2 text-sm mb-4">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 text-xs sm:text-sm">Order Number:</span>
+                      <span className="font-medium text-xs sm:text-sm">{order.orderNumber}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 text-xs sm:text-sm">Table(s):</span>
+                      <span className="font-medium text-xs sm:text-sm">{order.tableNames?.join(', ') || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 text-xs sm:text-sm">Items:</span>
+                      <span className="font-medium text-xs sm:text-sm">{order.items?.length || 0} items</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-sm sm:text-base border-t pt-2">
+                      <span>Total Amount:</span>
+                      <span className="text-green-600">₹{order.totalAmount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Order Items */}
+                  {order.items && order.items.length > 0 && (
+                    <div>
+                      <h5 className="font-medium mb-2 text-xs sm:text-sm">Order Items:</h5>
+                      <div className="max-h-32 sm:max-h-40 overflow-y-auto space-y-1">
+                        {order.items.map((item: any, index: number) => (
+                          <div key={index} className="flex justify-between text-xs bg-white p-2 rounded border">
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium truncate block">{item.name}</span>
+                              <div className="flex items-center space-x-2">
+                                {item.quantity > 1 && (
+                                  <span className="text-gray-500">x{item.quantity}</span>
+                                )}
+                                {item.notes && (
+                                  <span className="text-gray-500 truncate">Note: {item.notes}</span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="font-medium ml-2 flex-shrink-0">₹{(item.price * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info Note */}
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-start space-x-2">
+                    <AlertCircle size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs sm:text-sm text-blue-700">
+                      Once transferred, you won't be able to edit this order. The Manager will handle billing and payment collection.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="flex justify-between items-center p-6 border-t border-gray-200 bg-gray-50">
+          <div className="flex justify-between items-center p-4 sm:p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
             <Button
               variant="outline"
               onClick={onClose}
               disabled={isProcessing}
+              className="text-sm sm:text-base"
             >
               Cancel
             </Button>
@@ -390,7 +402,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
             <Button
               onClick={handleTransferToManager}
               disabled={isProcessing}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-blue-600 hover:bg-blue-700 text-sm sm:text-base"
             >
               {isProcessing ? (
                 <div className="flex items-center space-x-2">

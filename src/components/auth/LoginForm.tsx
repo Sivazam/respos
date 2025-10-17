@@ -47,12 +47,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, prefilledEmail }) => {
     }
     
     try {
+      console.log('🔐 Attempting login with email:', email.trim());
       await login(email.trim(), password);
-      // Navigation will be handled by the parent component or AuthContext
-      if (onSuccess) onSuccess();
+      console.log('✅ Login successful, navigation will be handled by parent component');
+      
+      // Add a small delay to ensure the auth state is updated before parent handles navigation
+      setTimeout(() => {
+        if (onSuccess) onSuccess();
+      }, 100);
     } catch (err: any) {
       // Error is already handled in AuthContext and will be displayed via the error prop
-      console.error('Login form error:', err);
+      console.error('❌ Login form error:', err);
     }
   };
 

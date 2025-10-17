@@ -11,10 +11,8 @@ import {
   ShoppingCart, 
   Clock, 
   CheckCircle, 
-  AlertCircle, 
   Utensils,
   Search,
-  DollarSign,
   Table,
   MapPin
 } from 'lucide-react';
@@ -283,53 +281,21 @@ const StaffDashboard: React.FC = () => {
         />
         
         <div className="space-y-6">
-        {/* Location Filter */}
+        {/* Location Info Only - Filter dropdown hidden */}
         {currentLocation && (
           <div className="bg-white shadow rounded-lg p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <MapPin className="h-5 w-5 text-gray-500" />
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900">Current Location</h3>
-                  <p className="text-sm text-gray-600">{currentLocation.name}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500">Filter:</span>
-                <select
-                  value={selectedLocationId}
-                  onChange={(e) => setSelectedLocationId(e.target.value)}
-                  className="text-sm border border-gray-300 rounded px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Locations</option>
-                  <option value={currentLocation.id}>{currentLocation.name}</option>
-                </select>
+            <div className="flex items-center space-x-3">
+              <MapPin className="h-5 w-5 text-gray-500" />
+              <div>
+                <h3 className="text-sm font-medium text-gray-900">Current Location</h3>
+                <p className="text-sm text-gray-600">{currentLocation.name}</p>
               </div>
             </div>
           </div>
         )}
         
         {/* Staff Performance Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-green-100 rounded-full">
-                <DollarSign className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
-              </div>
-              <div className="ml-3 sm:ml-4 min-w-0">
-                <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  My Revenue
-                </h3>
-                <p className="text-lg sm:text-2xl font-semibold text-green-600 truncate">
-                  ₹{staffMetrics.todayRevenue.toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  Avg: ₹{staffMetrics.todayAvgOrderValue.toFixed(0)}
-                </p>
-              </div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center">
               <div className="p-2 sm:p-3 bg-blue-100 rounded-full">
@@ -370,44 +336,6 @@ const StaffDashboard: React.FC = () => {
 
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-yellow-100 rounded-full">
-                <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
-              </div>
-              <div className="ml-3 sm:ml-4 min-w-0">
-                <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  Need Attention
-                </h3>
-                <p className="text-lg sm:text-2xl font-semibold text-yellow-600">
-                  {pendingOrders + preparingOrders}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  {pendingOrders} pending, {preparingOrders} preparing
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <div className="flex items-center">
-              <div className="p-2 sm:p-3 bg-green-100 rounded-full">
-                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
-              </div>
-              <div className="ml-3 sm:ml-4 min-w-0">
-                <h3 className="text-sm sm:text-lg font-medium text-gray-900 truncate">
-                  Items Sold
-                </h3>
-                <p className="text-lg sm:text-2xl font-semibold text-green-600">
-                  {staffMetrics.totalItems}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  Today's total
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <div className="flex items-center">
               <div className="p-2 sm:p-3 bg-orange-100 rounded-full">
                 <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
               </div>
@@ -427,26 +355,7 @@ const StaffDashboard: React.FC = () => {
         </div>
 
         {/* Staff Performance Details */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          {/* Payment Methods Breakdown */}
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Payment Methods</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">UPI</span>
-                <span className="text-sm font-semibold text-green-600">{staffMetrics.upiOrders}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Cash</span>
-                <span className="text-sm font-semibold text-blue-600">{staffMetrics.cashOrders}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Card</span>
-                <span className="text-sm font-semibold text-purple-600">{staffMetrics.cardOrders}</span>
-              </div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Order Types Breakdown */}
           <div className="bg-white rounded-lg shadow p-4 sm:p-6">
             <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Order Types</h3>

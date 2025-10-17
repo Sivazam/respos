@@ -83,7 +83,8 @@ const OrderTypeSelection: React.FC<OrderTypeSelectionProps> = ({
 
                   <button
                     onClick={() => handleFlowSelect('ongoing')}
-                    className="p-6 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 text-left group"
+                    disabled
+                    className="p-6 border-2 border-gray-200 rounded-lg opacity-50 cursor-not-allowed bg-gray-100 text-left group"
                   >
                     <div className="flex items-center space-x-4">
                       <div className="p-3 bg-blue-100 rounded-full group-hover:bg-blue-200 transition-colors">

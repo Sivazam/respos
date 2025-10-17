@@ -293,7 +293,8 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
           'manager', 
           Date.now(),
           currentUser?.uid || 'unknown',
-          selectedOrder.locationId || 'unknown'
+          selectedOrder.locationId || 'unknown',
+          currentUser?.franchiseId
         );
         console.log('✅ Customer data saved by manager');
       }

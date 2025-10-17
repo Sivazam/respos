@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, ToggleLeft, ToggleRight } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useMenuItems } from '../../contexts/MenuItemContext';
@@ -17,11 +17,13 @@ import ErrorAlert from '../../components/ui/ErrorAlert';
 import CheckoutModal from '../../components/pos/CheckoutModal';
 import ReceiptModal from '../../components/pos/ReceiptModal';
 import PortionSelectionModal from '../../components/pos/PortionSelectionModal';
+import OrderModeSelection from '../../components/order/OrderModeSelection';
 import { Sale, Receipt, MenuItem, CartItem } from '../../types';
 import toast from 'react-hot-toast';
 
 const ManagerPOSPage: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { menuItems, loading, error } = useMenuItems();
   const { categories } = useCategories();
   const { items, subtotal, cgst, sgst, total, clearCart, addItem, cgstRate, sgstRate } = useCart();
@@ -43,12 +45,15 @@ const ManagerPOSPage: React.FC = () => {
   } = useManagerOrder();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [dietaryFilter, setDietaryFilter] = useState<'all' | 'veg' | 'non-veg'>('all');
   const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<Receipt | null>(null);
   const [useOptimizedView, setUseOptimizedView] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
+  const [orderMode, setOrderMode] = useState<'zomato' | 'swiggy' | 'in-store'>('in-store');
+  const [showOrderModeModal, setShowOrderModeModal] = useState(false);
   const [showPortionModal, setShowPortionModal] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'menu' | 'cart'>('menu');
   
@@ -59,6 +64,30 @@ const ManagerPOSPage: React.FC = () => {
   const tableNamesFromState = location.state?.tableNames || [];
   const isOngoingOrder = location.state?.isOngoing || false;
   const orderId = location.state?.orderId;
+  
+  // Helper functions for order display
+  const getCurrentOrderType = () => {
+    return orderType;
+  };
+
+  const getCurrentOrderMode = () => {
+    return orderMode;
+  };
+
+  const getOrderTypeDisplay = () => {
+    return orderType === 'dinein' ? 'Dine-in' : 'Delivery';
+  };
+
+  const getOrderFlowDisplay = () => {
+    return isOngoingOrder ? 'Edit Order - Ongoing' : 'New Order';
+  };
+
+  const getTableDisplayName = () => {
+    if (tableNamesFromState.length > 0) {
+      return tableNamesFromState.join(', ');
+    }
+    return tableIds.join(', ');
+  };
   
   // Get table names from table IDs (fallback if not provided in state)
   const tableNames = useMemo(() => {
@@ -102,9 +131,12 @@ const ManagerPOSPage: React.FC = () => {
       const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = !selectedCategory || item.categoryId === selectedCategory;
       const matchesStock = showOutOfStock || item.isAvailable;
-      return matchesSearch && matchesCategory && matchesStock;
+      const matchesDietary = dietaryFilter === 'all' || 
+        (dietaryFilter === 'veg' && item.isVegetarian) || 
+        (dietaryFilter === 'non-veg' && !item.isVegetarian);
+      return matchesSearch && matchesCategory && matchesStock && matchesDietary;
     });
-  }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock]);
+  }, [locationMenuItems, searchTerm, selectedCategory, showOutOfStock, dietaryFilter]);
 
   const handleAddToCart = (menuItem: MenuItem) => {
     if (menuItem.hasHalfPortion) {
@@ -200,6 +232,9 @@ const ManagerPOSPage: React.FC = () => {
     try {
       await createPartialManagerOrder();
       toast.success('Order saved to pending orders!');
+      
+      // Redirect to manager pending orders page
+      navigate('/manager/pending-orders');
     } catch (error) {
       console.error('Error saving partial order:', error);
       toast.error('Failed to save order. Please try again.');
@@ -230,6 +265,9 @@ const ManagerPOSPage: React.FC = () => {
         // For now, let's just save and show success
         toast.success('Manager order saved successfully!');
         setShowCheckout(false);
+        
+        // Redirect to manager pending orders page
+        navigate('/manager/pending-orders');
         
         // Optionally clear the manager order after saving
         setTimeout(() => {
@@ -272,6 +310,9 @@ const ManagerPOSPage: React.FC = () => {
         })), currentUser.uid || currentUser.id || 'unknown');
 
         toast.success('Order created successfully!');
+        
+        // Redirect to manager pending orders page for table-based orders
+        navigate('/manager/pending-orders');
       } else {
         // Create a direct sale for takeaway orders
         const saleData: Omit<Sale, 'id' | 'createdAt' | 'invoiceNumber'> = {
@@ -348,33 +389,6 @@ const ManagerPOSPage: React.FC = () => {
     updateItemQuantity(itemId, newQuantity);
   };
 
-  // Get table display name
-  const getTableDisplayName = () => {
-    if (tableNames && tableNames.length > 0) {
-      return tableNames.join(', ');
-    }
-    
-    if (tableIds && tableIds.length > 0) {
-      const tableNumbers = tableIds.map(id => {
-        const tableMatch = id.match(/table-(\d+)/i);
-        if (tableMatch) {
-          return `Table ${tableMatch[1]}`;
-        }
-        if (/^\d+$/.test(id)) {
-          return `Table ${id}`;
-        }
-        const numberMatch = id.match(/\d+/);
-        if (numberMatch) {
-          return `Table ${numberMatch[0]}`;
-        }
-        return id;
-      });
-      return tableNumbers.join(', ');
-    }
-    
-    return null;
-  };
-
   if (loading) {
     return (
       <DashboardLayout title="Manager POS">
@@ -412,6 +426,19 @@ const ManagerPOSPage: React.FC = () => {
                   {isOngoingOrder && (
                     <p className="text-xs text-blue-600">Editing ongoing order</p>
                   )}
+                  {orderType === 'delivery' && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium capitalize">
+                        {getCurrentOrderMode()}
+                      </span>
+                      <button
+                        onClick={() => setShowOrderModeModal(true)}
+                        className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => window.history.back()}
@@ -432,6 +459,20 @@ const ManagerPOSPage: React.FC = () => {
                   </p>
                   {isOngoingOrder && (
                     <p className="text-sm text-blue-600">Editing ongoing order</p>
+                  )}
+                  {orderType === 'delivery' && (
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className="text-sm text-gray-500">Delivery Type</span>
+                      <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium capitalize">
+                        {getCurrentOrderMode()}
+                      </span>
+                      <button
+                        onClick={() => setShowOrderModeModal(true)}
+                        className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-sm font-medium transition-colors"
+                      >
+                        Change
+                      </button>
+                    </div>
                   )}
                 </div>
                 <button
@@ -469,6 +510,16 @@ const ManagerPOSPage: React.FC = () => {
                       {category.name}
                     </option>
                   ))}
+                </select>
+
+                <select
+                  value={dietaryFilter}
+                  onChange={(e) => setDietaryFilter(e.target.value as 'all' | 'veg' | 'non-veg')}
+                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0 min-w-[100px]"
+                >
+                  <option value="all">All Food</option>
+                  <option value="veg">🟢 Veg</option>
+                  <option value="non-veg">🔴 Non-Veg</option>
                 </select>
 
                 <button
@@ -518,6 +569,16 @@ const ManagerPOSPage: React.FC = () => {
                     {category.name}
                   </option>
                 ))}
+              </select>
+
+              <select
+                value={dietaryFilter}
+                onChange={(e) => setDietaryFilter(e.target.value as 'all' | 'veg' | 'non-veg')}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All Food</option>
+                <option value="veg">🟢 Veg</option>
+                <option value="non-veg">🔴 Non-Veg</option>
               </select>
 
               <button
@@ -823,6 +884,19 @@ const ManagerPOSPage: React.FC = () => {
             setSelectedMenuItem(null);
           }}
           onSelect={handlePortionSelect}
+        />
+      )}
+
+      {/* Order Mode Selection Modal */}
+      {showOrderModeModal && (
+        <OrderModeSelection
+          isOpen={showOrderModeModal}
+          onClose={() => setShowOrderModeModal(false)}
+          onSelect={(mode) => {
+            setOrderMode(mode);
+            setShowOrderModeModal(false);
+          }}
+          currentMode={orderMode}
         />
       )}
     </>

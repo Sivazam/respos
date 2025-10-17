@@ -195,7 +195,8 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
             'manager', 
             Date.now(),
             currentUser?.uid || 'unknown',
-            order.locationId || 'unknown'
+            order.locationId || 'unknown',
+            currentUser?.franchiseId
           );
           console.log('✅ Customer data updated successfully');
         } catch (customerDataError) {
@@ -244,7 +245,8 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
             'manager', 
             Date.now(),
             currentUser?.uid || 'unknown',
-            order.locationId || 'unknown'
+            order.locationId || 'unknown',
+            currentUser?.franchiseId
           );
           console.log('✅ Customer data updated successfully');
         } catch (customerDataError) {

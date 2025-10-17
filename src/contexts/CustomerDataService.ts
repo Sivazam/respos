@@ -12,6 +12,7 @@ export interface CustomerData {
   date: string; // Added date field in dd/mm/yyyy format
   userId?: string;
   branchId?: string;
+  franchiseId?: string; // Added franchiseId for proper data isolation
 }
 
 export async function upsertCustomerData(
@@ -25,7 +26,8 @@ export async function upsertCustomerData(
   source: 'staff' | 'manager' = 'staff', 
   timestamp: number = Date.now(),
   userId?: string,
-  branchId?: string
+  branchId?: string,
+  franchiseId?: string
 ): Promise<CustomerData> {
   if (!orderId) throw new Error('orderId required');
   
@@ -47,23 +49,67 @@ export async function upsertCustomerData(
     timestamp,
     date: formattedDate,
     userId,
-    branchId
+    branchId,
+    franchiseId
   };
   
   await setDoc(docRef, data, { merge: true });
   return data;
 }
 
-export async function fetchCustomerData(startTs: number, endTs: number): Promise<CustomerData[]> {
-  const q = query(
-    collection(db, 'customer_data'),
-    where('timestamp', '>=', startTs),
-    where('timestamp', '<=', endTs),
-    orderBy('timestamp', 'desc')
-  );
+export async function fetchCustomerData(startTs: number, endTs: number, franchiseId?: string): Promise<CustomerData[]> {
+  console.log('🔍 fetchCustomerData called with:', {
+    startTs,
+    endTs,
+    franchiseId,
+    startDate: new Date(startTs).toLocaleString(),
+    endDate: new Date(endTs).toLocaleString()
+  });
 
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as CustomerData & { id: string }));
+  try {
+    // First, query by timestamp range only (this doesn't require a composite index)
+    console.log('📋 Querying by timestamp range only');
+    const q = query(
+      collection(db, 'customer_data'),
+      where('timestamp', '>=', startTs),
+      where('timestamp', '<=', endTs),
+      orderBy('timestamp', 'desc')
+    );
+
+    const snap = await getDocs(q);
+    let result = snap.docs.map(d => ({ id: d.id, ...d.data() } as CustomerData & { id: string }));
+    
+    console.log(`✅ Firestore query returned ${result.length} documents`);
+    
+    // If franchiseId is provided, filter the results on the client side
+    if (franchiseId) {
+      console.log('📋 Applying client-side franchise filter');
+      const filteredResult = result.filter(doc => doc.franchiseId === franchiseId);
+      console.log(`📋 After franchise filtering: ${filteredResult.length} documents`);
+      result = filteredResult;
+    } else {
+      console.warn('⚠️  fetchCustomerData called without franchiseId - this may expose data from multiple franchises');
+    }
+    
+    // Debug: Log sample documents for verification
+    if (result.length > 0) {
+      console.log('📋 Sample documents from Firestore:', result.slice(0, 2).map(doc => ({
+        id: doc.id,
+        orderId: doc.orderId,
+        name: doc.name,
+        phone: doc.phone,
+        city: doc.city,
+        timestamp: doc.timestamp,
+        franchiseId: doc.franchiseId,
+        readableDate: new Date(doc.timestamp).toLocaleString()
+      })));
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Error fetching customer data from Firestore:', error);
+    throw error;
+  }
 }
 
 export async function fetchCustomerDataByOrderId(orderId: string): Promise<CustomerData | null> {

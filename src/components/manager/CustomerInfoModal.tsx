@@ -86,7 +86,7 @@ const CustomerInfoModal: React.FC<CustomerInfoModalProps> = ({
           userId: currentUser?.uid,
           locationId: order.locationId
         });
-        await upsertCustomerData(order.id, customerInfo, 'manager', Date.now(), currentUser?.uid || 'unknown', order.locationId || 'unknown');
+        await upsertCustomerData(order.id, customerInfo, 'manager', Date.now(), currentUser?.uid || 'unknown', order.locationId || 'unknown', currentUser?.franchiseId);
         console.log('✅ Customer data saved/updated by manager');
       }
 

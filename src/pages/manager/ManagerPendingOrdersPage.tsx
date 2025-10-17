@@ -116,9 +116,9 @@ const ManagerPendingOrdersPage: React.FC = () => {
     }
   }, [pendingOrders]);
 
-  // Filter pending orders
+  // Filter pending orders while preserving sort order
   const filteredOrders = useMemo(() => {
-    return pendingOrders.filter(order => {
+    const filtered = pendingOrders.filter(order => {
       const searchLower = searchTerm.toLowerCase();
       const orderData = order.order || order;
       
@@ -139,6 +139,20 @@ const ManagerPendingOrdersPage: React.FC = () => {
       }
       
       return matchesSearch && matchesCreatedBy;
+    });
+    
+    // Ensure most recent orders are on top (sort by transferredAt or createdAt)
+    return filtered.sort((a, b) => {
+      const orderA = a.order || a;
+      const orderB = b.order || b;
+      
+      // Prefer transferredAt for manager orders, fallback to createdAt
+      const timeA = orderA.transferredAt ? new Date(orderA.transferredAt).getTime() : 
+                   orderA.createdAt ? new Date(orderA.createdAt).getTime() : 0;
+      const timeB = orderB.transferredAt ? new Date(orderB.transferredAt).getTime() : 
+                   orderB.createdAt ? new Date(orderB.createdAt).getTime() : 0;
+      
+      return timeB - timeA; // descending (newest first)
     });
   }, [pendingOrders, searchTerm, createdByFilter, currentUser?.uid, orderCreators]);
 
@@ -402,7 +416,8 @@ const ManagerPendingOrdersPage: React.FC = () => {
         'manager', 
         Date.now(),
         currentUser?.uid || 'unknown',
-        selectedOrder.locationId || 'unknown'
+        selectedOrder.locationId || 'unknown',
+        currentUser?.franchiseId
       );
       console.log('✅ Customer data and payment method saved by manager');
       

@@ -4,7 +4,8 @@ import { OrderItem } from '../../types';
 import Button from '../ui/Button';
 import { Card } from '../ui/card';
 import CustomerInfoForm from '../common/CustomerInfoForm';
-import { CustomerDataService } from '../../services/CustomerDataService';
+import { upsertCustomerData, fetchCustomerDataByOrderId } from '../../contexts/CustomerDataService';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface SettleBillModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
   onSuccess,
   isProcessing
 }) => {
+  const { currentUser } = useAuth();
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
   const [receivedAmount, setReceivedAmount] = useState('');
   const [notes, setNotes] = useState('');
@@ -36,7 +38,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
     if (isOpen && order?.id) {
       const loadCustomerData = async () => {
         try {
-          const customerData = await CustomerDataService.getCustomerDataByOrderId(order.id);
+          const customerData = await fetchCustomerDataByOrderId(order.id);
           if (customerData) {
             setExistingCustomerData(customerData);
             setCustomerInfo({
@@ -86,11 +88,14 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
     // Save customer data if provided
     if (customerInfo.name || customerInfo.phone || customerInfo.city) {
       try {
-        await CustomerDataService.upsertCustomerData(
+        await upsertCustomerData(
           order.id,
           customerInfo,
           'manager',
-          Date.now()
+          Date.now(),
+          currentUser?.uid || 'unknown',
+          order.locationId || 'unknown',
+          currentUser?.franchiseId
         );
         console.log('✅ Customer data saved for order:', order.id);
       } catch (error) {

@@ -253,22 +253,29 @@ const LoginPage: React.FC = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (currentUser && currentUser.role && !loading) {
-      switch (currentUser.role) {
-        case 'superadmin':
-          navigate('/superadmin');
-          break;
-        case 'admin':
-          navigate('/admin');
-          break;
-        case 'manager':
-          navigate('/manager');
-          break;
-        case 'staff':
-          navigate('/staff');
-          break;
-        default:
-          navigate('/');
-      }
+      console.log('🔄 Redirecting logged-in user:', currentUser.role);
+      
+      // Add a small delay to ensure state is settled
+      const redirectTimer = setTimeout(() => {
+        switch (currentUser.role) {
+          case 'superadmin':
+            navigate('/superadmin', { replace: true });
+            break;
+          case 'admin':
+            navigate('/admin', { replace: true });
+            break;
+          case 'manager':
+            navigate('/manager', { replace: true });
+            break;
+          case 'staff':
+            navigate('/staff', { replace: true });
+            break;
+          default:
+            navigate('/', { replace: true });
+        }
+      }, 100);
+      
+      return () => clearTimeout(redirectTimer);
     }
   }, [currentUser, currentUser?.role, loading, navigate]);
 

@@ -5,12 +5,12 @@ import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplay
 import { useLocations } from '../../contexts/LocationContext';
 import { useTables } from '../../contexts/TableContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useMenuItems } from '../../contexts/MenuItemContext';
 import { startOfDay, endOfDay } from 'date-fns';
 import { 
   ShoppingCart, 
   Clock, 
   CheckCircle, 
-  AlertCircle, 
   DollarSign,
   Table,
   Calendar,
@@ -18,7 +18,8 @@ import {
   CreditCard,
   Smartphone,
   Users,
-  BarChart3
+  BarChart3,
+  Package
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/db';
@@ -36,7 +37,7 @@ import {
   Legend,
   ArcElement,
 } from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Pie } from 'react-chartjs-2';
 
 // Register Chart.js components
 ChartJS.register(
@@ -55,6 +56,7 @@ const ManagerDashboard: React.FC = () => {
   const { currentLocation } = useLocations();
   const { tables } = useTables();
   const { currentUser } = useAuth();
+  const { menuItems } = useMenuItems();
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -233,22 +235,82 @@ const ManagerDashboard: React.FC = () => {
     
     // Item sales analysis
     const itemSales: { [key: string]: number } = {};
+    const itemDetails: { [key: string]: { image?: string; itemId?: string } } = {};
+    
+    // Create a lookup map for faster menu item matching
+    const menuItemLookup = new Map<string, MenuItem>();
+    menuItems.forEach(item => {
+      menuItemLookup.set(item.id, item);
+      menuItemLookup.set(item.name.toLowerCase(), item);
+      menuItemLookup.set(item.name, item);
+    });
+    
     filteredCompletedOrders.forEach(order => {
       if (order.items && Array.isArray(order.items)) {
         order.items.forEach((item: unknown) => {
-          const itemData = item as { name?: string; itemName?: string; quantity?: number };
+          const itemData = item as { 
+            name?: string; 
+            itemName?: string; 
+            quantity?: number;
+            id?: string;
+            itemId?: string;
+            menuItemId?: string;
+            image?: string;
+          };
           const itemName = itemData.name || itemData.itemName || 'Unknown Item';
           const quantity = itemData.quantity || 1;
+          const itemId = itemData.id || itemData.itemId || itemData.menuItemId;
+          
           itemSales[itemName] = (itemSales[itemName] || 0) + quantity;
+          
+          // Store item details (image and itemId) if not already stored
+          if (!itemDetails[itemName]) {
+            // Enhanced menu item matching using lookup map
+            let menuItem = menuItemLookup.get(itemId || '') ||
+                           menuItemLookup.get(itemName) ||
+                           menuItemLookup.get(itemName.toLowerCase());
+            
+            // If still not found, try partial matching
+            if (!menuItem) {
+              menuItem = menuItems.find(mi => {
+                const itemWords = itemName.toLowerCase().split(' ');
+                const menuWords = mi.name.toLowerCase().split(' ');
+                return itemWords.some((word: string) => word.length > 2 && menuWords.some((menuWord: string) => menuWord.includes(word)));
+              });
+            }
+            
+            // Get the image URL from menu item
+            const imageUrl = menuItem?.imageUrl;
+            
+            // If no image exists, we'll handle this in the UI with a styled fallback
+            // Instead of using random placeholder images, we'll show a branded fallback
+            
+            itemDetails[itemName] = {
+              image: imageUrl,
+              itemId: itemId || menuItem?.id
+            };
+          }
         });
       }
     });
     
-    // Sort items by quantity sold
+    // Sort items by quantity sold and take only top 3
     const topItems = Object.entries(itemSales)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([name, quantity]) => ({ name, quantity }));
+      .slice(0, 3)
+      .map(([name, quantity]) => ({ 
+        name, 
+        quantity,
+        image: itemDetails[name]?.image,
+        itemId: itemDetails[name]?.itemId,
+        percentage: 0 // Will be calculated below
+      }));
+    
+    // Calculate percentages for top items
+    const totalTopItemsQuantity = topItems.reduce((sum, item) => sum + item.quantity, 0);
+    topItems.forEach(item => {
+      item.percentage = totalTopItemsQuantity > 0 ? (item.quantity / totalTopItemsQuantity) * 100 : 0;
+    });
     
     // Average order value
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -304,19 +366,6 @@ const ManagerDashboard: React.FC = () => {
   // const takeawayActiveOrders = todaysOrders.filter(order => order.orderType === 'takeaway' || order.orderType === 'delivery').length;
 
   // Chart configurations
-  const topItemsChartData = {
-    labels: metrics.topItems.map(item => item.name),
-    datasets: [
-      {
-        label: 'Quantity Sold',
-        data: metrics.topItems.map(item => item.quantity),
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
-        borderColor: 'rgba(59, 130, 246, 1)',
-        borderWidth: 1,
-      },
-    ],
-  };
-
   const paymentChartData = {
     labels: ['UPI', 'Cash', 'Card'],
     datasets: [
@@ -422,8 +471,62 @@ const ManagerDashboard: React.FC = () => {
     }
   };
 
+  // Pie chart options
+  const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom' as const,
+        labels: {
+          boxWidth: 12,
+          padding: 15,
+          font: {
+            size: 11
+          }
+        }
+      },
+      tooltip: {
+        titleFont: {
+          size: 12
+        },
+        bodyFont: {
+          size: 11
+        },
+        padding: 8,
+        cornerRadius: 4,
+        callbacks: {
+          label: function(context: any) {
+            const label = context.label || '';
+            const value = context.parsed || 0;
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const percentage = ((value / total) * 100).toFixed(1);
+            return `${label}: ${value} (${percentage}%)`;
+          }
+        }
+      }
+    }
+  };
+
   return (
     <>
+      <style jsx>{`
+        .float-hover {
+          transition: all 0.3s ease;
+        }
+        .float-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* Mobile-specific adjustments */
+        @media (max-width: 640px) {
+          .float-hover:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+          }
+        }
+      `}</style>
       <DashboardLayout title="Manager Dashboard">
         {/* Approval Status Banner */}
         <ApprovalStatusBanner 
@@ -446,7 +549,7 @@ const ManagerDashboard: React.FC = () => {
                 </div>
               </div>
               
-              {/* Date and Location Controls */}
+              {/* Date Controls Only - Location dropdown hidden */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex flex-col sm:flex-row gap-2 flex-1">
                   <Input
@@ -462,17 +565,6 @@ const ManagerDashboard: React.FC = () => {
                     className="text-xs sm:text-sm w-full sm:flex-1"
                   />
                 </div>
-                
-                {currentLocation && (
-                  <select
-                    value={selectedLocationId}
-                    onChange={(e) => setSelectedLocationId(e.target.value)}
-                    className="text-xs sm:text-sm border border-gray-300 rounded px-2 py-2 sm:px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-auto"
-                  >
-                    <option value="all">All Locations</option>
-                    <option value={currentLocation.id}>{currentLocation.name}</option>
-                  </select>
-                )}
               </div>
             </div>
           </div>
@@ -553,16 +645,75 @@ const ManagerDashboard: React.FC = () => {
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Top Selling Items */}
-            <Card className="p-4 sm:p-6">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
+            <Card className="p-3 sm:p-4 md:p-6">
+              <h3 className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
                 <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
                 <span className="truncate">Top Selling Items</span>
               </h3>
-              <div className="h-48 sm:h-64">
+              <div className="space-y-3 sm:space-y-4">
                 {metrics.topItems.length > 0 ? (
-                  <Bar data={topItemsChartData} options={chartOptions} />
+                  metrics.topItems.map((item) => (
+                    <div key={item.itemId || item.name} className="space-y-2">
+                      {/* Item Name and Quantity */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {item.name}
+                        </span>
+                        <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
+                          {item.quantity} sold
+                        </span>
+                      </div>
+                      
+                      {/* Bar with Image at Start */}
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        {/* Item Image */}
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg overflow-hidden border-2 border-white shadow-md float-hover">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // Fallback to branded placeholder if image fails to load
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = `
+                                      <div class="w-full h-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center">
+                                        <span class="text-white font-bold text-xs sm:text-sm">${item.name.charAt(0).toUpperCase()}</span>
+                                      </div>
+                                    `;
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center">
+                                <span className="text-white font-bold text-xs sm:text-sm">{item.name.charAt(0).toUpperCase()}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="flex-1 min-w-0">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6 sm:h-8 overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 rounded-full flex items-center justify-end pr-2 sm:pr-3 transition-all duration-300 hover:from-blue-600 hover:to-blue-700"
+                              style={{ width: `${item.percentage}%` }}
+                            >
+                              <span className="text-xs font-medium text-white truncate">
+                                {item.percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
                 ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="flex items-center justify-center h-24 sm:h-32 text-gray-500">
                     <p className="text-xs sm:text-sm text-center px-2">No items sold in selected period</p>
                   </div>
                 )}
@@ -614,7 +765,7 @@ const ManagerDashboard: React.FC = () => {
               </h3>
               <div className="h-48 sm:h-64">
                 {metrics.totalOrders > 0 ? (
-                  <Bar data={orderTypeChartData} options={chartOptions} />
+                  <Pie data={orderTypeChartData} options={pieChartOptions} />
                 ) : (
                   <div className="flex items-center justify-center h-full text-gray-500">
                     <p className="text-xs sm:text-sm text-center px-2">No order type data in selected period</p>

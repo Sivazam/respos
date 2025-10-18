@@ -525,12 +525,19 @@ const ManagerPendingOrdersPage: React.FC = () => {
       
       // Handle based on which flow we're in
       if (pendingAction === 'settle') {
-        // Settle flow - show confirmation modal
-        setShowSettlementConfirmationModal(true);
-        setPendingAction(null);
-        // Clear existing customer data after showing confirmation modal
+        // Settle flow - directly settle the order after collecting payment method
+        console.log('🚀 Settling order directly after modal submission:', {
+          orderId: updatedOrder.id,
+          paymentMethod: paymentMethod
+        });
+        
+        // Use the handleDirectSettlement function to settle the order
+        await handleDirectSettlement(updatedOrder, paymentMethod);
+        
+        // Clear existing customer data after settlement
         setExistingCustomerData(null);
         setDataSource(undefined);
+        setPendingAction(null);
       } else if (pendingAction === 'print') {
         // Print flow - show receipt with a small delay to ensure modal closes properly
         const currentOrder = updatedOrder; // Capture the current order state

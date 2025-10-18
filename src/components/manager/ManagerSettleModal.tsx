@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Receipt, User } from 'lucide-react';
+import { X, Receipt, User, DollarSign, CreditCard, Smartphone } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../ui/Button';
 import CustomerInfoForm from '../common/CustomerInfoForm';
@@ -24,17 +24,13 @@ interface ManagerSettleModalProps {
     total?: number;
     locationId?: string;
     customer?: {
-      name?: string;
       phone?: string;
-      city?: string;
       collectedBy?: 'staff' | 'manager';
       collectedAt?: number;
     };
     isStaffCreated?: boolean;
   }, paymentMethod: string, customerInfo?: {
-    name?: string;
     phone?: string;
-    city?: string;
   }) => void;
   order: {
     id: string;
@@ -50,9 +46,7 @@ interface ManagerSettleModalProps {
     total?: number;
     locationId?: string;
     customer?: {
-      name?: string;
       phone?: string;
-      city?: string;
       collectedBy?: 'staff' | 'manager';
       collectedAt?: number;
     };
@@ -69,9 +63,7 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
   const { currentUser } = useAuth();
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'card' | 'upi'>('cash');
   const [customerInfo, setCustomerInfo] = useState({
-    name: '',
-    phone: '',
-    city: ''
+    phone: ''
   });
   const [customerDataSource, setCustomerDataSource] = useState<'staff' | 'manager' | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -87,21 +79,17 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
         const customerData = await fetchCustomerDataByOrderId(order.id);
         if (customerData) {
           setCustomerInfo({
-            name: customerData.name || '',
-            phone: customerData.phone || '',
-            city: customerData.city || ''
+            phone: customerData.phone || ''
           });
           setCustomerDataSource(customerData.source);
         } else if (order.customer) {
           // Fallback to order customer data
           setCustomerInfo({
-            name: order.customer.name || '',
-            phone: order.customer.phone || '',
-            city: order.customer.city || ''
+            phone: order.customer.phone || ''
           });
           setCustomerDataSource(order.customer.collectedBy || null);
         } else {
-          setCustomerInfo({ name: '', phone: '', city: '' });
+          setCustomerInfo({ phone: '' });
           setCustomerDataSource(null);
         }
       } catch (error) {
@@ -109,13 +97,11 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
         // Fallback to order customer data or empty
         if (order.customer) {
           setCustomerInfo({
-            name: order.customer.name || '',
-            phone: order.customer.phone || '',
-            city: order.customer.city || ''
+            phone: order.customer.phone || ''
           });
           setCustomerDataSource(order.customer.collectedBy || null);
         } else {
-          setCustomerInfo({ name: '', phone: '', city: '' });
+          setCustomerInfo({ phone: '' });
           setCustomerDataSource(null);
         }
       }
@@ -139,12 +125,10 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
   if (!isOpen || !order) return null;
 
   // Helper function to create customer object
-  const createCustomerObject = (info: { name?: string; phone?: string; city?: string }, source: 'staff' | 'manager') => {
-    return info.name || info.phone || info.city 
+  const createCustomerObject = (info: { phone?: string }, source: 'staff' | 'manager') => {
+    return info.phone 
       ? {
-          name: info.name || '',
-          phone: info.phone || '',
-          city: info.city || '',
+          phone: info.phone,
           source,
           timestamp: Date.now()
         }
@@ -176,18 +160,16 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
 
   // Handle unified modal confirmation
   const handleUnifiedModalConfirm = async (customerData: {
-    name?: string;
     phone?: string;
-    city?: string;
   }, paymentMethod: string) => {
     setIsProcessing(true);
     
     try {
-      // Create customer object if any customer info is provided
+      // Create customer object if phone number is provided
       const customerObject = createCustomerObject(customerData, 'manager');
       
       // Update customer data if provided
-      if (customerObject && (customerData.name || customerData.phone || customerData.city)) {
+      if (customerObject && customerData.phone) {
         try {
           await upsertCustomerData(
             order.id, 
@@ -233,11 +215,11 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
     setIsProcessing(true);
     
     try {
-      // Create customer object if any customer info is provided
+      // Create customer object if phone number is provided
       const customerObject = createCustomerObject(customerInfo, 'manager');
       
       // Update customer data if provided
-      if (customerObject && (customerInfo.name || customerInfo.phone || customerInfo.city)) {
+      if (customerObject && customerInfo.phone) {
         try {
           await upsertCustomerData(
             order.id, 
@@ -332,9 +314,7 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
                   )}
                 </div>
                 <CustomerInfoForm
-                  name={customerInfo.name}
                   phone={customerInfo.phone}
-                  city={customerInfo.city}
                   onChange={setCustomerInfo}
                   disabled={isProcessing}
                   showCollectedStatus={!!customerDataSource}

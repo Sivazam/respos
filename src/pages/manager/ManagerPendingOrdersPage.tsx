@@ -156,6 +156,52 @@ const ManagerPendingOrdersPage: React.FC = () => {
     });
   }, [pendingOrders, searchTerm, createdByFilter, currentUser?.uid, orderCreators]);
 
+  // Handle direct settlement when payment method is already available
+  const handleDirectSettlement = async (order: any, paymentMethod: string) => {
+    if (!order || !currentUser) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      console.log('🚀 Direct settlement started for order:', order.id, 'with payment method:', paymentMethod);
+      
+      const total = orderTotals[order.id] || await calculateOrderTotal(order);
+      
+      // Settle the order using orderService
+      await orderService.settleOrder(order.id, {
+        paymentMethod: paymentMethod,
+        amount: total,
+        settledAt: new Date(),
+        settledBy: currentUser.uid
+      });
+      
+      console.log('✅ Order settled directly without modal');
+      
+      // Show success message
+      toast.success(`Order #${order.orderNumber} settled successfully via ${paymentMethod.toUpperCase()}!`);
+      
+      // Update local state to remove the settled order
+      setPendingOrders(prevOrders => 
+        prevOrders.filter(pendingOrder => {
+          const pendingOrderData = pendingOrder.order || pendingOrder;
+          return pendingOrderData.id !== order.id;
+        })
+      );
+      
+      // Clear selected order
+      setSelectedOrder(null);
+      setExistingCustomerData(null);
+      setDataSource(undefined);
+      setPendingAction(null);
+      
+    } catch (error: any) {
+      console.error('❌ Error in direct settlement:', error);
+      toast.error(error.message || 'Failed to settle order. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Handle settle bill
   const handleSettleBill = async (order: any) => {
     const orderData = order.order || order;
@@ -244,11 +290,14 @@ const ManagerPendingOrdersPage: React.FC = () => {
         orderPendingPaymentMethod: latestOrderData.pendingPaymentMethod
       });
       
-      if (hasCustomerData && hasPaymentMethod) {
-        // Both customer data and payment method are already collected, show confirmation modal
-        setShowSettlementConfirmationModal(true);
+      // SIMPLIFIED FLOW: If payment method is already provided, directly settle without any modal
+      if (finalPaymentMethod) {
+        console.log('✅ Payment method already available, settling directly:', finalPaymentMethod);
+        // Directly settle the order without showing any modal
+        await handleDirectSettlement(latestOrderData, finalPaymentMethod);
       } else {
-        // Need to collect customer data and/or payment method
+        // Need to collect payment method (customer data is optional)
+        console.log('❌ No payment method found, showing modal to collect payment method');
         setShowUnifiedModal(true);
       }
     } catch (error) {

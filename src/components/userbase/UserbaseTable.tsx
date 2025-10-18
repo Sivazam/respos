@@ -1,12 +1,10 @@
 import React from 'react';
 import { Card } from '../ui/card';
-import { Download, User, Phone, MapPin, TrendingUp, Calendar } from 'lucide-react';
+import { Download, Phone, TrendingUp, Calendar } from 'lucide-react';
 
 // Interface for grouped customer data
 interface GroupedCustomerData {
   phone: string;
-  name: string;
-  city: string;
   visitCount: number;
   lastVisit: number;
   paymentMethods: ('cash' | 'card' | 'upi')[];
@@ -47,7 +45,7 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
   if (data.length === 0) {
     return (
       <Card className="p-8 text-center">
-        <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <Phone className="w-12 h-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">No customer data found</h3>
         <p className="text-gray-500">
           No customer information collected for the selected date range.
@@ -84,20 +82,8 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
               <tr>
                 <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
                   <div className="flex items-center gap-2">
-                    <User size={14} />
-                    Name
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
-                  <div className="flex items-center gap-2">
                     <Phone size={14} />
-                    Phone
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
-                  <div className="flex items-center gap-2">
-                    <MapPin size={14} />
-                    City
+                    Phone Number
                   </div>
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-gray-900 border-b">
@@ -121,17 +107,7 @@ const UserbaseTable: React.FC<UserbaseTableProps> = ({
               {data.map((customer, index) => (
                 <tr key={`${customer.phone}-${index}`} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-900">
-                    {customer.name || (
-                      <span className="text-gray-400 italic">Not provided</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-900">
                     {customer.phone || (
-                      <span className="text-gray-400 italic">Not provided</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-900">
-                    {customer.city || (
                       <span className="text-gray-400 italic">Not provided</span>
                     )}
                   </td>

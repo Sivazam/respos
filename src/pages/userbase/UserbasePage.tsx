@@ -11,8 +11,6 @@ import toast from 'react-hot-toast';
 // Interface for grouped customer data
 interface GroupedCustomerData {
   phone: string;
-  name: string;
-  city: string;
   visitCount: number;
   lastVisit: number;
   paymentMethods: ('cash' | 'card' | 'upi')[];
@@ -58,8 +56,6 @@ const UserbasePage: React.FC = () => {
       
       groupedCustomers.push({
         phone: phone === 'unknown' ? '' : phone,
-        name: mostRecent.name || '',
-        city: mostRecent.city || '',
         visitCount,
         lastVisit: mostRecent.timestamp,
         paymentMethods,
@@ -120,9 +116,7 @@ const UserbasePage: React.FC = () => {
       if (data.length > 0) {
         console.log('📋 Sample records:', data.slice(0, 3).map(record => ({
           orderId: record.orderId,
-          name: record.name,
           phone: record.phone,
-          city: record.city,
           timestamp: record.timestamp,
           date: record.date,
           franchiseId: record.franchiseId,
@@ -134,8 +128,6 @@ const UserbasePage: React.FC = () => {
       if (grouped.length > 0) {
         console.log('👥 Sample grouped customers:', grouped.slice(0, 3).map(customer => ({
           phone: customer.phone,
-          name: customer.name,
-          city: customer.city,
           visitCount: customer.visitCount,
           lastVisit: new Date(customer.lastVisit).toLocaleString()
         })));
@@ -184,16 +176,14 @@ const UserbasePage: React.FC = () => {
       const endDateStr = new Date(endDate).toLocaleDateString('en-IN').replace(/\//g, '-');
       const filename = `userbase_frequency_${startDateStr}_to_${endDateStr}.csv`;
       
-      // Create CSV content - Name, Phone Number, City, Visit Count, Last Visit
-      const headers = ['Name', 'Phone Number', 'City', 'Visit Count', 'Last Visit'];
+      // Create CSV content - Phone Number, Visit Count, Last Visit
+      const headers = ['Phone Number', 'Visit Count', 'Last Visit'];
       const rows = filteredData.map(data => {
-        const name = `"${(data.name || '').replace(/"/g, '""')}"`;
         const phone = `"${(data.phone || '').replace(/"/g, '""')}"`;
-        const city = `"${(data.city || '').replace(/"/g, '""')}"`;
         const visitCount = data.visitCount.toString();
         const lastVisit = `"${new Date(data.lastVisit).toLocaleDateString('en-IN')}"`;
         
-        return [name, phone, city, visitCount, lastVisit].join(',');
+        return [phone, visitCount, lastVisit].join(',');
       });
 
       const csvContent = [headers.join(','), ...rows].join('\n');

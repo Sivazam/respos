@@ -9,9 +9,7 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 
 interface CustomerInfo {
-  name?: string;
   phone?: string;
-  city?: string;
 }
 
 interface CustomerInfoAndPaymentModalProps {
@@ -51,9 +49,7 @@ export default function CustomerInfoAndPaymentModal({
   dataSource
 }: CustomerInfoAndPaymentModalProps) {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
-    name: '',
-    phone: '',
-    city: ''
+    phone: ''
   });
   const [paymentMethod, setPaymentMethod] = useState(initialPaymentMethod || 'cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,9 +65,7 @@ export default function CustomerInfoAndPaymentModal({
         // If we have initial customer info, use it
         if (initialCustomerInfo) {
           setCustomerInfo({
-            name: initialCustomerInfo.name || '',
-            phone: initialCustomerInfo.phone || '',
-            city: initialCustomerInfo.city || ''
+            phone: initialCustomerInfo.phone || ''
           });
         } else if (order?.id || order?.orderId) {
           // Try to fetch customer data from Firestore
@@ -81,9 +75,7 @@ export default function CustomerInfoAndPaymentModal({
           
           if (customerData) {
             setCustomerInfo({
-              name: customerData.name || '',
-              phone: customerData.phone || '',
-              city: customerData.city || ''
+              phone: customerData.phone || ''
             });
           }
         }
@@ -107,7 +99,7 @@ export default function CustomerInfoAndPaymentModal({
   // Reset form when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
-      setCustomerInfo({ name: '', phone: '', city: '' });
+      setCustomerInfo({ phone: '' });
       setPaymentMethod(initialPaymentMethod || 'cash');
       setIsSubmitting(false);
       setLoadingCustomerData(false);
@@ -203,26 +195,10 @@ export default function CustomerInfoAndPaymentModal({
             </div>
 
             <div className="grid grid-cols-1 gap-3">
-              {/* Customer Name */}
-              <div>
-                <Label htmlFor="name" className="text-sm text-gray-600 mb-1 block">
-                  Name
-                </Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Enter customer name"
-                  value={customerInfo.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  disabled={isSubmitting || loadingCustomerData}
-                  className="w-full"
-                />
-              </div>
-
               {/* Phone Number */}
               <div>
                 <Label htmlFor="phone" className="text-sm text-gray-600 mb-1 block">
-                  Phone Number
+                  Phone Number (Optional)
                 </Label>
                 <Input
                   id="phone"
@@ -232,22 +208,6 @@ export default function CustomerInfoAndPaymentModal({
                   placeholder="Enter phone number"
                   value={customerInfo.phone}
                   onChange={(e) => handleInputChange('phone', e.target.value.replace(/\D/g, ''))}
-                  disabled={isSubmitting || loadingCustomerData}
-                  className="w-full"
-                />
-              </div>
-
-              {/* City */}
-              <div>
-                <Label htmlFor="city" className="text-sm text-gray-600 mb-1 block">
-                  City
-                </Label>
-                <Input
-                  id="city"
-                  type="text"
-                  placeholder="Enter city"
-                  value={customerInfo.city}
-                  onChange={(e) => handleInputChange('city', e.target.value)}
                   disabled={isSubmitting || loadingCustomerData}
                   className="w-full"
                 />

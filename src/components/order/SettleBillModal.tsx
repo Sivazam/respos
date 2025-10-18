@@ -27,9 +27,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
   const [receivedAmount, setReceivedAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [customerInfo, setCustomerInfo] = useState({
-    name: '',
-    phone: '',
-    city: ''
+    phone: ''
   });
   const [existingCustomerData, setExistingCustomerData] = useState<any>(null);
 
@@ -42,16 +40,12 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
           if (customerData) {
             setExistingCustomerData(customerData);
             setCustomerInfo({
-              name: customerData.name || '',
-              phone: customerData.phone || '',
-              city: customerData.city || ''
+              phone: customerData.phone || ''
             });
           } else {
             // Reset form if no existing data
             setCustomerInfo({
-              name: '',
-              phone: '',
-              city: ''
+              phone: ''
             });
             setExistingCustomerData(null);
           }
@@ -86,7 +80,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
 
   const handleSubmit = async () => {
     // Save customer data if provided
-    if (customerInfo.name || customerInfo.phone || customerInfo.city) {
+    if (customerInfo.phone) {
       try {
         await upsertCustomerData(
           order.id,
@@ -110,8 +104,8 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
       receivedAmount: paymentMethod === 'cash' ? parseFloat(receivedAmount) || calculateTotal() : calculateTotal(),
       change: paymentMethod === 'cash' ? calculateChange() : 0,
       notes,
-      customer: customerInfo.name || customerInfo.phone || customerInfo.city ? {
-        ...customerInfo,
+      customer: customerInfo.phone ? {
+        phone: customerInfo.phone,
         collectedBy: 'manager' as const,
         collectedAt: Date.now()
       } : undefined
@@ -185,9 +179,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
           {/* Customer Information */}
           <div>
             <CustomerInfoForm
-              name={customerInfo.name}
               phone={customerInfo.phone}
-              city={customerInfo.city}
               onChange={setCustomerInfo}
               disabled={isProcessing}
               showCollectedBadge={!!existingCustomerData}

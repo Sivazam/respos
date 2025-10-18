@@ -13,13 +13,11 @@ interface CustomerInfoModalProps {
     id: string;
     orderNumber: string;
     customer?: {
-      name?: string;
       phone?: string;
-      city?: string;
       collectedBy?: 'staff' | 'manager';
     };
   };
-  onProceed: (customerData: { name?: string; phone?: string; city?: string }) => void;
+  onProceed: (customerData: { phone?: string }) => void;
 }
 
 const CustomerInfoModal: React.FC<CustomerInfoModalProps> = ({
@@ -30,9 +28,7 @@ const CustomerInfoModal: React.FC<CustomerInfoModalProps> = ({
 }) => {
   const { currentUser } = useAuth();
   const [customerInfo, setCustomerInfo] = useState({
-    name: '',
-    phone: '',
-    city: ''
+    phone: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,17 +43,13 @@ const CustomerInfoModal: React.FC<CustomerInfoModalProps> = ({
           const customerData = await fetchCustomerDataByOrderId(order.id);
           if (customerData) {
             setCustomerInfo({
-              name: customerData.name || '',
-              phone: customerData.phone || '',
-              city: customerData.city || ''
+              phone: customerData.phone || ''
             });
             setCustomerDataSource(customerData.source);
           } else if (order.customer) {
             // Use customer data from order if available
             setCustomerInfo({
-              name: order.customer.name || '',
-              phone: order.customer.phone || '',
-              city: order.customer.city || ''
+              phone: order.customer.phone || ''
             });
             setCustomerDataSource(order.customer.collectedBy || null);
           } else {
@@ -79,7 +71,7 @@ const CustomerInfoModal: React.FC<CustomerInfoModalProps> = ({
     setIsSubmitting(true);
     try {
       // Save customer data before proceeding
-      if (customerInfo.name || customerInfo.phone || customerInfo.city) {
+      if (customerInfo.phone) {
         console.log('🔍 Debug - CustomerInfoModal saving data with:', {
           orderId: order.id,
           customerInfo,
@@ -99,7 +91,7 @@ const CustomerInfoModal: React.FC<CustomerInfoModalProps> = ({
     }
   };
 
-  const hasExistingData = customerDataSource || (customerInfo.name || customerInfo.phone || customerInfo.city);
+  const hasExistingData = customerDataSource || customerInfo.phone;
 
   if (!isOpen) return null;
 
@@ -157,9 +149,7 @@ const CustomerInfoModal: React.FC<CustomerInfoModalProps> = ({
                 {/* Customer Information Form */}
                 <div className="mb-6">
                   <CustomerInfoForm
-                    name={customerInfo.name}
                     phone={customerInfo.phone}
-                    city={customerInfo.city}
                     onChange={setCustomerInfo}
                     disabled={isSubmitting}
                     showCollectedStatus={hasExistingData}

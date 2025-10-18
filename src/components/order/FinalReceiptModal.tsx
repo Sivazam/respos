@@ -25,9 +25,7 @@ interface FinalReceiptModalProps {
     }[];
     customerName?: string;
     customerInfo?: {
-      name?: string;
       phone?: string;
-      city?: string;
     };
     notes?: string;
     subtotal?: number;
@@ -188,15 +186,11 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
   const getCustomerInfo = () => {
     if (order.customerInfo) {
       return {
-        name: order.customerInfo.name,
-        phone: order.customerInfo.phone,
-        city: order.customerInfo.city
+        phone: order.customerInfo.phone
       };
     }
     return {
-      name: order.customerName,
-      phone: undefined,
-      city: undefined
+      phone: undefined
     };
   };
 
@@ -467,9 +461,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                <div>Order: #${order.orderNumber}</div>` : 
               `<div>Order: #${order.orderNumber}</div>`
             }
-            ${customerInfo.name ? `<div>Customer: ${customerInfo.name}</div>` : ''}
             ${customerInfo.phone ? `<div>Phone: ${customerInfo.phone}</div>` : ''}
-            ${customerInfo.city ? `<div>City: ${customerInfo.city}</div>` : ''}
         </div>
         
         <div class="divider"></div>
@@ -710,9 +702,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   ) : (
                     <div>Order: #{order.orderNumber}</div>
                   )}
-                  {customerInfo.name && <div>Customer: {customerInfo.name}</div>}
                   {customerInfo.phone && <div>Phone: {customerInfo.phone}</div>}
-                  {customerInfo.city && <div>City: {customerInfo.city}</div>}
                 </div>
               </div>
               

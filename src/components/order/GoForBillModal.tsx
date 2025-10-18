@@ -25,34 +25,21 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
-    name: '',
     phone: '',
-    city: '',
     paymentMethod: 'cash' as 'cash' | 'card' | 'upi'
   });
 
-  // Pre-fill customer name with delivery type for delivery orders
+  // Reset form when modal opens
   useEffect(() => {
     if (isOpen && order) {
-      if (order.orderType === 'delivery' && order.orderMode) {
-        // Set the delivery type as the default customer name
-        const deliveryTypeName = order.orderMode.charAt(0).toUpperCase() + order.orderMode.slice(1);
-        setCustomerInfo(prev => ({
-          ...prev,
-          name: deliveryTypeName
-        }));
-        console.log('🛵 Pre-filled customer name with delivery type:', deliveryTypeName);
-      } else {
-        // Reset to empty for non-delivery orders
-        setCustomerInfo(prev => ({
-          ...prev,
-          name: ''
-        }));
-      }
+      setCustomerInfo({
+        phone: '',
+        paymentMethod: 'cash'
+      });
     }
   }, [isOpen, order]);
 
-  const handleCustomerInfoChange = (values: { name?: string; phone?: string; city?: string }) => {
+  const handleCustomerInfoChange = (values: { phone?: string }) => {
     setCustomerInfo(prev => ({
       ...prev,
       ...values
@@ -113,12 +100,10 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
     setIsProcessing(true);
 
     try {
-      // Create customer object if any customer info is provided
-      const customerObject = customerInfo.name || customerInfo.phone || customerInfo.city 
+      // Create customer object if phone number is provided
+      const customerObject = customerInfo.phone 
         ? {
-            name: customerInfo.name || '',
-            phone: customerInfo.phone || '',
-            city: customerInfo.city || '',
+            phone: customerInfo.phone,
             paymentMethod: customerInfo.paymentMethod,
             source: 'staff' as const,
             timestamp: Date.now()
@@ -153,8 +138,8 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
         throw transferError;
       }
 
-      // Save customer data to customer_data collection if customer info is provided
-      if (customerInfo.name || customerInfo.phone || customerInfo.city) {
+      // Save customer data to customer_data collection if phone number is provided
+      if (customerInfo.phone) {
         try {
           console.log('🔍 Debug - Saving customer data with:', {
             orderId: order.id,
@@ -163,9 +148,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
             locationId: order.locationId
           });
           await upsertCustomerData(order.id, {
-            name: customerInfo.name,
             phone: customerInfo.phone,
-            city: customerInfo.city,
             paymentMethod: customerInfo.paymentMethod
           }, 'staff', Date.now(), currentUser.uid || 'unknown', order.locationId || 'unknown', currentUser.franchiseId);
           console.log('✅ Customer data saved successfully');
@@ -281,9 +264,7 @@ const GoForBillModal: React.FC<GoForBillModalProps> = ({
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
                     <CustomerInfoForm
-                      name={customerInfo.name}
                       phone={customerInfo.phone}
-                      city={customerInfo.city}
                       onChange={handleCustomerInfoChange}
                       disabled={isProcessing}
                     />

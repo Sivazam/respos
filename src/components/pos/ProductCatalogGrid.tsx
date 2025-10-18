@@ -160,18 +160,57 @@ const ProductCatalogGrid: React.FC<ProductCatalogGridProps> = ({ products, categ
             </div>
 
             {/* Price */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <DollarSign size={16} className="text-green-600" />
-                <span className={`text-2xl font-bold ${
-                  product.isAvailable ? 'text-green-600' : 'text-gray-400'
-                }`}>
-                  ₹{product.price.toFixed(2)}
-                </span>
-              </div>
+            <div className="mb-4">
+              {product.hasHalfPortion ? (
+                <>
+                  {/* Full Portion Price */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                        <span className="text-xs font-bold">F</span>
+                      </div>
+                      <span className="text-sm text-gray-600">Full:</span>
+                      <DollarSign size={14} className="text-green-600" />
+                      <span className={`text-xl font-bold ${
+                        product.isAvailable ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        ₹{product.price.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Half Portion Price */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                        <span className="text-xs font-bold">H</span>
+                      </div>
+                      <span className="text-sm text-gray-600">Half:</span>
+                      <DollarSign size={14} className="text-green-600" />
+                      <span className={`text-xl font-bold ${
+                        product.isAvailable ? 'text-green-600' : 'text-gray-400'
+                      }`}>
+                        ₹{product.halfPortionCost ? product.halfPortionCost.toFixed(2) : (product.price * 0.6).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Single Price for items without half portion */
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign size={16} className="text-green-600" />
+                    <span className={`text-2xl font-bold ${
+                      product.isAvailable ? 'text-green-600' : 'text-gray-400'
+                    }`}>
+                      ₹{product.price.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
               
               {product.preparationTime && (
-                <div className="flex items-center gap-1 text-sm text-gray-500">
+                <div className="flex items-center gap-1 text-sm text-gray-500 mt-2">
                   <Clock size={14} />
                   <span>{product.preparationTime} min</span>
                 </div>

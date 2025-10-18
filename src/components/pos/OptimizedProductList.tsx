@@ -7,6 +7,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Product, CartItem } from '@/types/pos';
 import { useVirtualScroll, useDebounce, useRenderPerformance } from '@/hooks/usePerformanceOptimization';
 
+// Extended Product type to include MenuItem fields
+interface ExtendedProduct extends Product {
+  hasHalfPortion?: boolean;
+  halfPortionCost?: number;
+}
+
 interface OptimizedProductListProps {
   products: Product[];
   onAddToCart?: (product: Product, quantity: number) => void;
@@ -25,7 +31,7 @@ const ProductItem = ({
   onAddToCart,
   onAddItem
 }: { 
-  product: Product; 
+  product: ExtendedProduct; 
   index: number; 
   cartQuantity: number;
   onAddToCart?: (product: Product, quantity: number) => void;
@@ -77,9 +83,35 @@ const ProductItem = ({
               {product.description}
             </p>
             <div className="flex items-center justify-between">
-              <span className={`text-lg font-bold ${product.stock === 0 ? 'text-gray-500' : 'text-primary'}`}>
-                ₹{product.price.toFixed(2)}
-              </span>
+              {product.hasHalfPortion ? (
+                <div className="space-y-1">
+                  {/* Full Portion Price */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <span className="text-xs font-bold">F</span>
+                    </div>
+                    <span className="text-xs text-gray-600">Full:</span>
+                    <span className={`text-sm font-bold ${product.stock === 0 ? 'text-gray-500' : 'text-primary'}`}>
+                      ₹{product.price.toFixed(2)}
+                    </span>
+                  </div>
+                  {/* Half Portion Price */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <span className="text-xs font-bold">H</span>
+                    </div>
+                    <span className="text-xs text-gray-600">Half:</span>
+                    <span className={`text-sm font-bold ${product.stock === 0 ? 'text-gray-500' : 'text-primary'}`}>
+                      ₹{product.halfPortionCost ? product.halfPortionCost.toFixed(2) : (product.price * 0.6).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Single Price for items without half portion */
+                <span className={`text-lg font-bold ${product.stock === 0 ? 'text-gray-500' : 'text-primary'}`}>
+                  ₹{product.price.toFixed(2)}
+                </span>
+              )}
             </div>
           </div>
           
@@ -205,7 +237,7 @@ export function OptimizedProductList({
             {visibleItems.map((product, index) => (
               <ProductItem
                 key={product.id}
-                product={product}
+                product={product as ExtendedProduct}
                 index={index}
                 cartQuantity={getCartQuantity(product.id)}
                 onAddToCart={onAddToCart}

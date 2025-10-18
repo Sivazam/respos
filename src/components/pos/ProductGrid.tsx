@@ -83,7 +83,7 @@ const ProductGrid: React.FC<ProductGridProps> = ({ products, category, onAddToCa
                       <p className={`text-xs font-medium ${
                         product.isAvailable ? 'text-gray-600' : 'text-gray-400'
                       }`}>
-                        Half: ₹{(product.price * 0.6).toFixed(2)}
+                        Half: ₹{product.halfPortionCost ? product.halfPortionCost.toFixed(2) : (product.price * 0.6).toFixed(2)}
                       </p>
                     </div>
                     

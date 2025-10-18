@@ -30,6 +30,8 @@ const StaffDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
 
   // Check if staff has full access (approved + assigned location)
   const hasFullAccess = currentUser?.isApproved && currentUser?.locationId && currentUser?.isActive;
@@ -306,10 +308,10 @@ const StaffDashboard: React.FC = () => {
                   My Orders
                 </h3>
                 <p className="text-lg sm:text-2xl font-semibold text-blue-600">
-                  {staffMetrics.todayOrders}
+                  {staffMetrics.todayCompletedOrders}
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  {staffMetrics.todayCompletedOrders} completed
+                  {staffMetrics.todayOrders} total orders
                 </p>
               </div>
             </div>

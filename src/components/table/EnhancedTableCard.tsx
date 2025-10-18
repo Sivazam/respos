@@ -7,7 +7,7 @@ import {
   Calendar, 
   CheckCircle,
   AlertCircle,
-  Coffee,
+  Armchair,
   Utensils,
   ChevronRight,
   User,
@@ -50,7 +50,7 @@ const EnhancedTableCard: React.FC<EnhancedTableCardProps> = ({
   const getTableIcon = (status: TableStatus) => {
     switch (status) {
       case 'available':
-        return <Coffee className="w-5 h-5 text-green-600" />;
+        return <Armchair className="w-5 h-5 text-green-600" />;
       case 'occupied':
         return <Utensils className="w-5 h-5 text-red-600" />;
       case 'reserved':
@@ -58,7 +58,7 @@ const EnhancedTableCard: React.FC<EnhancedTableCardProps> = ({
       case 'maintenance':
         return <AlertCircle className="w-5 h-5 text-gray-600" />;
       default:
-        return <Coffee className="w-5 h-5 text-gray-600" />;
+        return <Armchair className="w-5 h-5 text-gray-600" />;
     }
   };
 

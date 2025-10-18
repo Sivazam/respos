@@ -1168,6 +1168,33 @@ export class OrderService {
     }
   }
 
+  // Get order by ID
+  async getOrderById(orderId: string): Promise<any | null> {
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const orderDoc = await getDoc(orderRef);
+      
+      if (!orderDoc.exists()) {
+        return null;
+      }
+      
+      const orderData = orderDoc.data();
+      return {
+        id: orderDoc.id,
+        ...orderData,
+        createdAt: orderData.createdAt?.toDate(),
+        updatedAt: orderData.updatedAt?.toDate(),
+        sessionStartedAt: orderData.sessionStartedAt?.toDate(),
+        transferredAt: orderData.transferredAt?.toDate(),
+        settledAt: orderData.settledAt?.toDate(),
+        completedAt: orderData.completedAt?.toDate()
+      };
+    } catch (error) {
+      console.error('Error fetching order by ID:', error);
+      throw error;
+    }
+  }
+
   private async createOrderHistoryEntry(
     orderId: string,
     locationId: string,

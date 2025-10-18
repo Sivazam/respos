@@ -281,6 +281,7 @@ const StaffCatalogPage: React.FC = () => {
                 <ProductCatalogGrid
                   products={filteredProducts}
                   category={selectedCategory}
+                  categories={categories}
                 />
               )}
             </div>

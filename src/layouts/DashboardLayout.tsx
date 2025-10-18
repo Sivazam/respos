@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Menu, 
@@ -38,6 +38,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
   const { currentLocation, locations, loading } = useLocations();
   const navigate = useNavigate();
   
+  // Close sidebar with animation
+  const closeSidebar = useCallback(() => {
+    if (isAnimating) return; // Prevent close during animation
+    
+    setIsAnimating(true);
+    setSidebarOpen(false);
+    
+    // Reset animation flag after animation completes
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 250); // Slightly less than CSS transition duration
+  }, [isAnimating]);
+
   // Close sidebar when screen size changes
   useEffect(() => {
     const handleResize = () => {
@@ -63,7 +76,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
     }
-  }, [sidebarOpen, isAnimating]);
+  }, [sidebarOpen, isAnimating, closeSidebar]);
 
   // Debounced sidebar toggle to prevent multiple rapid clicks
   const toggleSidebar = () => {
@@ -77,20 +90,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
     // Reset animation flag after animation completes
     setTimeout(() => {
       setIsAnimating(false);
-    }, 300); // Match the animation duration
-  };
-
-  // Close sidebar with animation
-  const closeSidebar = () => {
-    if (isAnimating) return; // Prevent close during animation
-    
-    setIsAnimating(true);
-    setSidebarOpen(false);
-    
-    // Reset animation flag after animation completes
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 300); // Match the animation duration
+    }, 250); // Slightly less than CSS transition duration
   };
 
   const handleLogout = async () => {
@@ -272,7 +272,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
           className="fixed inset-0 z-40 md:hidden"
           onClick={closeSidebar}
         >
-          <div className="absolute inset-0 bg-gray-600 opacity-75 animate-fadeIn"></div>
+          <div className="absolute inset-0 bg-gray-600 opacity-75 transition-opacity duration-300"></div>
         </div>
       )}
 
@@ -280,7 +280,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       <div 
         className={`
           fixed inset-y-0 left-0 z-50 w-64 bg-white transform transition-transform duration-300 ease-in-out md:hidden
-          ${sidebarOpen ? 'translate-x-0 animate-slideInRight' : '-translate-x-full'}
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
         <div className="flex flex-col h-full">

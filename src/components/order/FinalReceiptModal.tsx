@@ -182,20 +182,6 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
   // Get the actual payment method from order data if available
   const actualPaymentMethod = order.paymentData?.paymentMethod || paymentMethod;
 
-  // Get customer information from new customerInfo structure or fallback to customerName
-  const getCustomerInfo = () => {
-    if (order.customerInfo) {
-      return {
-        phone: order.customerInfo.phone
-      };
-    }
-    return {
-      phone: undefined
-    };
-  };
-
-  const customerInfo = getCustomerInfo();
-
   // Function to convert table IDs to table numbers if table names are not available
   const getTableDisplay = (tableNames?: string[], tableIds?: string[]) => {
     if (tableNames && tableNames.length > 0) {
@@ -461,7 +447,6 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                <div>Order: #${order.orderNumber}</div>` : 
               `<div>Order: #${order.orderNumber}</div>`
             }
-            ${customerInfo.phone ? `<div>Phone: ${customerInfo.phone}</div>` : ''}
         </div>
         
         <div class="divider"></div>
@@ -569,27 +554,88 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     try {
       setIsProcessing(true);
       
-      // Get the formatted receipt content as HTML
+      // Get your existing HTML receipt content
       const receiptHTML = getReceiptHTMLContent();
       
-      // Create a new window for printing
-      const printWindow = window.open('', '_blank');
-      
-      if (printWindow) {
-        printWindow.document.write(receiptHTML);
-        printWindow.document.close();
+      // Try silent printing with your HTML format
+      try {
+        const { browserPrintService } = await import('../../lib/browserPrint');
         
-        // Wait for content to load, then print
-        printWindow.focus();
-        setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-        }, 250);
+        // Create a hidden iframe for silent printing
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = 'none';
+        iframe.style.visibility = 'hidden';
         
-        setPrintStatus({ type: 'success', message: 'Receipt sent to printer successfully!' });
-      } else {
-        throw new Error('Failed to open print window');
+        document.body.appendChild(iframe);
+        
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          iframeDoc.open();
+          iframeDoc.write(receiptHTML);
+          iframeDoc.close();
+          
+          // Wait for content to load, then print silently
+          iframe.onload = () => {
+            setTimeout(() => {
+              try {
+                iframe.contentWindow?.print({
+                  silent: true,
+                  printBackground: false
+                });
+                
+                // Remove iframe after printing
+                setTimeout(() => {
+                  document.body.removeChild(iframe);
+                }, 1000);
+                
+                setPrintStatus({ type: 'success', message: 'Receipt printed successfully!' });
+                setIsProcessing(false);
+              } catch (printError) {
+                console.warn('Silent printing failed, using fallback:', printError);
+                // Remove iframe and use fallback
+                document.body.removeChild(iframe);
+                fallbackPrintWindow();
+              }
+            }, 500);
+          };
+        } else {
+          throw new Error('Could not access iframe document');
+        }
+        
+        return; // Success path
+        
+      } catch (silentPrintError) {
+        console.warn('Silent printing not supported, using fallback:', silentPrintError);
       }
+      
+      // Fallback function
+      const fallbackPrintWindow = () => {
+        const printWindow = window.open('', '_blank');
+        
+        if (printWindow) {
+          printWindow.document.write(receiptHTML);
+          printWindow.document.close();
+          
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+          }, 250);
+          
+          setPrintStatus({ type: 'success', message: 'Receipt sent to printer successfully!' });
+        } else {
+          throw new Error('Failed to open print window');
+        }
+      };
+      
+      // Use fallback if silent printing failed
+      fallbackPrintWindow();
+      
     } catch (error) {
       console.error('Print failed:', error);
       setPrintStatus({ type: 'error', message: 'Failed to print receipt. Please try again.' });
@@ -702,7 +748,6 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   ) : (
                     <div>Order: #{order.orderNumber}</div>
                   )}
-                  {customerInfo.phone && <div>Phone: {customerInfo.phone}</div>}
                 </div>
               </div>
               

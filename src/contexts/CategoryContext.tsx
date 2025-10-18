@@ -105,11 +105,22 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
         );
       }
       
-      // Sort by createdAt descending
+      // Sort categories: Starters first, then by displayOrder, then by name
       filteredCategories.sort((a, b) => {
-        const dateA = a.createdAt ? a.createdAt.getTime() : 0;
-        const dateB = b.createdAt ? b.createdAt.getTime() : 0;
-        return dateB - dateA;
+        // First, put "Starters" category first (case-insensitive)
+        const aIsStarters = a.name.toLowerCase() === 'starters';
+        const bIsStarters = b.name.toLowerCase() === 'starters';
+        
+        if (aIsStarters && !bIsStarters) return -1;
+        if (!aIsStarters && bIsStarters) return 1;
+        
+        // Then sort by displayOrder (ascending)
+        const aOrder = a.displayOrder || 0;
+        const bOrder = b.displayOrder || 0;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        
+        // Finally sort by name (alphabetically)
+        return a.name.localeCompare(b.name);
       });
 
       setCategories(filteredCategories);

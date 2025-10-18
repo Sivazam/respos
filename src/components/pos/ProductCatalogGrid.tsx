@@ -1,11 +1,10 @@
 import React from 'react';
-import { MenuItem } from '../../types';
+import { MenuItem, Category } from '../../types';
 import { 
   Clock, 
   ChefHat, 
   Leaf, 
   Flame, 
-  Star,
   DollarSign,
   Info,
   CheckCircle,
@@ -15,13 +14,37 @@ import {
 interface ProductCatalogGridProps {
   products: MenuItem[];
   category?: string;
+  categories?: Category[];
 }
 
-const ProductCatalogGrid: React.FC<ProductCatalogGridProps> = ({ products, category }) => {
+const ProductCatalogGrid: React.FC<ProductCatalogGridProps> = ({ products, category, categories }) => {
   
   const filteredProducts = category
     ? products.filter(product => product.categoryId === category)
     : products;
+
+  // Sort products according to category order when no specific category is selected
+  const sortedProducts = React.useMemo(() => {
+    if (category || !categories || categories.length === 0) {
+      return filteredProducts;
+    }
+
+    return filteredProducts.sort((a, b) => {
+      // Get category indices for sorting
+      const aCategoryIndex = categories.findIndex(cat => cat.id === a.categoryId);
+      const bCategoryIndex = categories.findIndex(cat => cat.id === b.categoryId);
+      
+      // If both products have valid categories, sort by category order
+      if (aCategoryIndex !== -1 && bCategoryIndex !== -1) {
+        if (aCategoryIndex !== bCategoryIndex) {
+          return aCategoryIndex - bCategoryIndex;
+        }
+      }
+      
+      // If products are in the same category or one has no valid category, sort by name
+      return a.name.localeCompare(b.name);
+    });
+  }, [filteredProducts, category, categories]);
 
   const getSpiceLevelColor = (level: string) => {
     switch (level) {
@@ -42,7 +65,7 @@ const ProductCatalogGrid: React.FC<ProductCatalogGridProps> = ({ products, categ
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      {filteredProducts.map(product => (
+      {sortedProducts.map(product => (
         <div
           key={product.id}
           className={`

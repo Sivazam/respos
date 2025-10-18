@@ -350,10 +350,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
       customerInfo: latestOrderData.customerInfo
     });
     
-    setSelectedOrder(latestOrderData);
-    setPendingAction('print');
-    
-    // Fetch existing customer data to pre-fill the modal
+    // Check if customer data and payment method are already collected
     try {
       // First check if data exists in order document
       const hasOrderCustomerData = latestOrderData.customerInfo && 
@@ -362,7 +359,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
       
       let customerData = null;
       let paymentMethod = hasOrderPaymentMethod ? (latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod) : null;
-      let firestoreCustomerData = null; // Declare variable in proper scope for handlePrintOrder
+      let firestoreCustomerData = null;
       
       // If not in order, check Firestore customer_data collection
       if (!hasOrderCustomerData || !hasOrderPaymentMethod) {
@@ -385,41 +382,531 @@ const ManagerPendingOrdersPage: React.FC = () => {
         customerData = latestOrderData.customerInfo;
       }
       
-      // Combine data for the modal
+      // Combine data for checking
       const combinedCustomerData = customerData || {};
-      // Don't default to 'cash' - use the actual payment method or let it be undefined
       const finalPaymentMethod = paymentMethod;
       
-      // Store existing customer data to pass to modal
-      setExistingCustomerData({
-        ...combinedCustomerData,
-        paymentMethod: finalPaymentMethod
-      });
-      
-      // Determine data source for UI badge
-      let dataSourceValue: 'staff' | 'manager' | undefined;
-      if (firestoreCustomerData) {
-        dataSourceValue = firestoreCustomerData.source;
-      } else if (hasOrderPaymentMethod || hasOrderCustomerData) {
-        dataSourceValue = 'manager'; // If data is in order document, it's from manager
-      }
-      
-      setDataSource(dataSourceValue);
+      const hasCustomerData = combinedCustomerData && (combinedCustomerData.name || combinedCustomerData.phone || combinedCustomerData.city);
+      const hasPaymentMethod = finalPaymentMethod && finalPaymentMethod !== 'cash';
       
       console.log('📄 Print order - existing data:', {
         customerData: combinedCustomerData,
         paymentMethod: finalPaymentMethod,
-        dataSource: dataSourceValue,
+        hasCustomerData,
+        hasPaymentMethod,
         orderPaymentMethod: latestOrderData.paymentMethod,
         orderPendingPaymentMethod: latestOrderData.pendingPaymentMethod
       });
+      
+      // SILENT PRINT FLOW: If payment method is already provided, directly print without any modal
+      if (finalPaymentMethod) {
+        console.log('✅ Payment method already available, printing directly:', finalPaymentMethod);
+        // Directly print the order without showing any modal
+        handleSilentPrint(latestOrderData.id);
+      } else {
+        // Need to collect payment method (customer data is optional)
+        console.log('❌ No payment method found, showing modal to collect payment method');
+        setSelectedOrder(latestOrderData);
+        setPendingAction('print');
+        
+        // Store existing customer data to pass to modal
+        setExistingCustomerData({
+          ...combinedCustomerData,
+          paymentMethod: finalPaymentMethod
+        });
+        
+        // Determine data source for UI badge
+        let dataSourceValue: 'staff' | 'manager' | undefined;
+        if (firestoreCustomerData) {
+          dataSourceValue = firestoreCustomerData.source;
+        } else if (hasOrderPaymentMethod || hasOrderCustomerData) {
+          dataSourceValue = 'manager'; // If data is in order document, it's from manager
+        }
+        
+        setDataSource(dataSourceValue);
+        setShowUnifiedModal(true);
+      }
     } catch (error) {
-      console.error('Error fetching customer data for print:', error);
+      console.error('Error checking customer data for print:', error);
+      // Fallback to showing modal if there's an error
+      setSelectedOrder(latestOrderData);
+      setPendingAction('print');
       setExistingCustomerData(null);
+      setShowUnifiedModal(true);
     }
+  };
+
+  // Handle silent printing
+  // Handle silent print - direct printing without opening new window
+  const handleSilentPrint = async (orderId: string) => {
+    console.log('🖨️ Initiating silent print for order:', orderId);
     
-    // Always show unified modal for both staff and manager orders
-    setShowUnifiedModal(true);
+    try {
+      // Get order data
+      const orderData = await orderService.getOrderById(orderId);
+      if (!orderData) {
+        toast.error('Order not found');
+        return;
+      }
+      
+      // Get franchise data for receipt formatting
+      let franchiseData = null;
+      if (orderData.locationId) {
+        try {
+          const { getFranchiseReceiptData } = await import('../../utils/franchiseUtils');
+          franchiseData = await getFranchiseReceiptData(orderData.locationId);
+        } catch (error) {
+          console.warn('Could not fetch franchise data:', error);
+        }
+      }
+      
+      // Generate HTML receipt content using the same format as FinalReceiptModal
+      const receiptHTML = generateReceiptHTML(orderData, franchiseData);
+      
+      // Try silent printing with your HTML format
+      try {
+        // Create a hidden iframe for silent printing
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = 'none';
+        iframe.style.visibility = 'hidden';
+        
+        document.body.appendChild(iframe);
+        
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (iframeDoc) {
+          iframeDoc.open();
+          iframeDoc.write(receiptHTML);
+          iframeDoc.close();
+          
+          // Wait for content to load, then print silently
+          iframe.onload = () => {
+            setTimeout(() => {
+              try {
+                iframe.contentWindow?.print({
+                  silent: true,
+                  printBackground: false
+                });
+                
+                // Remove iframe after printing
+                setTimeout(() => {
+                  document.body.removeChild(iframe);
+                }, 1000);
+                
+                console.log('✅ Receipt printed successfully in background');
+                toast.success(`Receipt printed for Order #${orderData.orderNumber}`);
+              } catch (printError) {
+                console.warn('Silent printing failed, using fallback:', printError);
+                // Remove iframe and use fallback
+                document.body.removeChild(iframe);
+                fallbackPrintWindow(orderId);
+              }
+            }, 500);
+          };
+        } else {
+          throw new Error('Could not access iframe document');
+        }
+        
+        return; // Success path
+        
+      } catch (silentPrintError) {
+        console.warn('Silent printing not supported, using fallback:', silentPrintError);
+      }
+      
+      // Fallback function
+      const fallbackPrintWindow = (orderId: string) => {
+        const printUrl = `/print-receipt?id=${orderId}`;
+        const printWindow = window.open(printUrl, "_blank", "width=600,height=800");
+        if (printWindow) {
+          printWindow.focus();
+        } else {
+          toast.error("Please allow pop-ups to enable printing.");
+        }
+      };
+      
+      // Use fallback if silent printing failed
+      fallbackPrintWindow(orderId);
+      
+    } catch (error) {
+      console.error('❌ Silent printing failed:', error);
+      toast.error('Failed to print receipt. Please try again.');
+      
+      // Fallback to opening print preview
+      const printUrl = `/print-receipt?id=${orderId}`;
+      const printWindow = window.open(printUrl, "_blank", "width=600,height=800");
+      if (printWindow) {
+        printWindow.focus();
+      }
+    }
+  };
+
+  // Helper function to generate receipt HTML (same as FinalReceiptModal)
+  const generateReceiptHTML = (order: any, franchiseData: any) => {
+    const formatPrice = (price: number | undefined | null) => {
+      if (price === undefined || price === null || isNaN(price)) {
+        return '0';
+      }
+      return Math.round(price).toString();
+    };
+
+    const formatReceiptDate = (dateInput?: any) => {
+      if (!dateInput) {
+        dateInput = new Date();
+      }
+
+      try {
+        let dateObj: Date;
+        
+        if (dateInput?.toDate) {
+          dateObj = dateInput.toDate();
+        } else if (dateInput?.seconds) {
+          dateObj = new Date(dateInput.seconds * 1000);
+        } else if (typeof dateInput === 'string') {
+          dateObj = new Date(dateInput);
+        } else if (dateInput instanceof Date) {
+          dateObj = dateInput;
+        } else {
+          dateObj = new Date();
+        }
+        
+        return {
+          date: dateObj.toLocaleDateString('en-IN'),
+          time: dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+        };
+      } catch {
+        return {
+          date: new Date().toLocaleDateString('en-IN'),
+          time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+        };
+      }
+    };
+
+    const getTableDisplay = (tableNames?: string[], tableIds?: string[]) => {
+      if (tableNames && tableNames.length > 0) {
+        return tableNames.join(', ');
+      }
+      
+      if (tableIds && tableIds.length > 0) {
+        const tableNumbers = tableIds.map(id => {
+          const tableMatch = id.match(/table-(\d+)/i);
+          if (tableMatch) {
+            return `Table ${tableMatch[1]}`;
+          }
+          if (/^\d+$/.test(id)) {
+            return `Table ${id}`;
+          }
+          const numberMatch = id.match(/\d+/);
+          if (numberMatch) {
+            return `Table ${numberMatch[0]}`;
+          }
+          return id;
+        });
+        return tableNumbers.join(', ');
+      }
+      
+      return 'N/A';
+    };
+
+    const { date: receiptDate, time: receiptTime } = formatReceiptDate(order.completedAt || order.createdAt);
+    const tableDisplay = getTableDisplay(order.tableNames, order.tableIds);
+    const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
+    
+    const subtotal = order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0;
+    const cgst = order.cgstAmount || order.cgst || 0;
+    const sgst = order.sgstAmount || order.sgst || 0;
+    const grandTotal = order.totalAmount || order.total || (subtotal + cgst + sgst);
+    
+    // Get payment method
+    const paymentMethod = order.paymentData?.paymentMethod || order.paymentMethod || order.pendingPaymentMethod || 'cash';
+    
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Receipt - Order #${order.orderNumber}</title>
+    <style>
+        @page {
+            margin: 0;
+            size: 80mm auto;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 0;
+            padding: 5px;
+            width: 72mm;
+            background: white;
+            color: black;
+            line-height: 1.3;
+        }
+        
+        .receipt {
+            width: 100%;
+            text-align: center;
+        }
+        
+        .logo {
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        
+        .logo img {
+            width: 160px;
+            height: auto;
+            max-height: auto;
+            object-fit: contain;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .header-line {
+            margin: 2px 0;
+            font-size: 14px;
+        }
+        
+        .header-subtitle {
+            margin: 1px 0;
+            font-size: 10px;
+            font-weight: normal;
+        }
+        
+        .divider {
+            border-top: 1px solid #000;
+            margin: 10px 0;
+        }
+        
+        .order-info {
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .items-section {
+            margin-bottom: 10px;
+        }
+        
+        .items-header {
+            display: grid;
+            grid-template-columns: 1.8fr 40px 55px 65px;
+            gap: 2px;
+            margin-bottom: 5px;
+            font-weight: 900;
+            border-bottom: 1px solid #000;
+            padding-bottom: 3px;
+            font-size: 11px;
+        }
+        
+        .item {
+            display: grid;
+            grid-template-columns: 1.8fr 40px 55px 65px;
+            gap: 2px;
+            margin-bottom: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            align-items: start;
+        }
+        
+        .item-name {
+            text-align: left;
+            white-space: normal;
+            word-wrap: break-word;
+            min-width: 0;
+        }
+        
+        .item-qty {
+            text-align: center;
+        }
+        
+        .item-price {
+            text-align: right;
+        }
+        
+        .item-total {
+            text-align: right;
+        }
+        
+        .modifications {
+            grid-column: 1 / -1;
+            font-size: 9px;
+            color: #666;
+            text-align: left;
+            margin-left: 10px;
+            margin-bottom: 2px;
+            font-style: italic;
+        }
+        
+        .totals {
+            margin-top: 10px;
+        }
+        
+        .total-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            margin: 3px 0;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .total-label {
+            text-align: left;
+        }
+        
+        .total-value {
+            text-align: right;
+            min-width: 60px;
+        }
+        
+        .grand-total {
+            font-weight: 900;
+            border-top: 1px solid #000;
+            padding-top: 3px;
+            font-size: 12px;
+        }
+        
+        .payment-info {
+            text-align: center;
+            margin-top: 8px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 10px;
+            font-style: italic;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .brand {
+            text-align: center;
+            margin-top: 5px;
+            font-weight: bold;
+            font-size: 10px;
+        }
+        
+        @media print {
+            body {
+                margin: 0;
+                padding: 3px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="logo">
+            <img src="${logoUrl}" alt="Restaurant Logo" />
+        </div>
+        
+        <div class="header">
+            <div class="header-line">${franchiseData?.name || 'FORKFLOW POS'}</div>
+            <div class="header-subtitle">${franchiseData?.address || '123 Main Street, City'}</div>
+            <div class="header-subtitle">Phone: ${franchiseData?.phone || '+91 98765 43210'}</div>
+            ${franchiseData?.gstNumber ? `<div class="header-subtitle">GSTIN: ${franchiseData.gstNumber}</div>` : ''}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="order-info">
+            <div>Date: ${receiptDate}    Time: ${receiptTime}</div>
+            ${tableDisplay && tableDisplay !== 'N/A' ? 
+              `<div>Table: ${tableDisplay}</div>
+               <div>Order: #${order.orderNumber}</div>` : 
+              `<div>Order: #${order.orderNumber}</div>`
+            }
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="items-section">
+            <div class="items-header">
+                <div class="item-name">Item</div>
+                <div class="item-qty">Qty</div>
+                <div class="item-price">Rate</div>
+                <div class="item-total">Total</div>
+            </div>
+            
+            ${order.items?.map(item => {
+              const itemName = item.name || 'Unknown Item';
+              const quantity = item.quantity || 1;
+              const price = item.price || 0;
+              const itemTotal = price * quantity;
+              const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
+              
+              return `
+                <div class="item">
+                    <div class="item-name">${itemName}${portionTag}</div>
+                    <div class="item-qty">${quantity}</div>
+                    <div class="item-price">${formatPrice(price)}</div>
+                    <div class="item-total">${formatPrice(itemTotal)}</div>
+                    ${item.modifications && item.modifications.length > 0 ? 
+                      `<div class="modifications">${item.modifications.join(', ')}</div>` : 
+                      ''
+                    }
+                </div>
+              `;
+            }).join('') || ''}
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="totals">
+            <div class="total-row">
+                <div class="total-label">Subtotal</div>
+                <div class="total-value">${formatPrice(subtotal)}</div>
+            </div>
+            ${cgst > 0 ? `
+              <div class="total-row">
+                  <div class="total-label">CGST</div>
+                  <div class="total-value">${formatPrice(cgst)}</div>
+              </div>
+            ` : ''}
+            ${sgst > 0 ? `
+              <div class="total-row">
+                  <div class="total-label">SGST</div>
+                  <div class="total-value">${formatPrice(sgst)}</div>
+              </div>
+            ` : ''}
+            <div class="total-row grand-total">
+                <div class="total-label">Grand Total</div>
+                <div class="total-value">${formatPrice(grandTotal)}</div>
+            </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="payment-info">
+            <div>Payment: ${paymentMethod.toUpperCase()}</div>
+            <div>STATUS: PAID</div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="footer">
+            <div>Thank you for dining with us!</div>
+            <div>Please visit again</div>
+            <div>This is a computer-generated receipt</div>
+        </div>
+        
+        <div class="brand">
+            <div>Powered by FORKFLOW POS</div>
+        </div>
+    </div>
+</body>
+</html>`;
   };
 
   // Handle delete order
@@ -539,26 +1026,21 @@ const ManagerPendingOrdersPage: React.FC = () => {
         setDataSource(undefined);
         setPendingAction(null);
       } else if (pendingAction === 'print') {
-        // Print flow - show receipt with a small delay to ensure modal closes properly
-        const currentOrder = updatedOrder; // Capture the current order state
-        setTimeout(() => {
-          setSelectedOrder(currentOrder); // Ensure the order state is set
-          setShowReceiptModal(true);
-          console.log('🧾 Opening receipt modal for order:', currentOrder.id);
-          console.log('🧾 Receipt modal order data:', {
-            paymentMethod: currentOrder.paymentMethod,
-            pendingPaymentMethod: currentOrder.pendingPaymentMethod,
-            customerInfo: currentOrder.customerInfo
-          });
-        }, 200);
-        toast.success('Payment method selected!');
-        // Clear pending action after setting timeout to ensure it still executes
+        // Print flow - use silent printing after collecting payment method
+        console.log('🖨️ Print flow - initiating silent print after modal submission:', {
+          orderId: updatedOrder.id,
+          paymentMethod: paymentMethod
+        });
+        
+        // Use the handleSilentPrint function to print the order
+        handleSilentPrint(updatedOrder.id);
+        
+        toast.success('Payment method selected! Printing receipt...');
+        
+        // Clear pending action and existing customer data
         setPendingAction(null);
-        // Clear existing customer data after showing receipt modal
-        setTimeout(() => {
-          setExistingCustomerData(null);
-          setDataSource(undefined);
-        }, 300);
+        setExistingCustomerData(null);
+        setDataSource(undefined);
       } else {
         // Clear pending action if it's neither settle nor print
         setPendingAction(null);

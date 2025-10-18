@@ -95,6 +95,9 @@ import TableSelectionPage from './pages/order/TableSelectionPage';
 // Userbase Page
 import UserbasePage from './pages/userbase/UserbasePage';
 
+// Print Page
+import PrintReceiptPage from './pages/print/PrintReceiptPage';
+
 function App() {
   return (
     <ErrorBoundary>
@@ -638,6 +641,9 @@ function App() {
                       />
 
   
+                      {/* Print Receipt Route - Public for silent printing */}
+                      <Route path="/print-receipt" element={<PrintReceiptPage />} />
+
                       {/* Default redirect */}
                       <Route path="/" element={<Navigate to="/login" replace />} />
                       

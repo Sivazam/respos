@@ -281,6 +281,7 @@ const ManagerCatalogPage: React.FC = () => {
                 <ProductCatalogGrid
                   products={filteredProducts}
                   category={selectedCategory}
+                  categories={categories}
                 />
               )}
             </div>

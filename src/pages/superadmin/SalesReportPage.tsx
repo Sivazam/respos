@@ -1,18 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
-import { BarChart, FileText, Download, Calendar, Calculator, Filter, Building, TrendingUp } from 'lucide-react';
+import { BarChart, FileText, Download, Calendar, Calculator, Building, TrendingUp } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useOrders } from '../../contexts/OrderContext';
 import { useFranchises } from '../../contexts/FranchiseContext';
 import { useLocations } from '../../contexts/LocationContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { useFeatures } from '../../hooks/useFeatures';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
-import { Card } from '../../components/ui/card';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Pie } from 'react-chartjs-2';
+import { downloadCSV, formatCurrencyForCSV, formatDateForCSV } from '../../utils/csvExport';
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
@@ -21,7 +20,6 @@ const SuperAdminSalesReportPage: React.FC = () => {
   const { orders, loading, error } = useOrders();
   const { franchises } = useFranchises();
   const { locations } = useLocations();
-  const { currentUser } = useAuth();
   const { features } = useFeatures();
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -222,12 +220,12 @@ const SuperAdminSalesReportPage: React.FC = () => {
       const franchise = franchises.find(f => f.id === location?.franchiseId);
       
       return [
-        format(order.createdAt, 'dd/MM/yyyy HH:mm'),
-        order.orderNumber,
+        formatDateForCSV(order.createdAt),
+        order.orderNumber || 'Unknown',
         order.orderType === 'dinein' ? 'Dine-in' : 'Delivery',
         order.items.reduce((sum, item) => sum + item.quantity, 0),
         (order.paymentMethod || 'CASH').toUpperCase(),
-        `₹${(order.total || order.totalAmount || 0).toFixed(2)}`,
+        formatCurrencyForCSV(order.total || order.totalAmount || 0),
         franchise?.name || 'Unknown',
         location?.name || 'Unknown'
       ];
@@ -237,34 +235,22 @@ const SuperAdminSalesReportPage: React.FC = () => {
     const summaryRows = [
       ['', '', '', '', '', '', '', ''],
       ['SUMMARY', '', '', '', '', '', '', ''],
-      ['Total Orders', '', '', summary.totalOrders, '', `₹${summary.totalRevenue.toFixed(2)}`, '', ''],
-      ['Average Order Value', '', '', '', '', `₹${summary.avgOrderValue.toFixed(2)}`, '', ''],
-      ['Total Items Sold', '', '', summary.totalItems, '', '', '', ''],
+      ['Total Orders', '', '', summary.totalOrders.toString(), '', formatCurrencyForCSV(summary.totalRevenue), '', ''],
+      ['Average Order Value', '', '', '', '', formatCurrencyForCSV(summary.avgOrderValue), '', ''],
+      ['Total Items Sold', '', '', summary.totalItems.toString(), '', '', '', ''],
       ['', 'PAYMENT BREAKDOWN', '', '', '', '', '', ''],
-      ['UPI Payments', '', '', summary.paymentBreakdown.upi.count, '', `₹${summary.paymentBreakdown.upi.revenue.toFixed(2)}`, '', ''],
-      ['Cash Payments', '', '', summary.paymentBreakdown.cash.count, '', `₹${summary.paymentBreakdown.cash.revenue.toFixed(2)}`, '', ''],
-      ['Card Payments', '', '', summary.paymentBreakdown.card.count, '', `₹${summary.paymentBreakdown.card.revenue.toFixed(2)}`, '', ''],
+      ['UPI Payments', '', '', summary.paymentBreakdown.upi.count.toString(), '', formatCurrencyForCSV(summary.paymentBreakdown.upi.revenue), '', ''],
+      ['Cash Payments', '', '', summary.paymentBreakdown.cash.count.toString(), '', formatCurrencyForCSV(summary.paymentBreakdown.cash.revenue), '', ''],
+      ['Card Payments', '', '', summary.paymentBreakdown.card.count.toString(), '', formatCurrencyForCSV(summary.paymentBreakdown.card.revenue), '', ''],
       ['', 'FRANCHISE BREAKDOWN', '', '', '', '', '', ''],
       ...summary.franchiseBreakdown.map(franchise => [
-        franchise.franchiseName, '', '', franchise.orderCount, '', `₹${franchise.revenue.toFixed(2)}`, '', ''
+        franchise.franchiseName, '', '', franchise.orderCount.toString(), '', formatCurrencyForCSV(franchise.revenue), '', ''
       ])
     ];
 
-    const csv = [
-      headers.join(','),
-      ...orderData.map(row => row.join(',')),
-      ...summaryRows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `franchise-orders-report-${startDate}-to-${endDate}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    const csvData = [headers, ...orderData, ...summaryRows];
+    
+    downloadCSV(csvData, `franchise-sales-report-${startDate}-to-${endDate}.csv`);
   };
 
   return (

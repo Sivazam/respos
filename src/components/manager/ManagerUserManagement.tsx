@@ -35,21 +35,24 @@ const ManagerUserManagement: React.FC<ManagerUserManagementProps> = ({ onClose }
 
     try {
       setLoading(true);
+      // Simple query without multiple where clauses to avoid index requirement
       const q = query(
         collection(db, 'users'),
-        where('franchiseId', '==', currentUser.franchiseId),
-        where('role', '==', 'staff')
+        where('franchiseId', '==', currentUser.franchiseId)
       );
       const querySnapshot = await getDocs(q);
       
-      const usersData = querySnapshot.docs.map(doc => ({
-        uid: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
-        lastLogin: doc.data().lastLogin?.toDate() || new Date()
-      })) as StaffUser[];
+      // Client-side filtering to avoid indexes
+      const users = querySnapshot.docs
+        .map(doc => ({ 
+          uid: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+          lastLogin: doc.data().lastLogin?.toDate() || new Date()
+        } as StaffUser))
+        .filter(user => user.role === 'staff'); // Filter staff users on client side
       
-      setUsers(usersData);
+      setUsers(users);
     } catch (err: unknown) {
       console.error('Error fetching users:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch users');

@@ -7,8 +7,8 @@ import {
   BarChart3, 
   Settings, 
   TrendingUp,
+  TrendingDown,
   Store,
-  UserCheck,
   Activity,
   DollarSign,
   Package,
@@ -19,13 +19,10 @@ import {
   ArrowDownRight,
   Search,
   Download,
-  Globe,
-  MoreVertical,
   Award,
   Filter
 } from 'lucide-react';
 import { useFranchises } from '../../contexts/FranchiseContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { useLocations } from '../../contexts/LocationContext';
 import { useSales } from '../../contexts/SalesContext';
 import { useProducts } from '../../contexts/ProductContext';
@@ -41,7 +38,6 @@ const SuperAdminDashboard: React.FC = () => {
   const { products } = useProducts();
   const { returns } = useReturns();
   const { features } = useFeatures();
-  const { currentUser } = useAuth();
   const franchise = franchises[0]; // Get first franchise if available
   const [selectedPeriod, setSelectedPeriod] = useState('7d');
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,7 +159,7 @@ const SuperAdminDashboard: React.FC = () => {
     title: string; 
     value: string | number; 
     subtitle?: string; 
-    icon: any; 
+    icon: React.ComponentType<{ className?: string }>; 
     color: string; 
     growth?: number; 
     trend?: 'up' | 'down'; 

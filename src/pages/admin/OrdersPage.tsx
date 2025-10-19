@@ -9,6 +9,7 @@ import { db } from '../../firebase/config';
 import Input from '../../components/ui/Input';
 import Button from '../../components/ui/Button';
 import ErrorAlert from '../../components/ui/ErrorAlert';
+import { downloadCSV, formatCurrencyForCSV, formatDateForCSV } from '../../utils/csvExport';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 
 interface OrderData {
@@ -278,27 +279,21 @@ const OrdersPage: React.FC = () => {
   };
 
   const exportOrders = () => {
-    const csvContent = [
-      ['Date', 'Order #', 'Location', 'Customer', 'Type', 'Payment', 'Items', 'Total'].join(','),
+    const csvData = [
+      ['Date', 'Order #', 'Location', 'Customer', 'Type', 'Payment', 'Items', 'Total'],
       ...filteredOrders.map(order => [
-        format(order.createdAt, 'dd/MM/yyyy HH:mm'),
-        order.orderNumber,
+        formatDateForCSV(order.createdAt),
+        order.orderNumber || 'Unknown',
         getLocationName(order.locationId),
         order.customerName || 'Walk-in',
         order.orderType || 'dinein',
-        order.paymentMethod,
-        order.items.length,
-        order.totalAmount.toFixed(2)
-      ].join(','))
-    ].join('\n');
+        order.paymentMethod || 'Unknown',
+        order.items.length.toString(),
+        formatCurrencyForCSV(order.totalAmount || 0)
+      ])
+    ];
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `orders_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadCSV(csvData, `orders-${format(new Date(), 'yyyy-MM-dd')}.csv`);
   };
 
   const clearFilters = () => {

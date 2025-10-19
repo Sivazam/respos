@@ -187,8 +187,9 @@ const PrintReceiptPage: React.FC = () => {
     const deliveryCharge = order?.deliveryCharge || 0;
     const packagingCharge = order?.packagingCharge || 0;
     const discount = order?.discount || 0;
+    const couponAmount = order?.appliedCoupon?.discountAmount || 0;
     
-    return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount;
+    return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount - couponAmount;
   };
 
   // Generate HTML content for printing (same as FinalReceiptModal)
@@ -506,6 +507,12 @@ const PrintReceiptPage: React.FC = () => {
               <div class="total-row">
                   <div class="total-label">Discount</div>
                   <div class="total-value">-${formatPrice(order.discount)}</div>
+              </div>
+            ` : ''}
+            ${order.appliedCoupon && order.appliedCoupon.discountAmount > 0 ? `
+              <div class="total-row">
+                  <div class="total-label">Coupon (${order.appliedCoupon.name})</div>
+                  <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
               </div>
             ` : ''}
             <div class="total-row grand-total">

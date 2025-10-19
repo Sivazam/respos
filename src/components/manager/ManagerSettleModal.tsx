@@ -202,6 +202,9 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
         customerData
       );
       
+      // Order completion tracking is now handled automatically by useOrderMilestoneCelebration
+      // which listens to the OrderContext for real-time order updates
+      
       onClose();
     } catch (error) {
       console.error('Error settling order:', error);
@@ -247,6 +250,9 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
         customerInfo
       );
       
+      // Order completion tracking is now handled automatically by useOrderMilestoneCelebration
+      // which listens to the OrderContext for real-time order updates
+      
       onClose();
     } catch (error) {
       console.error('Error settling order:', error);
@@ -271,7 +277,7 @@ const ManagerSettleModal: React.FC<ManagerSettleModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="flex min-h-screen items-center justify-center p-4">
         {/* Backdrop */}
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"

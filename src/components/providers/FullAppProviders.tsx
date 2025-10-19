@@ -16,6 +16,7 @@ import { SalesProvider } from '../../contexts/SalesContext';
 import { PurchaseProvider } from '../../contexts/PurchaseContext';
 import { ReturnProvider } from '../../contexts/ReturnContext';
 import { LocationProvider } from '../../contexts/LocationContext';
+import ConfettiManager from '../debug/ConfettiManager';
 
 interface FullAppProvidersProps {
   children: React.ReactNode;
@@ -41,6 +42,7 @@ const FullAppProviders: React.FC<FullAppProvidersProps> = ({ children }) => {
                                   <PurchaseProvider>
                                     <ReturnProvider>
                                       {children}
+                                      <ConfettiManager />
                                     </ReturnProvider>
                                   </PurchaseProvider>
                                 </SalesProvider>

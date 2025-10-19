@@ -218,13 +218,17 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
           // Find all Admin/Owner users in this franchise
           const usersQuery = query(
             collection(db, 'users'),
-            where('franchiseId', '==', locationData.franchiseId),
-            where('role', 'in', ['admin', 'owner'])
+            where('franchiseId', '==', locationData.franchiseId)
           );
           const usersSnapshot = await getDocs(usersQuery);
           
+          // Client-side filtering for role to avoid index requirement
+          const filteredDocs = usersSnapshot.docs.filter(doc => 
+            ['admin', 'owner'].includes(doc.data().role)
+          );
+          
           // Update each Admin/Owner user to include the new location
-          const updatePromises = usersSnapshot.docs.map(async (userDoc) => {
+          const updatePromises = filteredDocs.map(async (userDoc) => {
             const userRef = doc(db, 'users', userDoc.id);
             const userData = userDoc.data();
             
@@ -344,13 +348,17 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
             // Find all Admin/Owner users in this franchise
             const usersQuery = query(
               collection(db, 'users'),
-              where('franchiseId', '==', locationData.franchiseId),
-              where('role', 'in', ['admin', 'owner'])
+              where('franchiseId', '==', locationData.franchiseId)
             );
             const usersSnapshot = await getDocs(usersQuery);
             
+            // Client-side filtering for role to avoid index requirement
+            const filteredDocs = usersSnapshot.docs.filter(doc => 
+              ['admin', 'owner'].includes(doc.data().role)
+            );
+            
             // Update each Admin/Owner user to remove the deleted location
-            const updatePromises = usersSnapshot.docs.map(async (userDoc) => {
+            const updatePromises = filteredDocs.map(async (userDoc) => {
               const userRef = doc(db, 'users', userDoc.id);
               const userData = userDoc.data();
               

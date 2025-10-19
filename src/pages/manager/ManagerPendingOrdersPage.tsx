@@ -13,10 +13,12 @@ import {
   Printer,
   Trash2,
   Users,
-  DollarSign
+  DollarSign,
+  Tag
 } from 'lucide-react';
 import Input from '../../components/ui/Input';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
+import CouponSelectionModal from '../../components/order/CouponSelectionModal';
 import CustomerInfoAndPaymentModal from '../../components/CustomerInfoAndPaymentModal';
 import PaymentReceivedModal from '../../components/order/PaymentReceivedModal';
 import SettlementConfirmationModal from '../../components/SettlementConfirmationModal';
@@ -44,6 +46,8 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const [orderCreators, setOrderCreators] = useState<{ [key: string]: { email: string; role: string; displayName?: string } }>({});
   const [existingCustomerData, setExistingCustomerData] = useState<any>(null);
   const [dataSource, setDataSource] = useState<'staff' | 'manager' | undefined>(undefined);
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [selectedOrderForCoupon, setSelectedOrderForCoupon] = useState<any>(null);
 
   // Subscribe to manager pending orders
   useEffect(() => {
@@ -442,8 +446,30 @@ const ManagerPendingOrdersPage: React.FC = () => {
     console.log('🖨️ Initiating silent print for order:', orderId);
     
     try {
-      // Get order data
-      const orderData = await orderService.getOrderById(orderId);
+      // First, try to get the latest order data from local state
+      let orderData = null;
+      const latestPendingOrder = pendingOrders.find(pendingOrder => {
+        const pendingOrderData = pendingOrder.order || pendingOrder;
+        return pendingOrderData.id === orderId;
+      });
+      
+      if (latestPendingOrder) {
+        orderData = latestPendingOrder.order || latestPendingOrder;
+        console.log('📄 Using latest order data from local state:', {
+          orderId: orderData.id,
+          hasCoupon: !!orderData.appliedCoupon,
+          couponDiscount: orderData.appliedCoupon?.discountAmount
+        });
+      } else {
+        // Fallback to fetching from Firestore if not found in local state
+        orderData = await orderService.getOrderById(orderId);
+        console.log('📄 Fallback to Firestore data:', {
+          orderId: orderData.id,
+          hasCoupon: !!orderData.appliedCoupon,
+          couponDiscount: orderData.appliedCoupon?.discountAmount
+        });
+      }
+      
       if (!orderData) {
         toast.error('Order not found');
         return;
@@ -618,7 +644,9 @@ const ManagerPendingOrdersPage: React.FC = () => {
     const subtotal = order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0;
     const cgst = order.cgstAmount || order.cgst || 0;
     const sgst = order.sgstAmount || order.sgst || 0;
-    const grandTotal = order.totalAmount || order.total || (subtotal + cgst + sgst);
+    const discount = order.discount || 0;
+    const couponAmount = order.appliedCoupon?.discountAmount || 0;
+    const grandTotal = Math.max(0, subtotal + cgst + sgst - discount - couponAmount);
     
     // Get payment method
     const paymentMethod = order.paymentData?.paymentMethod || order.paymentMethod || order.pendingPaymentMethod || 'cash';
@@ -878,6 +906,18 @@ const ManagerPendingOrdersPage: React.FC = () => {
               <div class="total-row">
                   <div class="total-label">SGST</div>
                   <div class="total-value">${formatPrice(sgst)}</div>
+              </div>
+            ` : ''}
+            ${discount > 0 ? `
+              <div class="total-row">
+                  <div class="total-label">Discount</div>
+                  <div class="total-value">-${formatPrice(discount)}</div>
+              </div>
+            ` : ''}
+            ${order.appliedCoupon && order.appliedCoupon.discountAmount > 0 ? `
+              <div class="total-row">
+                  <div class="total-label">Coupon (${order.appliedCoupon.name})</div>
+                  <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
               </div>
             ` : ''}
             <div class="total-row grand-total">
@@ -1159,12 +1199,16 @@ const ManagerPendingOrdersPage: React.FC = () => {
   };
 
   // Calculate order total using the same method as orderService
+  // Calculate order total
   const calculateOrderTotal = async (order: any) => {
     const subtotal = order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0;
     
     // Use the order's existing tax calculations if available
     if (order.gstAmount !== undefined) {
-      return subtotal + order.gstAmount;
+      const total = subtotal + order.gstAmount;
+      // Subtract coupon discount if applicable
+      const couponAmount = order.appliedCoupon?.discountAmount || 0;
+      return Math.max(0, total - couponAmount);
     }
     
     // Otherwise, calculate using location GST settings
@@ -1172,16 +1216,84 @@ const ManagerPendingOrdersPage: React.FC = () => {
       try {
         const gstSettings = await orderService.getLocationGSTSettings(order.locationId);
         const totalGST = subtotal * ((gstSettings.cgst + gstSettings.sgst) / 100);
-        return subtotal + totalGST;
+        const total = subtotal + totalGST;
+        // Subtract coupon discount if applicable
+        const couponAmount = order.appliedCoupon?.discountAmount || 0;
+        return Math.max(0, total - couponAmount);
       } catch (error) {
         console.error('Error calculating order total:', error);
         // Fallback to 0% GST
-        return subtotal;
+        const total = subtotal;
+        const couponAmount = order.appliedCoupon?.discountAmount || 0;
+        return Math.max(0, total - couponAmount);
       }
     }
     
     // Fallback to subtotal only (0% GST)
-    return subtotal;
+    const total = subtotal;
+    const couponAmount = order.appliedCoupon?.discountAmount || 0;
+    return Math.max(0, total - couponAmount);
+  };
+
+  // Handle apply coupon
+  const handleApplyCoupon = (order: any) => {
+    const orderData = order.order || order;
+    setSelectedOrderForCoupon(orderData);
+    setShowCouponModal(true);
+  };
+
+  // Handle coupon submission
+  const handleCouponSubmit = async (coupon: any, discountAmount: number) => {
+    if (!selectedOrderForCoupon) return;
+
+    try {
+      // Update the order with applied coupon information
+      const updatedOrder = {
+        ...selectedOrderForCoupon,
+        appliedCoupon: discountAmount > 0 ? {
+          couponId: coupon.id,
+          name: coupon.name,
+          type: coupon.type,
+          discountAmount: discountAmount,
+          appliedAt: new Date()
+        } : null
+      };
+
+      // Update the order in Firestore
+      await orderService.updateOrder(selectedOrderForCoupon.id, {
+        appliedCoupon: updatedOrder.appliedCoupon
+      }, currentUser.uid);
+
+      // Update local state
+      setPendingOrders(prevOrders => 
+        prevOrders.map(pendingOrder => {
+          const orderData = pendingOrder.order || pendingOrder;
+          if (orderData.id === selectedOrderForCoupon.id) {
+            return {
+              ...pendingOrder,
+              order: updatedOrder
+            };
+          }
+          return pendingOrder;
+        })
+      );
+
+      // Recalculate order totals
+      const newTotal = await calculateOrderTotal(updatedOrder);
+      setOrderTotals(prev => ({
+        ...prev,
+        [selectedOrderForCoupon.id]: newTotal
+      }));
+
+      if (discountAmount > 0) {
+        toast.success(`Coupon "${coupon.name}" applied successfully! Discount: ₹${discountAmount.toFixed(2)}`);
+      } else {
+        toast.success('Coupon removed successfully!');
+      }
+    } catch (error: any) {
+      console.error('Error applying coupon:', error);
+      toast.error(error.message || 'Failed to apply coupon. Please try again.');
+    }
   };
 
   // Get order wait time
@@ -1371,6 +1483,23 @@ const ManagerPendingOrdersPage: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Coupon Display */}
+                    {order.appliedCoupon && order.appliedCoupon.discountAmount > 0 && (
+                      <div className="px-4 py-2 sm:px-6 bg-green-50 border-b border-green-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Tag className="w-4 h-4 text-green-600" />
+                            <span className="text-sm font-medium text-green-800">
+                              Coupon: {order.appliedCoupon.name}
+                            </span>
+                          </div>
+                          <span className="text-sm font-semibold text-green-600">
+                            -₹{order.appliedCoupon.discountAmount.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Action Buttons - Mobile First */}
                     <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50">
                       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -1394,6 +1523,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
                         
                         {/* Secondary Actions */}
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => handleApplyCoupon(pendingOrder)}
+                            className="p-2.5 text-orange-600 hover:text-orange-800 hover:bg-orange-50 rounded-lg transition-colors duration-200 transform active:scale-95"
+                            title="Apply Coupon"
+                          >
+                            <Tag size={18} />
+                          </button>
                           <button
                             onClick={() => handleViewOrder(pendingOrder)}
                             className="p-2.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors duration-200 transform active:scale-95"
@@ -1536,6 +1672,20 @@ const ManagerPendingOrdersPage: React.FC = () => {
         />
       )}
 
+      {/* Coupon Modal */}
+      {showCouponModal && selectedOrderForCoupon && (
+        <CouponSelectionModal
+          isOpen={showCouponModal}
+          onClose={() => {
+            setShowCouponModal(false);
+            setSelectedOrderForCoupon(null);
+          }}
+          onApplyCoupon={handleCouponSubmit}
+          orderSubtotal={selectedOrderForCoupon.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0}
+          existingCoupon={selectedOrderForCoupon.appliedCoupon}
+        />
+      )}
+
       {/* Payment Received Modal */}
       <PaymentReceivedModal
         isOpen={showPaymentReceivedModal}
@@ -1620,6 +1770,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
                           <span>SGST:</span>
                           <span>₹{((selectedOrder.sgstAmount || 0)).toFixed(2)}</span>
                         </div>
+                        {selectedOrder.appliedCoupon && selectedOrder.appliedCoupon.discountAmount > 0 && (
+                          <div className="flex justify-between text-sm text-green-600">
+                            <span>Coupon ({selectedOrder.appliedCoupon.name}):</span>
+                            <span>-₹{selectedOrder.appliedCoupon.discountAmount.toFixed(2)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between font-semibold">
                           <span>Total:</span>
                           <span>₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</span>

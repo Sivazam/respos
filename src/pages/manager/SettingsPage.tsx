@@ -11,12 +11,14 @@ import {
   AlertCircle,
   Utensils,
   Table,
-  Clock
+  Clock,
+  Tag
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import Input from '../../components/ui/Input';
 import { SetupService } from '../../services/setupService';
+import CouponManagement from '../../components/manager/CouponManagement';
 
 const ManagerSettingsPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -599,6 +601,19 @@ const ManagerSettingsPage: React.FC = () => {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Coupon Management */}
+        <Card className="bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="w-5 h-5" />
+              Coupon Management
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CouponManagement />
           </CardContent>
         </Card>
       </div>

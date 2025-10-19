@@ -111,6 +111,9 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
       } : undefined
     };
 
+    // Order completion tracking is now handled automatically by useOrderMilestoneCelebration
+    // which listens to the OrderContext for real-time order updates
+
     onSuccess(paymentData);
   };
 
@@ -136,7 +139,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+        <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold">Settle Bill - {order.orderNumber}</h2>

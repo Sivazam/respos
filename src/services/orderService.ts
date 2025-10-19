@@ -496,12 +496,13 @@ export class OrderService {
   ): () => void {
     const tempOrdersQuery = query(
       collection(db, 'temporary_orders'),
-      where('staffId', '==', staffId),
-      where('locationId', '==', locationId)
+      where('staffId', '==', staffId)
     );
 
     return onSnapshot(tempOrdersQuery, (snapshot) => {
-      const tempOrderIds = snapshot.docs.map(doc => doc.data().orderId);
+      // Client-side filtering for locationId to avoid index requirement
+      const filteredDocs = snapshot.docs.filter(doc => doc.data().locationId === locationId);
+      const tempOrderIds = filteredDocs.map(doc => doc.data().orderId);
       
       if (tempOrderIds.length === 0) {
         callback([]);
@@ -679,6 +680,10 @@ export class OrderService {
       const subtotal = items.reduce((total: number, item: any) => total + (item.price * item.quantity), 0);
       const gstCalculation = await this.calculateOrderGST(subtotal, orderData.locationId);
       const totalWithTax = subtotal + gstCalculation.totalGST;
+      
+      // Apply coupon discount if present
+      const couponDiscount = orderData.appliedCoupon?.discountAmount || 0;
+      const finalTotal = Math.max(0, totalWithTax - couponDiscount);
 
       // Use pendingPaymentMethod if available, otherwise use provided paymentData
       const paymentMethodToUse = orderData.pendingPaymentMethod || paymentData.paymentMethod || 'cash';
@@ -688,7 +693,7 @@ export class OrderService {
         status: 'completed',
         paymentData: {
           paymentMethod: paymentMethodToUse,
-          amount: paymentData.amount || totalWithTax,
+          amount: paymentData.amount || finalTotal,
           settledAt: paymentData.settledAt || serverTimestamp(),
           settledBy: paymentData.settledBy || null
         },
@@ -697,10 +702,11 @@ export class OrderService {
         cgstAmount: gstCalculation.cgstAmount,
         sgstAmount: gstCalculation.sgstAmount,
         gstAmount: gstCalculation.totalGST,
-        totalAmount: totalWithTax,
+        totalAmount: finalTotal,
         completedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        // Clear pendingPaymentMethod after successful settlement
+        // Preserve coupon information and clear pendingPaymentMethod after successful settlement
+        appliedCoupon: orderData.appliedCoupon || null,
         pendingPaymentMethod: null
       });
 
@@ -794,13 +800,14 @@ export class OrderService {
   ): Promise<void> {
     const tempOrdersQuery = query(
       collection(db, 'temporary_orders'),
-      where('orderId', '==', orderId),
-      where('staffId', '==', staffId)
+      where('orderId', '==', orderId)
     );
     
     const snapshot = await getDocs(tempOrdersQuery);
-    if (!snapshot.empty) {
-      const tempOrderRef = doc(db, 'temporary_orders', snapshot.docs[0].id);
+    // Client-side filtering for staffId to avoid index requirement
+    const filteredDocs = snapshot.docs.filter(doc => doc.data().staffId === staffId);
+    if (filteredDocs.length > 0) {
+      const tempOrderRef = doc(db, 'temporary_orders', filteredDocs[0].id);
       await updateDoc(tempOrderRef, {
         lastActivityAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -821,7 +828,7 @@ export class OrderService {
       const orderData = orderDoc.data();
       const locationId = orderData.locationId;
 
-      // Calculate new totals if items were updated
+      // Calculate new totals if items were updated or coupon was applied
       let subtotal = updatedOrder.subtotal || 0;
       let cgstAmount = updatedOrder.cgstAmount || 0;
       let sgstAmount = updatedOrder.sgstAmount || 0;
@@ -835,6 +842,14 @@ export class OrderService {
         sgstAmount = gstCalculation.sgstAmount;
         gstAmount = gstCalculation.totalGST;
         totalAmount = subtotal + gstAmount;
+      } else if (updatedOrder.appliedCoupon !== undefined) {
+        // Recalculate total if coupon was applied/removed
+        subtotal = orderData.subtotal || 0;
+        cgstAmount = orderData.cgstAmount || 0;
+        sgstAmount = orderData.sgstAmount || 0;
+        gstAmount = orderData.gstAmount || 0;
+        const couponDiscount = updatedOrder.appliedCoupon?.discountAmount || 0;
+        totalAmount = Math.max(0, subtotal + cgstAmount + sgstAmount - couponDiscount);
       }
 
       // Handle customer info - support both old customerName and new customerInfo structure
@@ -848,7 +863,6 @@ export class OrderService {
       // Prepare update data - only include fields that are defined
       const updateData: any = {
         items: updatedOrder.items || orderData.items,
-        paymentMethod: updatedOrder.paymentMethod || orderData.paymentMethod,
         notes: updatedOrder.notes !== undefined ? updatedOrder.notes : (orderData.notes || null),
         subtotal,
         cgstAmount,
@@ -858,6 +872,18 @@ export class OrderService {
         updatedAt: serverTimestamp(),
         updatedBy: managerId
       };
+
+      // Only include paymentMethod if it's provided in the update
+      if (updatedOrder.paymentMethod !== undefined) {
+        updateData.paymentMethod = updatedOrder.paymentMethod;
+      } else if (orderData.paymentMethod !== undefined) {
+        updateData.paymentMethod = orderData.paymentMethod;
+      }
+
+      // Only include appliedCoupon if it's provided in the update
+      if (updatedOrder.appliedCoupon !== undefined) {
+        updateData.appliedCoupon = updatedOrder.appliedCoupon;
+      }
 
       // Only include customerName if it's defined (not undefined)
       if (customerName !== undefined) {
@@ -1122,12 +1148,13 @@ export class OrderService {
     try {
       const tempOrdersQuery = query(
         collection(db, 'temporary_orders'),
-        where('staffId', '==', staffId),
-        where('locationId', '==', locationId)
+        where('staffId', '==', staffId)
       );
 
       const tempSnapshot = await getDocs(tempOrdersQuery);
-      const tempOrderIds = tempSnapshot.docs.map(doc => doc.data().orderId);
+      // Client-side filtering for locationId to avoid index requirement
+      const filteredDocs = tempSnapshot.docs.filter(doc => doc.data().locationId === locationId);
+      const tempOrderIds = filteredDocs.map(doc => doc.data().orderId);
       
       if (tempOrderIds.length === 0) {
         return [];

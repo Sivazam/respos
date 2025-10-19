@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useOrders } from '../../contexts/OrderContext';
 import { useTemporaryOrdersDisplay } from '../../contexts/TemporaryOrdersDisplayContext';
@@ -6,6 +6,8 @@ import { useLocations } from '../../contexts/LocationContext';
 import { useTables } from '../../contexts/TableContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useMenuItems } from '../../contexts/MenuItemContext';
+import { useOrderMilestoneCelebration } from '../../hooks/useOrderMilestoneCelebration';
+import { useOrderCount } from '../../contexts/OrderCountContext';
 import { startOfDay, endOfDay } from 'date-fns';
 import { 
   ShoppingCart, 
@@ -27,6 +29,7 @@ import Input from '../../components/ui/Input';
 import StartOrderButton from '../../components/order/StartOrderButton';
 import ApprovalStatusBanner from '../../components/ui/ApprovalStatusBanner';
 import { Card } from '../../components/ui/card';
+import SimpleConfetti from '../../components/ui/SimpleConfetti';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -56,7 +59,10 @@ const ManagerDashboard: React.FC = () => {
   const { currentLocation } = useLocations();
   const { tables } = useTables();
   const { currentUser } = useAuth();
+  const { setTotalOrders } = useOrderCount();
   const { menuItems } = useMenuItems();
+  const { shouldShowConfetti, handleConfettiComplete, stats: milestoneStats, triggerMilestone, isMilestoneReached } = useOrderMilestoneCelebration();
+  const [showMilestoneBanner, setShowMilestoneBanner] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -64,6 +70,18 @@ const ManagerDashboard: React.FC = () => {
   
   // Check if manager has full access (approved + assigned location)
   const hasFullAccess = currentUser?.isApproved && currentUser?.locationId && currentUser?.isActive;
+  
+  // Auto-dismiss milestone banner after 5 seconds
+  useEffect(() => {
+    if (isMilestoneReached) {
+      setShowMilestoneBanner(true);
+      const timer = setTimeout(() => {
+        setShowMilestoneBanner(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isMilestoneReached]);
   
   // Load completed orders on mount
   React.useEffect(() => {
@@ -220,6 +238,9 @@ const ManagerDashboard: React.FC = () => {
     const totalRevenue = filteredCompletedOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
     const totalOrders = filteredCompletedOrders.length;
     
+    // Update the shared order count for milestone celebration
+    setTotalOrders(totalOrders);
+    
     // Payment method breakdown
     const upiOrders = filteredCompletedOrders.filter(order => order.paymentMethod === 'upi');
     const cashOrders = filteredCompletedOrders.filter(order => order.paymentMethod === 'cash');
@@ -348,7 +369,7 @@ const ManagerDashboard: React.FC = () => {
         card: { revenue: cardRevenue, count: cardOrders.length }
       }
     };
-  }, [filteredCompletedOrders]);
+  }, [filteredCompletedOrders, setTotalOrders]);
   
   // Active orders metrics (for today)
   const temporaryOrdersCount = temporaryOrders.length;
@@ -510,6 +531,25 @@ const ManagerDashboard: React.FC = () => {
 
   return (
     <>
+      {/* Celebration Confetti */}
+      <SimpleConfetti 
+        isActive={shouldShowConfetti} 
+        onComplete={handleConfettiComplete}
+      />
+      
+      {/* Milestone Celebration Block */}
+      {showMilestoneBanner && (
+        <div className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 text-white p-6 rounded-lg mb-6 text-center shadow-lg animate-pulse transition-all duration-500 ease-in-out transform">
+          <div className="text-2xl font-bold mb-2">🎉 MILESTONE ACHIEVED! 🎉</div>
+          <div className="text-lg">
+            Congratulations! You've reached {milestoneStats.totalCompletedOrders} completed orders!
+          </div>
+          <div className="text-sm mt-2 opacity-90">
+            Next milestone: {milestoneStats.nextMilestone} orders
+          </div>
+        </div>
+      )}
+      
       <style jsx>{`
         .float-hover {
           transition: all 0.3s ease;

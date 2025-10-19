@@ -21,6 +21,7 @@ import Input from '../../components/ui/Input';
 import { Card } from '../../components/ui/card';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 import toast from 'react-hot-toast';
+import { downloadCSV, formatCurrencyForCSV } from '../../utils/csvExport';
 
 interface CompletedOrder {
   id: string;
@@ -38,6 +39,20 @@ interface CompletedOrder {
   staffId: string;
   paymentMethod: 'cash' | 'card' | 'upi';
   locationId?: string;
+  appliedCoupon?: {
+    couponId: string;
+    name: string;
+    type: 'fixed' | 'percentage';
+    discountAmount: number;
+    appliedAt: any;
+  } | null;
+  subtotal?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  gstAmount?: number;
+  paymentData?: any;
+  customerName?: string;
+  notes?: string;
 }
 
 const OrdersPage: React.FC = () => {
@@ -115,7 +130,12 @@ const OrdersPage: React.FC = () => {
                 paymentData: data.paymentData,
                 customerName: data.customerName,
                 notes: data.notes,
-                locationId: data.locationId
+                locationId: data.locationId,
+                appliedCoupon: data.appliedCoupon || null,
+                subtotal: data.subtotal || 0,
+                cgstAmount: data.cgstAmount || 0,
+                sgstAmount: data.sgstAmount || 0,
+                gstAmount: data.gstAmount || 0
               };
             });
 
@@ -151,7 +171,15 @@ const OrdersPage: React.FC = () => {
             settledAt: sale.createdAt,
             staffId: sale.staffId,
             paymentMethod: sale.paymentMethod || 'cash',
-            locationId: sale.locationId || currentUser?.locationId
+            locationId: sale.locationId || currentUser?.locationId,
+            appliedCoupon: sale.appliedCoupon || null,
+            subtotal: sale.subtotal || 0,
+            cgstAmount: sale.cgstAmount || 0,
+            sgstAmount: sale.sgstAmount || 0,
+            gstAmount: sale.gstAmount || 0,
+            paymentData: sale.paymentData,
+            customerName: sale.customerName,
+            notes: sale.notes
           })),
           ...generalSales.map(sale => ({
             id: sale.id,
@@ -168,7 +196,15 @@ const OrdersPage: React.FC = () => {
             settledAt: sale.createdAt,
             staffId: sale.staffId,
             paymentMethod: sale.paymentMethod || 'cash',
-            locationId: sale.locationId || currentUser?.locationId
+            locationId: sale.locationId || currentUser?.locationId,
+            appliedCoupon: sale.appliedCoupon || null,
+            subtotal: sale.subtotal || 0,
+            cgstAmount: sale.cgstAmount || 0,
+            sgstAmount: sale.sgstAmount || 0,
+            gstAmount: sale.gstAmount || 0,
+            paymentData: sale.paymentData,
+            customerName: sale.customerName,
+            notes: sale.notes
           })),
           ...firestoreOrders
         ];
@@ -213,7 +249,15 @@ const OrdersPage: React.FC = () => {
             settledAt: new Date(orderData.settledAt),
             staffId: orderData.staffId,
             paymentMethod: orderData.paymentMethod || 'cash',
-            locationId: orderData.locationId || currentUser?.locationId
+            locationId: orderData.locationId || currentUser?.locationId,
+            appliedCoupon: orderData.appliedCoupon || null,
+            subtotal: orderData.subtotal || 0,
+            cgstAmount: orderData.cgstAmount || 0,
+            sgstAmount: orderData.sgstAmount || 0,
+            gstAmount: orderData.gstAmount || 0,
+            paymentData: orderData.paymentData,
+            customerName: orderData.customerName,
+            notes: orderData.notes
           });
         }
 
@@ -327,28 +371,22 @@ const OrdersPage: React.FC = () => {
   // Export orders
   const handleExport = () => {
     try {
-      const csvContent = [
+      const csvData = [
         ['Order Number', 'Type', 'Mode', 'Table(s)', 'Items', 'Total', 'Payment Method', 'Date', 'Time'],
         ...filteredOrders.map(order => [
-          order.orderNumber,
-          order.orderType,
+          order.orderNumber || 'Unknown',
+          order.orderType || 'Unknown',
           order.orderMode || 'N/A',
           order.tableNames.join(', '),
           order.items.length.toString(),
-          order.totalAmount.toFixed(2),
-          order.paymentMethod,
+          formatCurrencyForCSV(order.totalAmount || 0),
+          order.paymentMethod || 'Unknown',
           formatDate(order.settledAt),
           formatTime(order.settledAt)
         ])
-      ].map(row => row.join(',')).join('\n');
+      ];
 
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `orders_${selectedTab}_${startDate}_to_${endDate}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadCSV(csvData, `orders-${selectedTab}-${startDate}-to-${endDate}.csv`);
       
       toast.success('Orders exported successfully');
     } catch (error) {

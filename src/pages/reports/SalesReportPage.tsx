@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
-import { BarChart, FileText, Download, Calendar, Calculator, TrendingUp } from 'lucide-react';
+import { BarChart, FileText, Download, Calendar, Calculator, TrendingUp, Filter } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { useOrders } from '../../contexts/OrderContext';
 import { useLocations } from '../../contexts/LocationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/ui/Button';
@@ -10,17 +9,205 @@ import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Pie } from 'react-chartjs-2';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../lib/db';
+import { downloadCSV, formatCurrencyForCSV, formatDateForCSV } from '../../utils/csvExport';
+
+// Type definitions
+interface OrderItem {
+  id?: string;
+  name: string;
+  price: number;
+  quantity: number;
+  category?: string;
+}
+
+interface Order {
+  id: string;
+  orderNumber: string;
+  tableIds: string[];
+  tableNames: string[];
+  items: OrderItem[];
+  totalAmount: number;
+  total?: number;
+  status: string;
+  orderType: 'dinein' | 'delivery';
+  orderMode?: string;
+  createdAt: Date | string;
+  updatedAt?: Date | string;
+  completedAt?: Date | string;
+  settledAt?: Date | string;
+  staffId?: string;
+  paymentMethod: 'upi' | 'cash' | 'card';
+  paymentData?: Record<string, unknown>;
+  customerName?: string;
+  notes?: string;
+  locationId: string;
+}
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
 const SalesReportPage: React.FC = () => {
-  const { orders, loading, error } = useOrders();
   const { locations } = useLocations();
   const { currentUser } = useAuth();
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
+  const [completedOrders, setCompletedOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load comprehensive order data (same approach as ManagerDashboard)
+  React.useEffect(() => {
+    const loadOrders = async () => {
+      if (!currentUser) {
+        console.log('No current user, skipping order loading');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        
+        // Source 1: Load from localStorage (user-specific)
+        const completedOrdersKey = `completed_orders_${currentUser?.uid}`;
+        const existingOrders = JSON.parse(localStorage.getItem(completedOrdersKey) || '[]');
+        
+        // Source 2: Load location-based completed orders
+        const locationCompletedOrdersKey = `completed_orders_${currentUser?.locationId}`;
+        const locationOrders = JSON.parse(localStorage.getItem(locationCompletedOrdersKey) || '[]');
+        
+        // Source 3: Load admin completed orders
+        const adminCompletedOrdersKey = `completed_orders_admin`;
+        const adminOrders = JSON.parse(localStorage.getItem(adminCompletedOrdersKey) || '[]');
+        
+        // Source 4: Load owner completed orders
+        const ownerCompletedOrdersKey = `completed_orders_owner`;
+        const ownerOrders = JSON.parse(localStorage.getItem(ownerCompletedOrdersKey) || '[]');
+        
+        // Source 5: Load from sales localStorage
+        const salesKey = `sales_${currentUser?.locationId || 'default'}`;
+        const salesOrders = JSON.parse(localStorage.getItem(salesKey) || '[]');
+        
+        // Source 6: Load from general sales
+        const generalSalesKey = 'sales';
+        const generalSales = JSON.parse(localStorage.getItem(generalSalesKey) || '[]');
+        
+        // Source 7: Load from Firestore
+        let firestoreOrders: Order[] = [];
+        if (currentUser?.locationId && currentUser?.uid) {
+          try {
+            const ordersQuery = query(
+              collection(db, 'orders'),
+              where('locationId', '==', currentUser.locationId)
+            );
+            
+            const querySnapshot = await getDocs(ordersQuery);
+            firestoreOrders = querySnapshot.docs.map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                orderNumber: data.orderNumber,
+                tableIds: data.tableIds || [],
+                tableNames: data.tableNames || [],
+                items: data.items || [],
+                totalAmount: data.totalAmount || data.total || 0,
+                status: data.status,
+                orderType: data.orderType || 'dinein',
+                orderMode: data.orderMode,
+                createdAt: data.createdAt?.toDate?.() || data.createdAt,
+                updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+                completedAt: data.completedAt?.toDate?.() || data.completedAt,
+                settledAt: data.settledAt?.toDate?.() || data.settledAt || data.completedAt?.toDate?.() || data.completedAt,
+                staffId: data.staffId,
+                paymentMethod: data.paymentData?.paymentMethod || data.paymentMethod || 'cash',
+                paymentData: data.paymentData,
+                customerName: data.customerName,
+                notes: data.notes,
+                locationId: data.locationId
+              };
+            }).filter(order => order.status === 'completed');
+          } catch (firestoreError) {
+            console.error('Error loading from Firestore:', firestoreError);
+            // Continue without Firestore data if there's an error
+          }
+        }
+        
+        // Combine all sources
+        const combinedOrders = [
+          ...existingOrders,
+          ...locationOrders, 
+          ...adminOrders, 
+          ...ownerOrders,
+          ...salesOrders.map(sale => ({
+            id: sale.id,
+            orderNumber: sale.invoiceNumber,
+            tableIds: sale.tableNames || [],
+            tableNames: sale.tableNames || [],
+            items: sale.items || [],
+            totalAmount: sale.total || 0,
+            status: 'settled',
+            orderType: sale.orderType || 'dinein',
+            orderMode: sale.orderMode,
+            createdAt: sale.createdAt,
+            updatedAt: sale.updatedAt,
+            settledAt: sale.createdAt,
+            staffId: sale.staffId,
+            paymentMethod: sale.paymentMethod || 'cash',
+            locationId: sale.locationId
+          })),
+          ...generalSales.map(sale => ({
+            id: sale.id,
+            orderNumber: sale.invoiceNumber,
+            tableIds: sale.tableNames || [],
+            tableNames: sale.tableNames || [],
+            items: sale.items || [],
+            totalAmount: sale.total || 0,
+            status: 'settled',
+            orderType: sale.orderType || 'dinein',
+            orderMode: sale.orderMode,
+            createdAt: sale.createdAt,
+            updatedAt: sale.updatedAt,
+            settledAt: sale.createdAt,
+            staffId: sale.staffId,
+            paymentMethod: sale.paymentMethod || 'cash',
+            locationId: sale.locationId
+          })),
+          ...firestoreOrders
+        ];
+        
+        // Remove duplicates
+        const uniqueOrders = combinedOrders.filter((order, index, self) => 
+          index === self.findIndex((o) => o.id === order.id)
+        );
+        
+        console.log(`Loaded ${uniqueOrders.length} unique orders for sales report`);
+        
+        // Debug: Log first few orders to understand their structure
+        if (uniqueOrders.length > 0) {
+          console.log('📊 Sample order data:', uniqueOrders.slice(0, 3).map(order => ({
+            id: order.id,
+            orderNumber: order.orderNumber,
+            status: order.status,
+            completedAt: order.completedAt,
+            settledAt: order.settledAt,
+            createdAt: order.createdAt,
+            totalAmount: order.totalAmount || order.total,
+            locationId: order.locationId
+          })));
+        }
+        
+        setCompletedOrders(uniqueOrders);
+      } catch (error) {
+        console.error('Failed to load completed orders:', error);
+        setError('Failed to load orders data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadOrders();
+  }, [currentUser?.uid, currentUser?.locationId]);
 
   const dateRanges = [
     {
@@ -61,31 +248,82 @@ const SalesReportPage: React.FC = () => {
   ];
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
-      const orderDate = order.createdAt;
-      const start = startOfDay(new Date(startDate));
-      const end = endOfDay(new Date(endDate));
-      
-      // Filter by location if specified (for admins)
-      const matchesLocation = selectedLocationId === 'all' || order.locationId === selectedLocationId;
-      
-      // Only include settled orders for revenue calculations
-      return order.status === 'settled' && orderDate >= start && orderDate <= end && matchesLocation;
+    console.log('🔍 Filtering orders:', {
+      totalOrders: completedOrders.length,
+      startDate,
+      endDate,
+      selectedLocationId
     });
-  }, [orders, startDate, endDate, selectedLocationId]);
+
+    const filtered = completedOrders.filter(order => {
+      try {
+        // Use completedAt or settledAt for date filtering, fallback to createdAt
+        const orderDate = new Date(order.completedAt || order.settledAt || order.createdAt);
+        const start = startOfDay(new Date(startDate));
+        const end = endOfDay(new Date(endDate));
+        
+        // Check if the date is valid
+        if (isNaN(orderDate.getTime())) {
+          console.warn('Invalid date for order:', order.id, order.completedAt || order.settledAt || order.createdAt);
+          return false;
+        }
+        
+        // Filter by location if specified (for admins)
+        const matchesLocation = selectedLocationId === 'all' || order.locationId === selectedLocationId;
+        
+        // Check order status - only include "completed" orders as per requirement
+        const hasCompletedStatus = order.status === 'completed';
+        
+        // Check date range
+        const inDateRange = orderDate >= start && orderDate <= end;
+        
+        console.log(`📋 Order ${order.id}:`, {
+          status: order.status,
+          completedAt: order.completedAt,
+          settledAt: order.settledAt,
+          createdAt: order.createdAt,
+          orderDate: orderDate.toISOString(),
+          hasCompletedStatus,
+          matchesLocation,
+          inDateRange,
+          willPass: hasCompletedStatus && inDateRange && matchesLocation
+        });
+        
+        // Only include completed orders for revenue calculations
+        return hasCompletedStatus && inDateRange && matchesLocation;
+      } catch (error) {
+        console.warn('Error filtering order:', order.id, error);
+        return false;
+      }
+    });
+
+    console.log(`✅ Filtered ${filtered.length} orders from ${completedOrders.length} total orders`);
+    return filtered;
+  }, [completedOrders, startDate, endDate, selectedLocationId]);
 
   const summary = useMemo(() => {
-    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
+    console.log('🧮 Calculating summary from filtered orders:', filteredOrders.length);
+    
+    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0);
     const totalOrders = filteredOrders.length;
+    
+    console.log('💰 Revenue calculation:', {
+      totalRevenue,
+      totalOrders,
+      ordersWithAmounts: filteredOrders.map(o => ({
+        id: o.id,
+        amount: o.totalAmount || o.total
+      }))
+    });
     
     // Payment method breakdown
     const upiOrders = filteredOrders.filter(order => order.paymentMethod === 'upi');
     const cashOrders = filteredOrders.filter(order => order.paymentMethod === 'cash');
     const cardOrders = filteredOrders.filter(order => order.paymentMethod === 'card');
     
-    const upiRevenue = upiOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
-    const cashRevenue = cashOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
-    const cardRevenue = cardOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0);
+    const upiRevenue = upiOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0);
+    const cashRevenue = cashOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0);
+    const cardRevenue = cardOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0);
     
     // Order type breakdown
     const dineInOrders = filteredOrders.filter(order => order.orderType === 'dinein');
@@ -93,7 +331,7 @@ const SalesReportPage: React.FC = () => {
     
     // Calculate total items sold
     const totalItems = filteredOrders.reduce((sum, order) => 
-      sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+      sum + order.items.reduce((itemSum: number, item: OrderItem) => itemSum + (item.quantity || 1), 0), 0);
     
     // Average order value
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
@@ -109,11 +347,11 @@ const SalesReportPage: React.FC = () => {
         card: { revenue: cardRevenue, count: cardOrders.length }
       },
       orderTypeBreakdown: {
-        dinein: { revenue: dineInOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0), count: dineInOrders.length },
-        delivery: { revenue: deliveryOrders.reduce((sum, order) => sum + (order.total || order.totalAmount || 0), 0), count: deliveryOrders.length }
+        dinein: { revenue: dineInOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0), count: dineInOrders.length },
+        delivery: { revenue: deliveryOrders.reduce((sum, order) => sum + (order.totalAmount || order.total || 0), 0), count: deliveryOrders.length }
       }
     };
-  }, [filteredOrders]);
+  }, [filteredOrders, currentUser?.locationId]);
 
   // Chart data preparation
   const paymentChartData = useMemo(() => ({
@@ -134,8 +372,14 @@ const SalesReportPage: React.FC = () => {
   // Prepare data for daily sales chart
   const dailySalesData = useMemo(() => {
     const dailyTotals = filteredOrders.reduce((acc, order) => {
-      const date = format(order.createdAt, 'yyyy-MM-dd');
-      acc[date] = (acc[date] || 0) + (order.total || order.totalAmount || 0);
+      try {
+        // Use completedAt or settledAt for chart data
+        const orderDate = new Date(order.completedAt || order.settledAt || order.createdAt);
+        const date = format(orderDate, 'yyyy-MM-dd');
+        acc[date] = (acc[date] || 0) + (order.totalAmount || order.total || 0);
+      } catch (error) {
+        console.warn('Error processing daily sales for order:', order.id, error);
+      }
       return acc;
     }, {} as Record<string, number>);
 
@@ -161,46 +405,62 @@ const SalesReportPage: React.FC = () => {
   const hasMultipleLocations = locations.length > 1;
 
   const downloadReport = () => {
-    const headers = ['Date', 'Order #', 'Type', 'Items', 'Payment Method', 'Amount'];
-    
-    // Create order data for the report
-    const orderData = filteredOrders.map(order => [
-      format(order.createdAt, 'dd/MM/yyyy HH:mm'),
-      order.orderNumber,
-      order.orderType === 'dinein' ? 'Dine-in' : 'Delivery',
-      order.items.reduce((sum, item) => sum + item.quantity, 0),
-      (order.paymentMethod || 'CASH').toUpperCase(),
-      `₹${(order.total || order.totalAmount || 0).toFixed(2)}`
-    ]).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+    try {
+      const headers = ['Date', 'Order #', 'Type', 'Items', 'Payment Method', 'Amount'];
+      
+      // Create order data for the report
+      const orderData = filteredOrders.map(order => {
+        try {
+          // Use completedAt or settledAt for report date
+          const orderDate = new Date(order.completedAt || order.settledAt || order.createdAt);
+          return [
+            formatDateForCSV(orderDate),
+            order.orderNumber || 'Unknown',
+            order.orderType === 'dinein' ? 'Dine-in' : 'Delivery',
+            order.items.reduce((sum: number, item: OrderItem) => sum + (item.quantity || 1), 0),
+            (order.paymentMethod || 'CASH').toUpperCase(),
+            formatCurrencyForCSV(order.totalAmount || order.total || 0)
+          ];
+        } catch (error) {
+          console.warn('Error processing order for report:', order.id, error);
+          return [
+            'Invalid Date',
+            order.orderNumber || 'Unknown',
+            'Unknown',
+            0,
+            (order.paymentMethod || 'CASH').toUpperCase(),
+            formatCurrencyForCSV(order.totalAmount || order.total || 0)
+          ];
+        }
+      }).sort((a, b) => {
+        try {
+          return new Date(a[0]).getTime() - new Date(b[0]).getTime();
+        } catch {
+          return 0;
+        }
+      });
 
-    // Add summary rows
-    const summaryRows = [
-      ['', '', '', '', '', ''],
-      ['SUMMARY', '', '', '', '', ''],
-      ['Total Orders', '', '', summary.totalOrders, '', `₹${summary.totalRevenue.toFixed(2)}`],
-      ['Average Order Value', '', '', '', '', `₹${summary.avgOrderValue.toFixed(2)}`],
-      ['Total Items Sold', '', '', summary.totalItems, '', ''],
-      ['', 'PAYMENT BREAKDOWN', '', '', '', ''],
-      ['UPI Payments', '', '', summary.paymentBreakdown.upi.count, '', `₹${summary.paymentBreakdown.upi.revenue.toFixed(2)}`],
-      ['Cash Payments', '', '', summary.paymentBreakdown.cash.count, '', `₹${summary.paymentBreakdown.cash.revenue.toFixed(2)}`],
-      ['Card Payments', '', '', summary.paymentBreakdown.card.count, '', `₹${summary.paymentBreakdown.card.revenue.toFixed(2)}`]
-    ];
+      // Add summary rows
+      const summaryRows = [
+        ['', '', '', '', '', ''],
+        ['SUMMARY', '', '', '', '', ''],
+        ['Total Orders', '', '', summary.totalOrders.toString(), '', formatCurrencyForCSV(summary.totalRevenue)],
+        ['Average Order Value', '', '', '', '', formatCurrencyForCSV(summary.avgOrderValue)],
+        ['Total Items Sold', '', '', summary.totalItems.toString(), '', ''],
+        ['', 'PAYMENT BREAKDOWN', '', '', '', ''],
+        ['UPI Payments', '', '', summary.paymentBreakdown.upi.count.toString(), '', formatCurrencyForCSV(summary.paymentBreakdown.upi.revenue)],
+        ['Cash Payments', '', '', summary.paymentBreakdown.cash.count.toString(), '', formatCurrencyForCSV(summary.paymentBreakdown.cash.revenue)],
+        ['Card Payments', '', '', summary.paymentBreakdown.card.count.toString(), '', formatCurrencyForCSV(summary.paymentBreakdown.card.revenue)]
+      ];
 
-    const csv = [
-      headers.join(','),
-      ...orderData.map(row => row.join(',')),
-      ...summaryRows.map(row => row.join(','))
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `orders-report-${startDate}-to-${endDate}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+      const csvData = [headers, ...orderData, ...summaryRows];
+      
+      downloadCSV(csvData, `sales-report-${startDate}-to-${endDate}.csv`);
+      
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report. Please try again.');
+    }
   };
 
 
@@ -209,7 +469,18 @@ const SalesReportPage: React.FC = () => {
       <div className="space-y-4 sm:space-y-6">
         {error && <ErrorAlert message={error} />}
 
-        {/* Date Range Selection */}
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mb-4"></div>
+              <p className="text-gray-600 font-medium">Loading report data...</p>
+            </div>
+          </div>
+        )}
+
+        {!loading && (
+      <div>
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
@@ -276,7 +547,6 @@ const SalesReportPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
             <div className="flex items-center">
@@ -498,6 +768,8 @@ const SalesReportPage: React.FC = () => {
             </table>
           </div>
         </div>
+      </div>
+        )}
       </div>
     </DashboardLayout>
   );

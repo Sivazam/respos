@@ -2,6 +2,7 @@ import React from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { OrderCountProvider } from './contexts/OrderCountContext';
 import { FranchiseProvider } from './contexts/FranchiseContext';
 import { LocationProvider } from './contexts/LocationContext';
 import { RestaurantProvider } from './contexts/RestaurantContext';
@@ -102,7 +103,8 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Router>
+        <OrderCountProvider>
+          <Router>
           <Routes>
             {/* Auth Routes - Minimal Providers Only */}
             <Route path="/login" element={<LoginPage />} />
@@ -657,6 +659,7 @@ function App() {
             } />
           </Routes>
         </Router>
+        </OrderCountProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

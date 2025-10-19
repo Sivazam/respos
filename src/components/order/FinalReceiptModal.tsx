@@ -47,6 +47,13 @@ interface FinalReceiptModalProps {
     sgst?: number;
     total?: number;
     locationId?: string;
+    appliedCoupon?: {
+      couponId: string;
+      name: string;
+      type: 'fixed' | 'percentage';
+      discountAmount: number;
+      appliedAt: any;
+    } | null;
   };
   paymentMethod: string;
   isReadOnly?: boolean;
@@ -133,8 +140,9 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     const deliveryCharge = order.deliveryCharge || 0;
     const packagingCharge = order.packagingCharge || 0;
     const discount = order.discount || 0;
+    const couponAmount = order.appliedCoupon?.discountAmount || 0;
     
-    return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount;
+    return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount - couponAmount;
   };
 
   const subtotal = calculateSubtotal();
@@ -524,6 +532,12 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   <div class="total-value">-${formatPrice(order.discount)}</div>
               </div>
             ` : ''}
+            ${order.appliedCoupon && order.appliedCoupon.discountAmount > 0 ? `
+              <div class="total-row">
+                  <div class="total-label">Coupon (${order.appliedCoupon.name})</div>
+                  <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
+              </div>
+            ` : ''}
             <div class="total-row grand-total">
                 <div class="total-label">Grand Total</div>
                 <div class="total-value">${formatPrice(grandTotal)}</div>
@@ -827,6 +841,12 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                     <div className="flex justify-between">
                       <div>Discount</div>
                       <div>-{formatPrice(order.discount)}</div>
+                    </div>
+                  )}
+                  {order.appliedCoupon && order.appliedCoupon.discountAmount > 0 && (
+                    <div className="flex justify-between">
+                      <div>Coupon ({order.appliedCoupon.name})</div>
+                      <div>-{formatPrice(order.appliedCoupon.discountAmount)}</div>
                     </div>
                   )}
                   <div className="border-t border-gray-400 pt-1 flex justify-between font-black">

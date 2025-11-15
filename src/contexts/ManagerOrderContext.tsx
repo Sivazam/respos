@@ -206,7 +206,7 @@ export const ManagerOrderProvider: React.FC<ManagerOrderProviderProps> = ({ chil
       tableIds,
       staffId: currentUser.uid,
       orderType,
-      orderNumber: `MGR-${Date.now().toString().slice(-6)}`,
+      orderNumber: `TEMP-MGR-${Date.now()}`,
       items: [],
       status: 'temporary',
       subtotal: 0,

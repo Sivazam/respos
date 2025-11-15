@@ -3,6 +3,7 @@ import {
   doc, 
   addDoc, 
   updateDoc, 
+  setDoc,
   deleteDoc, 
   getDoc, 
   getDocs, 
@@ -154,6 +155,65 @@ export class OrderService {
       console.error('Error generating order number:', error);
       // Fallback to timestamp-based number
       return `ORD-${Date.now()}`;
+    }
+  }
+
+  // Generate manager order number with franchise/location-specific counter
+  async generateManagerOrderNumber(locationId: string, franchiseId: string): Promise<string> {
+    try {
+      const today = new Date();
+      const dateStr = today.getDate().toString().padStart(2, '0') + 
+                     (today.getMonth() + 1).toString().padStart(2, '0') + 
+                     today.getFullYear().toString().slice(-2);
+      
+      // Reference to the counter document for this franchise/location
+      const counterRef = doc(db, 'order_counters', `${franchiseId}_${locationId}`);
+      
+      try {
+        // Try to get existing counter
+        const counterDoc = await getDoc(counterRef);
+        
+        if (counterDoc.exists()) {
+          // Increment existing counter
+          const currentCounter = counterDoc.data().counter || 1;
+          const newCounter = currentCounter + 1;
+          
+          // Update the counter
+          await updateDoc(counterRef, {
+            counter: newCounter,
+            lastUpdated: serverTimestamp()
+          });
+          
+          return `MGR-${dateStr}-${newCounter.toString().padStart(2, '0')}`;
+        } else {
+          // Create new counter document starting from 1
+          await setDoc(counterRef, {
+            franchiseId,
+            locationId,
+            counter: 1,
+            created: serverTimestamp(),
+            lastUpdated: serverTimestamp()
+          });
+          
+          return `MGR-${dateStr}-01`;
+        }
+      } catch (error) {
+        console.error('Error managing counter document:', error);
+        // Fallback: create counter if it doesn't exist
+        await setDoc(counterRef, {
+          franchiseId,
+          locationId,
+          counter: 1,
+          created: serverTimestamp(),
+          lastUpdated: serverTimestamp()
+        });
+        
+        return `MGR-${dateStr}-01`;
+      }
+    } catch (error) {
+      console.error('Error generating manager order number:', error);
+      // Fallback to timestamp-based number
+      return `MGR-${Date.now()}`;
     }
   }
 
@@ -987,7 +1047,7 @@ export class OrderService {
     franchiseId: string
   ): Promise<string> {
     try {
-      const orderNumber = `MGR-${Date.now().toString().slice(-6)}`;
+      const orderNumber = await this.generateManagerOrderNumber(locationId, franchiseId);
       
       // Fetch table names if not provided
       let tableNames = orderData.tableNames || [];

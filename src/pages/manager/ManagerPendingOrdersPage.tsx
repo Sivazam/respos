@@ -347,97 +347,14 @@ const ManagerPendingOrdersPage: React.FC = () => {
     
     const latestOrderData = latestPendingOrder?.order || latestPendingOrder || orderData;
     
-    console.log('🖨️ Print order - latest data from pendingOrders:', {
+    console.log('🖨️ Print order - printing directly without customer data collection:', {
       orderId: latestOrderData.id,
-      paymentMethod: latestOrderData.paymentMethod,
-      pendingPaymentMethod: latestOrderData.pendingPaymentMethod,
       customerInfo: latestOrderData.customerInfo
     });
     
-    // Check if customer data and payment method are already collected
-    try {
-      // First check if data exists in order document
-      const hasOrderCustomerData = latestOrderData.customerInfo && 
-        (latestOrderData.customerInfo.name || latestOrderData.customerInfo.phone || latestOrderData.customerInfo.city);
-      const hasOrderPaymentMethod = latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod;
-      
-      let customerData = null;
-      let paymentMethod = hasOrderPaymentMethod ? (latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod) : null;
-      let firestoreCustomerData = null;
-      
-      // If not in order, check Firestore customer_data collection
-      if (!hasOrderCustomerData || !hasOrderPaymentMethod) {
-        const { fetchCustomerDataByOrderId } = await import('../../contexts/CustomerDataService');
-        firestoreCustomerData = await fetchCustomerDataByOrderId(latestOrderData.id);
-        
-        if (firestoreCustomerData) {
-          customerData = {
-            name: firestoreCustomerData.name,
-            phone: firestoreCustomerData.phone,
-            city: firestoreCustomerData.city
-          };
-          // Use payment method from Firestore if not in order
-          if (!paymentMethod && firestoreCustomerData.paymentMethod) {
-            paymentMethod = firestoreCustomerData.paymentMethod;
-          }
-        }
-      } else {
-        // Use data from order document
-        customerData = latestOrderData.customerInfo;
-      }
-      
-      // Combine data for checking
-      const combinedCustomerData = customerData || {};
-      const finalPaymentMethod = paymentMethod;
-      
-      const hasCustomerData = combinedCustomerData && (combinedCustomerData.name || combinedCustomerData.phone || combinedCustomerData.city);
-      const hasPaymentMethod = finalPaymentMethod && finalPaymentMethod !== 'cash';
-      
-      console.log('📄 Print order - existing data:', {
-        customerData: combinedCustomerData,
-        paymentMethod: finalPaymentMethod,
-        hasCustomerData,
-        hasPaymentMethod,
-        orderPaymentMethod: latestOrderData.paymentMethod,
-        orderPendingPaymentMethod: latestOrderData.pendingPaymentMethod
-      });
-      
-      // SILENT PRINT FLOW: If payment method is already provided, directly print without any modal
-      if (finalPaymentMethod) {
-        console.log('✅ Payment method already available, printing directly:', finalPaymentMethod);
-        // Directly print the order without showing any modal
-        handleSilentPrint(latestOrderData.id);
-      } else {
-        // Need to collect payment method (customer data is optional)
-        console.log('❌ No payment method found, showing modal to collect payment method');
-        setSelectedOrder(latestOrderData);
-        setPendingAction('print');
-        
-        // Store existing customer data to pass to modal
-        setExistingCustomerData({
-          ...combinedCustomerData,
-          paymentMethod: finalPaymentMethod
-        });
-        
-        // Determine data source for UI badge
-        let dataSourceValue: 'staff' | 'manager' | undefined;
-        if (firestoreCustomerData) {
-          dataSourceValue = firestoreCustomerData.source;
-        } else if (hasOrderPaymentMethod || hasOrderCustomerData) {
-          dataSourceValue = 'manager'; // If data is in order document, it's from manager
-        }
-        
-        setDataSource(dataSourceValue);
-        setShowUnifiedModal(true);
-      }
-    } catch (error) {
-      console.error('Error checking customer data for print:', error);
-      // Fallback to showing modal if there's an error
-      setSelectedOrder(latestOrderData);
-      setPendingAction('print');
-      setExistingCustomerData(null);
-      setShowUnifiedModal(true);
-    }
+    // DIRECT PRINT FLOW: Always print directly without collecting customer data or payment method
+    // Use handleSilentPrint to print the order without any modal
+    handleSilentPrint(latestOrderData.id);
   };
 
   // Handle silent printing
@@ -487,7 +404,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
       }
       
       // Generate HTML receipt content using the same format as FinalReceiptModal
-      const receiptHTML = generateReceiptHTML(orderData, franchiseData);
+      const receiptHTML = generateReceiptHTML(orderData, franchiseData, false);
       
       // Try silent printing with your HTML format
       try {
@@ -571,7 +488,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   };
 
   // Helper function to generate receipt HTML (same as FinalReceiptModal)
-  const generateReceiptHTML = (order: any, franchiseData: any) => {
+  const generateReceiptHTML = (order: any, franchiseData: any, includeCustomerInfo: boolean = true) => {
     const formatPrice = (price: number | undefined | null) => {
       if (price === undefined || price === null || isNaN(price)) {
         return '0';
@@ -928,10 +845,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
         
         <div class="divider"></div>
         
+        ${includeCustomerInfo ? `
         <div class="payment-info">
             <div>Payment: ${paymentMethod.toUpperCase()}</div>
             <div>STATUS: PAID</div>
         </div>
+        ` : ''}
         
         <div class="divider"></div>
         

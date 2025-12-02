@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import Input from '../../components/ui/Input';
 import { SetupService } from '../../services/setupService';
 import CouponManagement from '../../components/manager/CouponManagement';
+import DishCouponManagement from '../../components/manager/DishCouponManagement';
 
 const ManagerSettingsPage: React.FC = () => {
   const { currentUser } = useAuth();
@@ -614,6 +615,19 @@ const ManagerSettingsPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <CouponManagement />
+          </CardContent>
+        </Card>
+
+        {/* Dish-Specific Coupons */}
+        <Card className="bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Utensils className="w-5 h-5 text-orange-500" />
+              Dish-Specific Coupons
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DishCouponManagement />
           </CardContent>
         </Card>
       </div>

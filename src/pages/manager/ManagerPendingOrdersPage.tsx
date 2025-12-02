@@ -14,11 +14,13 @@ import {
   Trash2,
   Users,
   DollarSign,
-  Tag
+  Tag,
+  ChefHat
 } from 'lucide-react';
 import Input from '../../components/ui/Input';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 import CouponSelectionModal from '../../components/order/CouponSelectionModal';
+import EnhancedCouponSelectionModal from '../../components/order/EnhancedCouponSelectionModal';
 import CustomerInfoAndPaymentModal from '../../components/CustomerInfoAndPaymentModal';
 import PaymentReceivedModal from '../../components/order/PaymentReceivedModal';
 import SettlementConfirmationModal from '../../components/SettlementConfirmationModal';
@@ -833,7 +835,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
             ` : ''}
             ${order.appliedCoupon && order.appliedCoupon.discountAmount > 0 ? `
               <div class="total-row">
-                  <div class="total-label">Coupon (${order.appliedCoupon.name})</div>
+                  <div class="total-label">
+                    ${order.appliedCoupon.isDishCoupon ? 
+                      `Dish Coupon (${order.appliedCoupon.name})` : 
+                      `Coupon (${order.appliedCoupon.name})`
+                    }
+                  </div>
                   <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
               </div>
             ` : ''}
@@ -1162,7 +1169,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   };
 
   // Handle coupon submission
-  const handleCouponSubmit = async (coupon: any, discountAmount: number) => {
+  const handleCouponSubmit = async (coupon: any, discountAmount: number, isDishCoupon: boolean = false) => {
     if (!selectedOrderForCoupon) return;
 
     try {
@@ -1171,10 +1178,15 @@ const ManagerPendingOrdersPage: React.FC = () => {
         ...selectedOrderForCoupon,
         appliedCoupon: discountAmount > 0 ? {
           couponId: coupon.id,
-          name: coupon.name,
-          type: coupon.type,
+          name: isDishCoupon ? coupon.couponCode : coupon.name,
+          type: isDishCoupon ? 'dish' : coupon.type,
           discountAmount: discountAmount,
-          appliedAt: new Date()
+          appliedAt: new Date(),
+          isDishCoupon: isDishCoupon,
+          ...(isDishCoupon && {
+            dishName: coupon.dishName,
+            discountPercentage: coupon.discountPercentage
+          })
         } : null
       };
 
@@ -1404,15 +1416,37 @@ const ManagerPendingOrdersPage: React.FC = () => {
 
                     {/* Coupon Display */}
                     {order.appliedCoupon && order.appliedCoupon.discountAmount > 0 && (
-                      <div className="px-4 py-2 sm:px-6 bg-green-50 border-b border-green-100">
+                      <div className={`px-4 py-2 sm:px-6 border-b ${
+                        order.appliedCoupon.isDishCoupon 
+                          ? 'bg-orange-50 border-orange-100' 
+                          : 'bg-green-50 border-green-100'
+                      }`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
-                            <Tag className="w-4 h-4 text-green-600" />
-                            <span className="text-sm font-medium text-green-800">
-                              Coupon: {order.appliedCoupon.name}
-                            </span>
+                            {order.appliedCoupon.isDishCoupon ? (
+                              <>
+                                <ChefHat className="w-4 h-4 text-orange-600" />
+                                <span className="text-sm font-medium text-orange-800">
+                                  Dish Coupon: {order.appliedCoupon.name}
+                                </span>
+                                {order.appliedCoupon.dishName && (
+                                  <span className="text-xs bg-orange-200 text-orange-800 px-2 py-0.5 rounded">
+                                    {order.appliedCoupon.dishName}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <Tag className="w-4 h-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-800">
+                                  Coupon: {order.appliedCoupon.name}
+                                </span>
+                              </>
+                            )}
                           </div>
-                          <span className="text-sm font-semibold text-green-600">
+                          <span className={`text-sm font-semibold ${
+                            order.appliedCoupon.isDishCoupon ? 'text-orange-600' : 'text-green-600'
+                          }`}>
                             -₹{order.appliedCoupon.discountAmount.toFixed(2)}
                           </span>
                         </div>
@@ -1593,7 +1627,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
 
       {/* Coupon Modal */}
       {showCouponModal && selectedOrderForCoupon && (
-        <CouponSelectionModal
+        <EnhancedCouponSelectionModal
           isOpen={showCouponModal}
           onClose={() => {
             setShowCouponModal(false);
@@ -1601,6 +1635,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
           }}
           onApplyCoupon={handleCouponSubmit}
           orderSubtotal={selectedOrderForCoupon.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0}
+          orderItems={selectedOrderForCoupon.items || []}
           existingCoupon={selectedOrderForCoupon.appliedCoupon}
         />
       )}
@@ -1690,8 +1725,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
                           <span>₹{((selectedOrder.sgstAmount || 0)).toFixed(2)}</span>
                         </div>
                         {selectedOrder.appliedCoupon && selectedOrder.appliedCoupon.discountAmount > 0 && (
-                          <div className="flex justify-between text-sm text-green-600">
-                            <span>Coupon ({selectedOrder.appliedCoupon.name}):</span>
+                          <div className={`flex justify-between text-sm ${
+                            selectedOrder.appliedCoupon.isDishCoupon ? 'text-orange-600' : 'text-green-600'
+                          }`}>
+                            <span>
+                              {selectedOrder.appliedCoupon.isDishCoupon ? 'Dish Coupon' : 'Coupon'} ({selectedOrder.appliedCoupon.name}):
+                            </span>
                             <span>-₹{selectedOrder.appliedCoupon.discountAmount.toFixed(2)}</span>
                           </div>
                         )}

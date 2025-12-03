@@ -85,6 +85,7 @@ export default defineConfig({
     strictPort: true,
     cors: true,
     allowedHosts: [
+      'ws-fe-d-a-ae-fc-kcyplwciwz.cn-hongkong-vpc.fcapp.run',
       'ws-feb-b-c-dbb-oxrsrxlavf.cn-hongkong-vpc.fcapp.run',
       'ws-b-c-d-bb-pwzglxvcvz.cn-hongkong-vpc.fcapp.run',
       'ws-d-ffae-cdcdd-lwxvkcwlet.cn-hongkong-vpc.fcapp.run',
@@ -107,6 +108,7 @@ export default defineConfig({
     port: 3000,
     cors: true,
     allowedHosts: [
+      'ws-fe-d-a-ae-fc-kcyplwciwz.cn-hongkong-vpc.fcapp.run',
       'ws-feb-b-c-dbb-oxrsrxlavf.cn-hongkong-vpc.fcapp.run',
       'ws-b-c-d-bb-pwzglxvcvz.cn-hongkong-vpc.fcapp.run',
       'ws-d-ffae-cdcdd-lwxvkcwlet.cn-hongkong-vpc.fcapp.run',

@@ -25,7 +25,101 @@ import CustomerInfoAndPaymentModal from '../../components/CustomerInfoAndPayment
 import PaymentReceivedModal from '../../components/order/PaymentReceivedModal';
 import SettlementConfirmationModal from '../../components/SettlementConfirmationModal';
 import { orderService } from '../../services/orderService';
+import { couponService, OrderCoupons } from '../../services/couponService';
 import toast from 'react-hot-toast';
+
+// Helper function to calculate total discount from OrderCoupons
+const calculateTotalDiscount = (order: any): number => {
+  if (!order.appliedCoupon) return 0;
+  
+  // Handle new OrderCoupons format
+  if (order.appliedCoupon.dishCoupons || order.appliedCoupon.regularCoupon) {
+    const { totalDiscount } = couponService.calculateTotalDiscount(
+      order.appliedCoupon, 
+      order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0,
+      order.items || []
+    );
+    return totalDiscount;
+  }
+  
+  // Handle old single coupon format (backward compatibility)
+  return order.appliedCoupon.discountAmount || 0;
+};
+
+// Helper function to format coupon display text
+const formatCouponDisplay = (order: any): { text: string; details: string[]; type: 'regular' | 'dish' | 'mixed'; color: string } => {
+  console.log('🔍🔍🔍 formatCouponDisplay CALLED - order.appliedCoupon:', order.appliedCoupon);
+  
+  if (!order.appliedCoupon) return { text: '', details: [], type: 'regular', color: 'text-green-600' };
+  
+  // Handle new OrderCoupons format
+  if (order.appliedCoupon.dishCoupons || order.appliedCoupon.regularCoupon) {
+    const regularCoupon = order.appliedCoupon.regularCoupon;
+    const dishCoupons = order.appliedCoupon.dishCoupons || [];
+    const details: string[] = [];
+    
+    // Add regular coupon details
+    if (regularCoupon) {
+      details.push(`${regularCoupon.name}: -₹${regularCoupon.discountAmount.toFixed(2)}`);
+    }
+    
+    // Add dish coupon details
+    dishCoupons.forEach(dishCoupon => {
+      details.push(`${dishCoupon.dishName}: -₹${dishCoupon.discountAmount.toFixed(2)}`);
+    });
+    
+    console.log('🔍🔍🔍 formatCouponDisplay - dishCoupons:', dishCoupons);
+    console.log('🔍🔍🔍 formatCouponDisplay - details:', details);
+    
+    if (regularCoupon && dishCoupons.length > 0) {
+      const couponCount = 1 + dishCoupons.length;
+      const couponCodes = dishCoupons.map(dc => dc.couponCode).join(', ');
+      const result = { 
+        text: `${couponCount} Coupons Applied`, 
+        details,
+        type: 'mixed', 
+        color: 'text-green-600' 
+      };
+      console.log('🔍🔍🔍 formatCouponDisplay - mixed result:', result);
+      return result;
+    } else if (regularCoupon) {
+      return { 
+        text: `Coupon: ${regularCoupon.name}`, 
+        details: [`${regularCoupon.name}: -₹${regularCoupon.discountAmount.toFixed(2)}`],
+        type: 'regular', 
+        color: 'text-green-600' 
+      };
+    } else if (dishCoupons.length > 0) {
+      const couponCount = dishCoupons.length;
+      const couponCodes = dishCoupons.map(dc => dc.couponCode).join(', ');
+      const result = { 
+        text: `Dish Coupons (${couponCodes})`, 
+        details,
+        type: 'dish', 
+        color: 'text-orange-600' 
+      };
+      console.log('🔍🔍🔍 formatCouponDisplay - dish result:', result);
+      return result;
+    }
+  }
+  
+  // Handle old single coupon format (backward compatibility)
+  if (order.appliedCoupon.isDishCoupon) {
+    return { 
+      text: `Dish Coupon: ${order.appliedCoupon.name}`, 
+      details: [`${order.appliedCoupon.name}: -₹${order.appliedCoupon.discountAmount.toFixed(2)}`],
+      type: 'dish', 
+      color: 'text-orange-600' 
+    };
+  } else {
+    return { 
+      text: `Coupon: ${order.appliedCoupon.name}`, 
+      details: [`${order.appliedCoupon.name}: -₹${order.appliedCoupon.discountAmount.toFixed(2)}`],
+      type: 'regular', 
+      color: 'text-green-600' 
+    };
+  }
+};
 
 const ManagerPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -564,7 +658,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
     const cgst = order.cgstAmount || order.cgst || 0;
     const sgst = order.sgstAmount || order.sgst || 0;
     const discount = order.discount || 0;
-    const couponAmount = order.appliedCoupon?.discountAmount || 0;
+    const couponAmount = calculateTotalDiscount(order);
     const grandTotal = Math.max(0, subtotal + cgst + sgst - discount - couponAmount);
     
     // Get payment method
@@ -833,17 +927,26 @@ const ManagerPendingOrdersPage: React.FC = () => {
                   <div class="total-value">-${formatPrice(discount)}</div>
               </div>
             ` : ''}
-            ${order.appliedCoupon && order.appliedCoupon.discountAmount > 0 ? `
-              <div class="total-row">
-                  <div class="total-label">
-                    ${order.appliedCoupon.isDishCoupon ? 
-                      `Dish Coupon (${order.appliedCoupon.name})` : 
-                      `Coupon (${order.appliedCoupon.name})`
-                    }
+            ${(() => {
+              const couponDisplay = formatCouponDisplay(order);
+              const couponAmount = calculateTotalDiscount(order);
+              
+              if (couponAmount > 0) {
+                console.log('🔍 Receipt generation - couponDisplay.text:', couponDisplay.text);
+                console.log('🔍 Receipt generation - couponDisplay.details:', couponDisplay.details);
+                console.log('🔍 Receipt generation - timestamp:', new Date().toISOString());
+                
+                let couponHTML = `
+                  <div class="total-row">
+                      <div class="total-label">${couponDisplay.text}</div>
+                      <div class="total-value">-${formatPrice(couponAmount)}</div>
                   </div>
-                  <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
-              </div>
-            ` : ''}
+                `;
+                
+                return couponHTML;
+              }
+              return '';
+            })()}
             <div class="total-row grand-total">
                 <div class="total-label">Grand Total</div>
                 <div class="total-value">${formatPrice(grandTotal)}</div>
@@ -1133,7 +1236,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
     if (order.gstAmount !== undefined) {
       const total = subtotal + order.gstAmount;
       // Subtract coupon discount if applicable
-      const couponAmount = order.appliedCoupon?.discountAmount || 0;
+      const couponAmount = calculateTotalDiscount(order);
       return Math.max(0, total - couponAmount);
     }
     
@@ -1144,20 +1247,20 @@ const ManagerPendingOrdersPage: React.FC = () => {
         const totalGST = subtotal * ((gstSettings.cgst + gstSettings.sgst) / 100);
         const total = subtotal + totalGST;
         // Subtract coupon discount if applicable
-        const couponAmount = order.appliedCoupon?.discountAmount || 0;
+        const couponAmount = calculateTotalDiscount(order);
         return Math.max(0, total - couponAmount);
       } catch (error) {
         console.error('Error calculating order total:', error);
         // Fallback to 0% GST
         const total = subtotal;
-        const couponAmount = order.appliedCoupon?.discountAmount || 0;
+        const couponAmount = calculateTotalDiscount(order);
         return Math.max(0, total - couponAmount);
       }
     }
     
     // Fallback to subtotal only (0% GST)
     const total = subtotal;
-    const couponAmount = order.appliedCoupon?.discountAmount || 0;
+    const couponAmount = calculateTotalDiscount(order);
     return Math.max(0, total - couponAmount);
   };
 
@@ -1168,26 +1271,25 @@ const ManagerPendingOrdersPage: React.FC = () => {
     setShowCouponModal(true);
   };
 
-  // Handle coupon submission
-  const handleCouponSubmit = async (coupon: any, discountAmount: number, isDishCoupon: boolean = false) => {
+  // Handle coupon submission with multiple coupon support
+  const handleCouponSubmit = async (orderCoupons: OrderCoupons, totalDiscount: number) => {
     if (!selectedOrderForCoupon) return;
 
     try {
+      // Clean up the orderCoupons object to avoid undefined values
+      const cleanOrderCoupons: OrderCoupons = {
+        dishCoupons: orderCoupons.dishCoupons || []
+      };
+
+      // Only add regularCoupon if it exists
+      if (orderCoupons.regularCoupon) {
+        cleanOrderCoupons.regularCoupon = orderCoupons.regularCoupon;
+      }
+
       // Update the order with applied coupon information
       const updatedOrder = {
         ...selectedOrderForCoupon,
-        appliedCoupon: discountAmount > 0 ? {
-          couponId: coupon.id,
-          name: isDishCoupon ? coupon.couponCode : coupon.name,
-          type: isDishCoupon ? 'dish' : coupon.type,
-          discountAmount: discountAmount,
-          appliedAt: new Date(),
-          isDishCoupon: isDishCoupon,
-          ...(isDishCoupon && {
-            dishName: coupon.dishName,
-            discountPercentage: coupon.discountPercentage
-          })
-        } : null
+        appliedCoupon: totalDiscount > 0 ? cleanOrderCoupons : null
       };
 
       // Update the order in Firestore
@@ -1216,14 +1318,17 @@ const ManagerPendingOrdersPage: React.FC = () => {
         [selectedOrderForCoupon.id]: newTotal
       }));
 
-      if (discountAmount > 0) {
-        toast.success(`Coupon "${coupon.name}" applied successfully! Discount: ₹${discountAmount.toFixed(2)}`);
+      // Show success message
+      if (totalDiscount > 0) {
+        const couponCount = (orderCoupons.regularCoupon ? 1 : 0) + (orderCoupons.dishCoupons?.length || 0);
+        const couponText = couponCount === 1 ? 'coupon' : 'coupons';
+        toast.success(`${couponCount} ${couponText} applied successfully! Total discount: ₹${totalDiscount.toFixed(2)}`);
       } else {
-        toast.success('Coupon removed successfully!');
+        toast.success('All coupons removed successfully!');
       }
     } catch (error: any) {
-      console.error('Error applying coupon:', error);
-      toast.error(error.message || 'Failed to apply coupon. Please try again.');
+      console.error('Error applying coupons:', error);
+      toast.error(error.message || 'Failed to apply coupons. Please try again.');
     }
   };
 
@@ -1415,43 +1520,54 @@ const ManagerPendingOrdersPage: React.FC = () => {
                     </div>
 
                     {/* Coupon Display */}
-                    {order.appliedCoupon && order.appliedCoupon.discountAmount > 0 && (
-                      <div className={`px-4 py-2 sm:px-6 border-b ${
-                        order.appliedCoupon.isDishCoupon 
-                          ? 'bg-orange-50 border-orange-100' 
-                          : 'bg-green-50 border-green-100'
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            {order.appliedCoupon.isDishCoupon ? (
-                              <>
-                                <ChefHat className="w-4 h-4 text-orange-600" />
-                                <span className="text-sm font-medium text-orange-800">
-                                  Dish Coupon: {order.appliedCoupon.name}
-                                </span>
-                                {order.appliedCoupon.dishName && (
-                                  <span className="text-xs bg-orange-200 text-orange-800 px-2 py-0.5 rounded">
-                                    {order.appliedCoupon.dishName}
-                                  </span>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <Tag className="w-4 h-4 text-green-600" />
-                                <span className="text-sm font-medium text-green-800">
-                                  Coupon: {order.appliedCoupon.name}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                          <span className={`text-sm font-semibold ${
-                            order.appliedCoupon.isDishCoupon ? 'text-orange-600' : 'text-green-600'
+                    {(() => {
+                      const couponDisplay = formatCouponDisplay(order);
+                      const couponAmount = calculateTotalDiscount(order);
+                      
+                      if (couponAmount > 0) {
+                        return (
+                          <div className={`px-4 py-2 sm:px-6 border-b ${
+                            couponDisplay.type === 'dish' || couponDisplay.type === 'mixed'
+                              ? 'bg-orange-50 border-orange-100' 
+                              : 'bg-green-50 border-green-100'
                           }`}>
-                            -₹{order.appliedCoupon.discountAmount.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center space-x-2">
+                                {couponDisplay.type === 'dish' || couponDisplay.type === 'mixed' ? (
+                                  <>
+                                    <ChefHat className="w-4 h-4 text-orange-600" />
+                                    <span className="text-sm font-medium text-orange-800">
+                                      {couponDisplay.text}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Tag className="w-4 h-4 text-green-600" />
+                                    <span className="text-sm font-medium text-green-800">
+                                      {couponDisplay.text}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <span className={`text-sm font-semibold ${
+                                couponDisplay.type === 'dish' || couponDisplay.type === 'mixed' ? 'text-orange-600' : 'text-green-600'
+                              }`}>
+                                -₹{couponAmount.toFixed(2)}
+                              </span>
+                            </div>
+                            {/* Coupon Details */}
+                            <div className="space-y-1">
+                              {couponDisplay.details.map((detail, index) => (
+                                <div key={index} className="text-xs text-gray-600 ml-6">
+                                  {detail}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {/* Action Buttons - Mobile First */}
                     <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50">
@@ -1633,10 +1749,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
             setShowCouponModal(false);
             setSelectedOrderForCoupon(null);
           }}
-          onApplyCoupon={handleCouponSubmit}
+          onApplyCoupons={handleCouponSubmit}
           orderSubtotal={selectedOrderForCoupon.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0}
           orderItems={selectedOrderForCoupon.items || []}
-          existingCoupon={selectedOrderForCoupon.appliedCoupon}
+          existingCoupons={selectedOrderForCoupon.appliedCoupon}
         />
       )}
 
@@ -1724,16 +1840,32 @@ const ManagerPendingOrdersPage: React.FC = () => {
                           <span>SGST:</span>
                           <span>₹{((selectedOrder.sgstAmount || 0)).toFixed(2)}</span>
                         </div>
-                        {selectedOrder.appliedCoupon && selectedOrder.appliedCoupon.discountAmount > 0 && (
-                          <div className={`flex justify-between text-sm ${
-                            selectedOrder.appliedCoupon.isDishCoupon ? 'text-orange-600' : 'text-green-600'
-                          }`}>
-                            <span>
-                              {selectedOrder.appliedCoupon.isDishCoupon ? 'Dish Coupon' : 'Coupon'} ({selectedOrder.appliedCoupon.name}):
-                            </span>
-                            <span>-₹{selectedOrder.appliedCoupon.discountAmount.toFixed(2)}</span>
-                          </div>
-                        )}
+                        {(() => {
+                      const couponDisplay = formatCouponDisplay(selectedOrder);
+                      const couponAmount = calculateTotalDiscount(selectedOrder);
+                      
+                      if (couponAmount > 0) {
+                        return (
+                          <>
+                            <div className={`flex justify-between text-sm ${couponDisplay.color}`}>
+                              <span>{couponDisplay.text}:</span>
+                              <span>-₹{couponAmount.toFixed(2)}</span>
+                            </div>
+                            {/* Individual Coupon Details */}
+                            {couponDisplay.details.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {couponDisplay.details.map((detail, index) => (
+                                  <div key={index} className="text-xs text-gray-600 ml-4">
+                                    • {detail}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
                         <div className="flex justify-between font-semibold">
                           <span>Total:</span>
                           <span>₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</span>

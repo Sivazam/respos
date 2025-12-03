@@ -8,6 +8,7 @@ import Button from '../ui/Button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { orderService } from '../../services/orderService';
 import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
+import { OrderCoupons, couponService } from '../../services/couponService';
 
 interface FinalReceiptModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ interface FinalReceiptModalProps {
     sgst?: number;
     total?: number;
     locationId?: string;
+    // Support both old single coupon and new multiple coupons
     appliedCoupon?: {
       couponId: string;
       name: string;
@@ -54,6 +56,8 @@ interface FinalReceiptModalProps {
       discountAmount: number;
       appliedAt: any;
     } | null;
+    appliedCoupons?: OrderCoupons;
+    originalTotalAmount?: number;
   };
   paymentMethod: string;
   isReadOnly?: boolean;
@@ -140,7 +144,20 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     const deliveryCharge = order.deliveryCharge || 0;
     const packagingCharge = order.packagingCharge || 0;
     const discount = order.discount || 0;
-    const couponAmount = order.appliedCoupon?.discountAmount || 0;
+    
+    // Handle both old single coupon and new multiple coupons
+    let couponAmount = 0;
+    if (order.appliedCoupon) {
+      couponAmount = order.appliedCoupon.discountAmount || 0;
+    } else if (order.appliedCoupons) {
+      // Calculate total discount from multiple coupons
+      const { totalDiscount } = couponService.calculateTotalDiscount(
+        order.appliedCoupons, 
+        subtotal, 
+        order.items
+      );
+      couponAmount = totalDiscount;
+    }
     
     return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount - couponAmount;
   };
@@ -538,6 +555,20 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
               </div>
             ` : ''}
+            ${order.appliedCoupon && (order.appliedCoupon.dishCoupons || order.appliedCoupon.regularCoupon) ? `
+              ${order.appliedCoupon.regularCoupon && order.appliedCoupon.regularCoupon.discountAmount > 0 ? `
+                <div class="total-row">
+                    <div class="total-label">Coupon (${order.appliedCoupon.regularCoupon.name})</div>
+                    <div class="total-value">-${formatPrice(order.appliedCoupon.regularCoupon.discountAmount)}</div>
+                </div>
+              ` : ''}
+              ${order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 ? `
+                <div class="total-row">
+                    <div class="total-label">Dish Coupons (${order.appliedCoupon.dishCoupons.map(dc => dc.couponCode).join(', ')})</div>
+                    <div class="total-value">-${formatPrice(order.appliedCoupon.dishCoupons.reduce((sum, dc) => sum + dc.discountAmount, 0))}</div>
+                </div>
+              ` : ''}
+            ` : ''}
             <div class="total-row grand-total">
                 <div class="total-label">Grand Total</div>
                 <div class="total-value">${formatPrice(grandTotal)}</div>
@@ -848,6 +879,22 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                       <div>Coupon ({order.appliedCoupon.name})</div>
                       <div>-{formatPrice(order.appliedCoupon.discountAmount)}</div>
                     </div>
+                  )}
+                  {order.appliedCoupon && (order.appliedCoupon.dishCoupons || order.appliedCoupon.regularCoupon) && (
+                    <>
+                      {order.appliedCoupon.regularCoupon && order.appliedCoupon.regularCoupon.discountAmount > 0 && (
+                        <div className="flex justify-between">
+                          <div>Coupon ({order.appliedCoupon.regularCoupon.name})</div>
+                          <div>-{formatPrice(order.appliedCoupon.regularCoupon.discountAmount)}</div>
+                        </div>
+                      )}
+                      {order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 && (
+                        <div className="flex justify-between">
+                          <div>Dish Coupons ({order.appliedCoupon.dishCoupons.map(dc => dc.couponCode).join(', ')})</div>
+                          <div>-{formatPrice(order.appliedCoupon.dishCoupons.reduce((sum, dc) => sum + dc.discountAmount, 0))}</div>
+                        </div>
+                      )}
+                    </>
                   )}
                   <div className="border-t border-gray-400 pt-1 flex justify-between font-black">
                     <div>Grand Total</div>

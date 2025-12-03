@@ -11,41 +11,43 @@ import {
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { couponService, Coupon, DishCoupon } from '../../services/couponService';
+import { couponService, Coupon, DishCoupon, OrderCoupons, AppliedDishCoupon } from '../../services/couponService';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface EnhancedCouponSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApplyCoupon: (coupon: Coupon | DishCoupon, discountAmount: number, isDishCoupon: boolean) => void;
+  onApplyCoupons: (orderCoupons: OrderCoupons, totalDiscount: number) => void;
   orderSubtotal: number;
-  orderItems: any[];
-  existingCoupon?: {
-    couponId: string;
+  orderItems: {
     name: string;
-    type: 'fixed' | 'percentage';
-    discountAmount: number;
-    isDishCoupon?: boolean;
-  };
+    price: number;
+    quantity: number;
+    modifications?: string[];
+    portionSize?: 'half' | 'full';
+  }[];
+  existingCoupons?: OrderCoupons;
 }
 
 const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> = ({
   isOpen,
   onClose,
-  onApplyCoupon,
+  onApplyCoupons,
   orderSubtotal,
   orderItems,
-  existingCoupon
+  existingCoupons
 }) => {
   const { currentUser } = useAuth();
   const [regularCoupons, setRegularCoupons] = useState<Coupon[]>([]);
   const [dishCoupons, setDishCoupons] = useState<DishCoupon[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCoupon, setSelectedCoupon] = useState<Coupon | DishCoupon | null>(null);
-  const [selectedIsDishCoupon, setSelectedIsDishCoupon] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'regular' | 'dish'>('regular');
+  
+  // State for multiple coupon selection
+  const [selectedRegularCoupon, setSelectedRegularCoupon] = useState<Coupon | null>(null);
+  const [selectedDishCoupons, setSelectedDishCoupons] = useState<DishCoupon[]>([]);
 
   useEffect(() => {
     const locationId = currentUser?.locationId || 
@@ -67,6 +69,23 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
         
         setRegularCoupons(locationCoupons);
         setDishCoupons(locationDishCoupons);
+
+        // Initialize selections from existing coupons
+        if (existingCoupons) {
+          // Set regular coupon if exists
+          if (existingCoupons.regularCoupon) {
+            const regular = locationCoupons.find(c => c.id === existingCoupons.regularCoupon?.couponId);
+            if (regular) setSelectedRegularCoupon(regular);
+          }
+
+          // Set dish coupons if exist
+          if (existingCoupons.dishCoupons && existingCoupons.dishCoupons.length > 0) {
+            const selectedDishes = existingCoupons.dishCoupons
+              .map(applied => locationDishCoupons.find(c => c.id === applied.couponId))
+              .filter(Boolean) as DishCoupon[];
+            setSelectedDishCoupons(selectedDishes);
+          }
+        }
       } catch (error) {
         console.error('❌ Error loading coupons:', error);
         setError('Failed to load coupons: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -76,54 +95,90 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
     };
 
     loadCoupons();
-  }, [isOpen, currentUser?.locationId, currentUser?.locationIds]);
+  }, [isOpen, currentUser?.locationId, currentUser?.locationIds, existingCoupons]);
 
-  const handleApplyCoupon = () => {
-    if (!selectedCoupon) {
-      setError('Please select a coupon');
-      return;
-    }
+  const handleApplyCoupons = () => {
+    try {
+      // Validate coupon combination
+      const validation = couponService.validateCouponCombination(
+        selectedRegularCoupon,
+        selectedDishCoupons,
+        orderSubtotal,
+        orderItems
+      );
 
-    let discountAmount = 0;
-    
-    if (selectedIsDishCoupon) {
-      const dishCoupon = selectedCoupon as DishCoupon;
-      discountAmount = couponService.calculateDishCouponDiscount(dishCoupon, orderItems);
-      
-      if (discountAmount === 0) {
-        setError('No dish available for this discount');
+      if (!validation.isValid) {
+        setError(validation.error || 'Invalid coupon combination');
         return;
       }
-    } else {
-      const regularCoupon = selectedCoupon as Coupon;
-      discountAmount = couponService.calculateCouponDiscount(regularCoupon, orderSubtotal);
-      
-      if (discountAmount === 0) {
-        setError('This coupon cannot be applied to current order');
-        return;
-      }
-    }
 
-    onApplyCoupon(selectedCoupon, discountAmount, selectedIsDishCoupon);
-    handleClose();
+      // Create order coupons object
+      const orderCoupons: OrderCoupons = {
+        dishCoupons: selectedDishCoupons
+          .map(dishCoupon => couponService.createAppliedDishCoupon(dishCoupon, orderItems))
+          .filter(Boolean) as AppliedDishCoupon[]
+      };
+
+      // Only add regularCoupon if it exists
+      if (selectedRegularCoupon) {
+        const appliedRegularCoupon = couponService.createAppliedRegularCoupon(selectedRegularCoupon, orderSubtotal);
+        if (appliedRegularCoupon) {
+          orderCoupons.regularCoupon = appliedRegularCoupon;
+        }
+      }
+
+      // Calculate total discount
+      const { totalDiscount } = couponService.calculateTotalDiscount(orderCoupons, orderSubtotal, orderItems);
+
+      onApplyCoupons(orderCoupons, totalDiscount);
+      handleClose();
+    } catch (error) {
+      console.error('Error applying coupons:', error);
+      setError('Failed to apply coupons');
+    }
   };
 
   const handleClose = () => {
-    setSelectedCoupon(null);
-    setSelectedIsDishCoupon(false);
+    setSelectedRegularCoupon(null);
+    setSelectedDishCoupons([]);
     setError('');
     setSearchTerm('');
     onClose();
   };
 
-  const handleRemoveCoupon = () => {
-    onApplyCoupon({} as Coupon, 0, false);
+  const handleRemoveAllCoupons = () => {
+    onApplyCoupons({ dishCoupons: [] }, 0);
     handleClose();
   };
 
-  const handleCouponSelect = (coupon: Coupon | DishCoupon, isDishCoupon: boolean) => {
-    setSelectedCoupon(coupon);
-    setSelectedIsDishCoupon(isDishCoupon);
+  const handleRegularCouponSelect = (coupon: Coupon) => {
+    if (selectedRegularCoupon?.id === coupon.id) {
+      setSelectedRegularCoupon(null);
+    } else {
+      setSelectedRegularCoupon(coupon);
+    }
+    setError('');
+  };
+
+  const handleDishCouponToggle = (coupon: DishCoupon) => {
+    const isSelected = selectedDishCoupons.some(selected => selected.id === coupon.id);
+    
+    if (isSelected) {
+      // Remove from selection
+      setSelectedDishCoupons(prev => prev.filter(selected => selected.id !== coupon.id));
+    } else {
+      // Add to selection (only if no other coupon for same dish is selected)
+      const hasSameDish = selectedDishCoupons.some(selected => 
+        selected.dishName.toLowerCase() === coupon.dishName.toLowerCase()
+      );
+      
+      if (hasSameDish) {
+        setError(`Only one coupon per dish is allowed. ${coupon.dishName} already has a coupon selected.`);
+        return;
+      }
+      
+      setSelectedDishCoupons(prev => [...prev, coupon]);
+    }
     setError('');
   };
 
@@ -145,7 +200,7 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
 
   const calculateDishDiscountForDisplay = (coupon: DishCoupon) => {
     const discount = couponService.calculateDishCouponDiscount(coupon, orderItems);
-    return discount; // This is now already floored to integer
+    return discount;
   };
 
   const isRegularCouponApplicable = (coupon: Coupon) => {
@@ -154,9 +209,10 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
     return calculateRegularDiscountForDisplay(coupon) > 0;
   };
 
-  const isDishCouponApplicable = (coupon: DishCoupon) => {
-    const { applicable } = couponService.isDishCouponApplicable(coupon, orderItems);
-    return applicable;
+  const canSelectDishCoupon = (coupon: DishCoupon) => {
+    return !selectedDishCoupons.some(selected => 
+      selected.dishName.toLowerCase() === coupon.dishName.toLowerCase()
+    );
   };
 
   // Filter coupons based on search
@@ -164,20 +220,35 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
     coupon.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredDishCoupons = dishCoupons.filter(coupon => 
-    coupon.dishName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    coupon.couponCode.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Get only applicable dish coupons (filtered by order items and already selected coupons)
+  const applicableDishCoupons = couponService.getApplicableDishCoupons(dishCoupons, orderItems, selectedDishCoupons);
+
+  // Calculate current total discount
+  const currentOrderCoupons: OrderCoupons = {
+    dishCoupons: selectedDishCoupons
+      .map(dishCoupon => couponService.createAppliedDishCoupon(dishCoupon, orderItems))
+      .filter(Boolean) as AppliedDishCoupon[]
+  };
+
+  // Only add regularCoupon if it exists
+  if (selectedRegularCoupon) {
+    const appliedRegularCoupon = couponService.createAppliedRegularCoupon(selectedRegularCoupon, orderSubtotal);
+    if (appliedRegularCoupon) {
+      currentOrderCoupons.regularCoupon = appliedRegularCoupon;
+    }
+  }
+
+  const { totalDiscount } = couponService.calculateTotalDiscount(currentOrderCoupons, orderSubtotal, orderItems);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
           <div className="flex items-center gap-2">
             <Tag className="w-5 h-5 text-orange-500" />
-            <h2 className="text-xl font-semibold">Select Coupon</h2>
+            <h2 className="text-xl font-semibold">Select Coupons</h2>
           </div>
           <button
             onClick={handleClose}
@@ -198,6 +269,11 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
                   </span>
                 )}
               </p>
+              {totalDiscount > 0 && (
+                <p className="text-sm font-semibold text-green-600 mt-1">
+                  Total savings: ₹{totalDiscount.toFixed(2)}
+                </p>
+              )}
             </div>
 
             {/* Search */}
@@ -236,7 +312,7 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
                 }`}
               >
                 <ChefHat className="w-4 h-4 inline mr-2" />
-                Dish-Specific ({filteredDishCoupons.length})
+                Dish-Specific ({applicableDishCoupons.length})
               </button>
             </div>
 
@@ -248,26 +324,29 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
               </Alert>
             )}
 
-            {existingCoupon && (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+            {/* Selected Coupons Summary */}
+            {(selectedRegularCoupon || selectedDishCoupons.length > 0) && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-orange-800">
-                      Current Coupon
+                    <p className="text-sm font-medium text-green-800">
+                      Selected Coupons ({(selectedRegularCoupon ? 1 : 0) + selectedDishCoupons.length})
                     </p>
-                    <p className="text-sm text-orange-600">
-                      {existingCoupon.name} - ₹{existingCoupon.discountAmount.toFixed(2)}
-                      {existingCoupon.isDishCoupon && (
-                        <span className="ml-1 text-xs bg-orange-200 px-2 py-0.5 rounded">Dish</span>
+                    <div className="text-xs text-green-600 mt-1">
+                      {selectedRegularCoupon && (
+                        <div>• {selectedRegularCoupon.name} - ₹{calculateRegularDiscountForDisplay(selectedRegularCoupon).toFixed(2)}</div>
                       )}
-                    </p>
+                      {selectedDishCoupons.map(coupon => (
+                        <div key={coupon.id}>• {coupon.dishName} - ₹{calculateDishDiscountForDisplay(coupon).toFixed(2)}</div>
+                      ))}
+                    </div>
                   </div>
                   <button
                     type="button"
-                    onClick={handleRemoveCoupon}
+                    onClick={handleRemoveAllCoupons}
                     className="text-red-600 hover:text-red-800 text-sm font-medium"
                   >
-                    Remove
+                    Remove All
                   </button>
                 </div>
               </div>
@@ -294,14 +373,15 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
                     ) : (
                       filteredRegularCoupons.map((coupon) => {
                         const isApplicable = isRegularCouponApplicable(coupon);
+                        const isSelected = selectedRegularCoupon?.id === coupon.id;
                         const discountAmount = calculateRegularDiscountForDisplay(coupon);
                         
                         return (
                           <div
                             key={coupon.id}
-                            onClick={() => isApplicable && handleCouponSelect(coupon, false)}
+                            onClick={() => isApplicable && handleRegularCouponSelect(coupon)}
                             className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                              selectedCoupon?.id === coupon.id && !selectedIsDishCoupon
+                              isSelected
                                 ? 'border-orange-500 bg-orange-50'
                                 : isApplicable
                                 ? 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -351,7 +431,7 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
                               </div>
 
                               <div className="flex items-center ml-4">
-                                {selectedCoupon?.id === coupon.id && !selectedIsDishCoupon ? (
+                                {isSelected ? (
                                   <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
                                     <Check size={12} className="text-white" />
                                   </div>
@@ -382,28 +462,28 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
 
                 {activeTab === 'dish' && (
                   <>
-                    {filteredDishCoupons.length === 0 ? (
+                    {applicableDishCoupons.length === 0 ? (
                       <div className="text-center py-8">
                         <ChefHat className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">No dish coupons available</h3>
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">No applicable dish coupons</h3>
                         <p className="mt-1 text-sm text-gray-500">
-                          {searchTerm ? 'No coupons match your search.' : 'Create dish-specific coupons in settings.'}
+                          {searchTerm ? 'No coupons match your search.' : 'No dish coupons are applicable to the current order items.'}
                         </p>
                       </div>
                     ) : (
-                      filteredDishCoupons.map((coupon) => {
-                        const isApplicable = isDishCouponApplicable(coupon);
+                      applicableDishCoupons.map((coupon) => {
+                        const isSelected = selectedDishCoupons.some(selected => selected.id === coupon.id);
+                        const canSelect = canSelectDishCoupon(coupon);
                         const discountAmount = calculateDishDiscountForDisplay(coupon);
-                        const { matchingItems } = couponService.isDishCouponApplicable(coupon, orderItems);
                         
                         return (
                           <div
                             key={coupon.id}
-                            onClick={() => isApplicable && handleCouponSelect(coupon, true)}
+                            onClick={() => (canSelect || isSelected) && handleDishCouponToggle(coupon)}
                             className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                              selectedCoupon?.id === coupon.id && selectedIsDishCoupon
+                              isSelected
                                 ? 'border-orange-500 bg-orange-50'
-                                : isApplicable
+                                : canSelect
                                 ? 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                 : 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
                             }`}
@@ -415,60 +495,43 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
                                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                                     <ChefHat size={10} className="mr-1" /> Dish
                                   </span>
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    <Percent size={10} className="mr-1" /> {coupon.discountPercentage}%
-                                  </span>
+                                  <span className="text-xs text-gray-500">({coupon.couponCode})</span>
                                 </div>
                                 
                                 <div className="text-sm text-gray-600 mb-2">
                                   {formatDishCouponDisplay(coupon)}
                                 </div>
 
-                                <div className="text-xs text-gray-500 mb-2">
-                                  Coupon Code: <span className="font-mono font-medium">{coupon.couponCode}</span>
-                                </div>
 
-                                {!isApplicable && (
-                                  <div className="text-xs text-red-600 mt-2">
-                                    {matchingItems.length === 0
-                                      ? 'No matching dishes in order'
-                                      : 'Not applicable to this order'}
-                                  </div>
-                                )}
 
-                                {isApplicable && matchingItems.length > 0 && (
-                                  <div className="text-xs text-gray-600 mt-2">
-                                    Applicable to: {matchingItems.map(item => item.name).join(', ')}
+                                {!canSelect && !isSelected && (
+                                  <div className="text-xs text-orange-600 mt-2">
+                                    Another coupon for this dish is already selected
                                   </div>
                                 )}
                               </div>
 
                               <div className="flex items-center ml-4">
-                                {selectedCoupon?.id === coupon.id && selectedIsDishCoupon ? (
+                                {isSelected ? (
                                   <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
                                     <Check size={12} className="text-white" />
                                   </div>
                                 ) : (
                                   <div className={`w-5 h-5 border-2 rounded-full ${
-                                    isApplicable ? 'border-gray-300' : 'border-gray-200'
+                                    canSelect ? 'border-gray-300' : 'border-gray-200'
                                   }`}></div>
                                 )}
                               </div>
                             </div>
 
-                            {isApplicable && (
-                              <div className="mt-3 pt-3 border-t border-gray-100">
-                                <div className="flex items-center justify-between text-sm">
-                                  <span className="text-gray-600">You save:</span>
-                                  <span className="font-semibold text-green-600">
-                                    ₹{discountAmount.toFixed(2)}
-                                  </span>
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  Discount applies to 1 quantity of each matching dish (integer values)
-                                </div>
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">You save:</span>
+                                <span className="font-semibold text-green-600">
+                                  ₹{discountAmount.toFixed(2)}
+                                </span>
                               </div>
-                            )}
+                            </div>
                           </div>
                         );
                       })
@@ -480,8 +543,7 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
           )}
         </div>
 
-        {/* Fixed footer with buttons */}
-        <div className="flex gap-3 p-6 border-t bg-gray-50 flex-shrink-0">
+        <div className="flex gap-3 p-6 border-t bg-gray-50">
           <Button
             type="button"
             variant="outline"
@@ -492,11 +554,11 @@ const EnhancedCouponSelectionModal: React.FC<EnhancedCouponSelectionModalProps> 
           </Button>
           <Button
             type="button"
-            onClick={handleApplyCoupon}
+            onClick={handleApplyCoupons}
             className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-            disabled={!selectedCoupon || loading}
+            disabled={loading || (!selectedRegularCoupon && selectedDishCoupons.length === 0)}
           >
-            Apply Coupon
+            Apply {totalDiscount > 0 && `₹${totalDiscount.toFixed(2)} in Discounts`}
           </Button>
         </div>
       </div>

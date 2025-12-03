@@ -11,7 +11,9 @@ import {
   Eye,
   Edit,
   Trash2,
-  X
+  X,
+  Tag,
+  Percent
 } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useTables } from '../../contexts/TableContext';
@@ -21,6 +23,8 @@ import Input from '../../components/ui/Input';
 import { Card } from '../../components/ui/card';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
 import ManagerSettleModal from '../../components/manager/ManagerSettleModal';
+import EnhancedCouponSelectionModal from '../../components/order/EnhancedCouponSelectionModal';
+import { couponService, OrderCoupons } from '../../services/couponService';
 import toast from 'react-hot-toast';
 
 interface PendingOrder {
@@ -44,6 +48,9 @@ interface PendingOrder {
     collectedBy?: 'staff' | 'manager';
     collectedAt?: number;
   };
+  // Add coupon support
+  appliedCoupons?: OrderCoupons;
+  originalTotalAmount?: number; // Store original amount before coupons
 }
 
 const ManagerPendingOrdersPage: React.FC = () => {
@@ -60,6 +67,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<PendingOrder | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<PendingOrder | null>(null);
+  
+  // Coupon-related state
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [orderForCoupons, setOrderForCoupons] = useState<PendingOrder | null>(null);
   
 
   // Load transferred orders from localStorage
@@ -95,7 +106,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 status: orderData.status,
                 createdAt: new Date(orderData.createdAt),
                 updatedAt: new Date(orderData.updatedAt),
-                staffId: orderData.staffId
+                staffId: orderData.staffId,
+                // Include coupon information if available
+                appliedCoupons: orderData.appliedCoupons,
+                originalTotalAmount: orderData.originalTotalAmount
               };
 
               orders.push(order);
@@ -277,6 +291,52 @@ const ManagerPendingOrdersPage: React.FC = () => {
     } catch (error) {
       console.error('Error settling order:', error);
       toast.error('Failed to settle order');
+    }
+  };
+
+  // Handle apply coupons to order
+  const handleApplyCoupons = (order: PendingOrder) => {
+    setOrderForCoupons(order);
+    setShowCouponModal(true);
+  };
+
+  // Handle coupon application from modal
+  const handleCouponApplication = async (orderCoupons: OrderCoupons, totalDiscount: number) => {
+    if (!orderForCoupons) return;
+
+    try {
+      // Calculate original subtotal
+      const originalSubtotal = orderForCoupons.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      // Update order with applied coupons
+      const updatedOrder = {
+        ...orderForCoupons,
+        appliedCoupons: orderCoupons,
+        originalTotalAmount: originalSubtotal,
+        totalAmount: originalSubtotal - totalDiscount,
+        updatedAt: new Date()
+      };
+
+      // Update in localStorage
+      const storageKey = orderForCoupons.status === 'transferred' ? 
+        `manager_pending_${orderForCoupons.id}` : 
+        `temp_order_${orderForCoupons.id}`;
+      
+      localStorage.setItem(storageKey, JSON.stringify(updatedOrder));
+
+      // Update state
+      setPendingOrders(prev => 
+        prev.map(order => 
+          order.id === orderForCoupons.id ? updatedOrder : order
+        )
+      );
+
+      toast.success(`Coupons applied successfully! Saved ₹${totalDiscount.toFixed(2)}`);
+      setShowCouponModal(false);
+      setOrderForCoupons(null);
+    } catch (error) {
+      console.error('Error applying coupons:', error);
+      toast.error('Failed to apply coupons');
     }
   };
 
@@ -478,8 +538,47 @@ const ManagerPendingOrdersPage: React.FC = () => {
                       )}
                     </div>
                     
-                    <div className="text-lg font-semibold text-green-600">
-                      ₹{order.totalAmount.toFixed(2)}
+                    {/* Coupon Information */}
+                    {order.appliedCoupons && (
+                      <div className="mb-2 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Tag size={14} className="text-orange-600" />
+                          <span className="font-medium text-orange-800">Coupons Applied:</span>
+                          <span className="text-orange-600">
+                            ₹{(
+                              (order.originalTotalAmount || order.totalAmount) - order.totalAmount
+                            ).toFixed(2)} saved
+                          </span>
+                        </div>
+                        <div className="text-xs text-orange-700 mt-1">
+                          {order.appliedCoupons.regularCoupon && (
+                            <div>• {order.appliedCoupons.regularCoupon.name}: -₹{order.appliedCoupons.regularCoupon.discountAmount.toFixed(2)}</div>
+                          )}
+                          {order.appliedCoupons.dishCoupons.map((dishCoupon, index) => (
+                            <div key={index}>• {dishCoupon.dishName}: -₹{dishCoupon.discountAmount.toFixed(2)}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Price Display */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        {order.appliedCoupons && order.originalTotalAmount ? (
+                          <>
+                            <div className="text-sm text-gray-500 line-through">
+                              Original: ₹{order.originalTotalAmount.toFixed(2)}
+                            </div>
+                            <div className="text-lg font-semibold text-green-600">
+                              After coupons: ₹{order.totalAmount.toFixed(2)}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-lg font-semibold text-green-600">
+                            ₹{order.totalAmount.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
@@ -494,6 +593,16 @@ const ManagerPendingOrdersPage: React.FC = () => {
                         Edit Order
                       </Button>
                     )}
+                    
+                    {/* Coupon Management Button */}
+                    <Button
+                      onClick={() => handleApplyCoupons(order)}
+                      variant="outline"
+                      className="flex items-center gap-2 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                    >
+                      <Tag size={16} />
+                      {order.appliedCoupons ? 'Edit Coupons' : 'Apply Coupons'}
+                    </Button>
                     
                     <Button
                       onClick={() => handleViewReceipt(order)}
@@ -599,6 +708,21 @@ const ManagerPendingOrdersPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Coupon Selection Modal */}
+      {showCouponModal && orderForCoupons && (
+        <EnhancedCouponSelectionModal
+          isOpen={showCouponModal}
+          onClose={() => {
+            setShowCouponModal(false);
+            setOrderForCoupons(null);
+          }}
+          onApplyCoupons={handleCouponApplication}
+          orderSubtotal={orderForCoupons.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+          orderItems={orderForCoupons.items}
+          existingCoupons={orderForCoupons.appliedCoupons}
+        />
       )}
     </DashboardLayout>
   );

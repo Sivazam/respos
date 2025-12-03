@@ -75,6 +75,12 @@ export interface AppliedDishCoupon {
   appliedAt: Timestamp;
 }
 
+// New interface for multiple applied coupons
+export interface OrderCoupons {
+  regularCoupon?: AppliedCoupon;
+  dishCoupons: AppliedDishCoupon[];
+}
+
 // Standalone helper function for generating coupon codes
 export const generateCouponCode = (dishName: string, percentage: number): string => {
   const baseName = dishName.trim().replace(/\s+/g, '').toUpperCase();
@@ -510,6 +516,136 @@ class CouponService {
 
   // Generate coupon code from dish name and percentage
   // Note: This is now a standalone function exported above
+
+  // ==================== MULTIPLE COUPONS MANAGEMENT ====================
+
+  // Check if a dish coupon can be applied (one per dish rule)
+  canApplyDishCoupon(dishCoupon: DishCoupon, appliedDishCoupons: AppliedDishCoupon[]): boolean {
+    return !appliedDishCoupons.some(applied => 
+      applied.dishName.toLowerCase() === dishCoupon.dishName.toLowerCase()
+    );
+  }
+
+  // Get applicable dish coupons for an order (filtering by order items and already applied coupons)
+  getApplicableDishCoupons(
+    dishCoupons: DishCoupon[], 
+    orderItems: any[], 
+    appliedDishCoupons: AppliedDishCoupon[] = []
+  ): DishCoupon[] {
+    return dishCoupons.filter(dishCoupon => {
+      // Check if coupon is applicable to order items
+      const { applicable } = this.isDishCouponApplicable(dishCoupon, orderItems);
+      
+      // Check if one-per-dish rule allows this coupon
+      const canApply = this.canApplyDishCoupon(dishCoupon, appliedDishCoupons);
+      
+      return applicable && canApply;
+    });
+  }
+
+  // Calculate total discount from multiple coupons
+  calculateTotalDiscount(
+    orderCoupons: OrderCoupons,
+    orderSubtotal: number,
+    orderItems: any[]
+  ): { totalDiscount: number; regularDiscount: number; dishDiscounts: number[] } {
+    let regularDiscount = 0;
+    let dishDiscounts: number[] = [];
+
+    // Calculate regular coupon discount
+    if (orderCoupons.regularCoupon) {
+      regularDiscount = orderCoupons.regularCoupon.discountAmount;
+    }
+
+    // Calculate dish coupon discounts
+    for (const appliedDishCoupon of orderCoupons.dishCoupons) {
+      const dishCoupon = {
+        dishName: appliedDishCoupon.dishName,
+        discountPercentage: appliedDishCoupon.discountPercentage
+      } as DishCoupon;
+      
+      const discount = this.calculateDishCouponDiscount(dishCoupon, orderItems);
+      dishDiscounts.push(discount);
+    }
+
+    const totalDiscount = regularDiscount + dishDiscounts.reduce((sum, discount) => sum + discount, 0);
+
+    return {
+      totalDiscount,
+      regularDiscount,
+      dishDiscounts
+    };
+  }
+
+  // Create applied dish coupon object
+  createAppliedDishCoupon(dishCoupon: DishCoupon, orderItems: any[]): AppliedDishCoupon | null {
+    const { applicable } = this.isDishCouponApplicable(dishCoupon, orderItems);
+    
+    if (!applicable) {
+      return null;
+    }
+
+    const discountAmount = this.calculateDishCouponDiscount(dishCoupon, orderItems);
+
+    return {
+      couponId: dishCoupon.id || '',
+      couponCode: dishCoupon.couponCode,
+      dishName: dishCoupon.dishName,
+      discountPercentage: dishCoupon.discountPercentage,
+      discountAmount,
+      appliedAt: Timestamp.now()
+    };
+  }
+
+  // Create applied regular coupon object
+  createAppliedRegularCoupon(coupon: Coupon, orderSubtotal: number): AppliedCoupon | null {
+    const discountAmount = this.calculateCouponDiscount(coupon, orderSubtotal);
+    
+    if (discountAmount === 0) {
+      return null;
+    }
+
+    return {
+      couponId: coupon.id || '',
+      name: coupon.name,
+      type: coupon.type,
+      discountAmount,
+      appliedAt: Timestamp.now()
+    };
+  }
+
+  // Validate coupon combination (regular + multiple dish coupons)
+  validateCouponCombination(
+    regularCoupon: Coupon | null,
+    dishCoupons: DishCoupon[],
+    orderSubtotal: number,
+    orderItems: any[]
+  ): { isValid: boolean; error?: string } {
+    // Check regular coupon validity
+    if (regularCoupon) {
+      const regularDiscount = this.calculateCouponDiscount(regularCoupon, orderSubtotal);
+      if (regularDiscount === 0) {
+        return { isValid: false, error: 'Regular coupon is not applicable to this order' };
+      }
+    }
+
+    // Check dish coupons validity
+    const dishNames = new Set<string>();
+    for (const dishCoupon of dishCoupons) {
+      const { applicable } = this.isDishCouponApplicable(dishCoupon, orderItems);
+      if (!applicable) {
+        return { isValid: false, error: `${dishCoupon.dishName} coupon is not applicable to this order` };
+      }
+
+      if (dishNames.has(dishCoupon.dishName.toLowerCase())) {
+        return { isValid: false, error: `Multiple coupons for ${dishCoupon.dishName} are not allowed` };
+      }
+
+      dishNames.add(dishCoupon.dishName.toLowerCase());
+    }
+
+    return { isValid: true };
+  }
 }
 
 export const couponService = new CouponService();

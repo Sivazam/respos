@@ -275,10 +275,60 @@ class CouponService {
     }
   }
 
-  // Create new dish coupons (bulk creation)
+  // Check if dish coupon already exists for a specific dish and percentage
+  async checkExistingDishCoupon(locationId: string, dishName: string, discountPercentage: number): Promise<boolean> {
+    try {
+      console.log('🔍 Checking existing dish coupon:', { locationId, dishName, discountPercentage });
+      
+      const couponCode = generateCouponCode(dishName, discountPercentage);
+      
+      const q = query(
+        collection(db, this.dishCouponCollectionName),
+        where('locationId', '==', locationId),
+        where('couponCode', '==', couponCode),
+        where('isActive', '==', true)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const exists = !querySnapshot.empty;
+      
+      console.log(`✅ Dish coupon ${couponCode} exists:`, exists);
+      return exists;
+    } catch (error) {
+      console.error('❌ Error checking existing dish coupon:', error);
+      throw error;
+    }
+  }
+
+  // Get existing dish coupons for a specific dish
+  async getExistingDishCouponsForDish(locationId: string, dishName: string): Promise<number[]> {
+    try {
+      console.log('🔍 Getting existing dish coupons for dish:', { locationId, dishName });
+      
+      const q = query(
+        collection(db, this.dishCouponCollectionName),
+        where('locationId', '==', locationId),
+        where('dishName', '==', dishName),
+        where('isActive', '==', true)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const existingPercentages = querySnapshot.docs.map(doc => 
+        (doc.data() as DishCoupon).discountPercentage
+      );
+      
+      console.log(`✅ Existing dish coupons for ${dishName}:`, existingPercentages);
+      return existingPercentages;
+    } catch (error) {
+      console.error('❌ Error getting existing dish coupons for dish:', error);
+      throw error;
+    }
+  }
+
+  // Create new dish coupons (bulk creation) with duplicate prevention
   async createDishCoupons(dishName: string, percentages: number[], locationId: string, createdBy: string): Promise<string[]> {
     try {
-      console.log('🔍 CouponService: Creating dish coupons for dish:', dishName, 'percentages:', percentages);
+      console.log('🔍 Creating dish coupons for dish:', dishName, 'percentages:', percentages);
       
       if (!dishName.trim()) {
         throw new Error('Dish name is required');
@@ -292,15 +342,32 @@ class CouponService {
         throw new Error('Created by user ID is required');
       }
 
+      // Get existing coupons for this dish
+      const existingPercentages = await this.getExistingDishCouponsForDish(locationId, dishName.trim());
+      
+      // Filter out percentages that already exist
+      const newPercentages = percentages.filter(percentage => {
+        if (percentage <= 0 || percentage > 100) {
+          console.warn(`⚠️ Skipping invalid percentage: ${percentage}`);
+          return false;
+        }
+        
+        if (existingPercentages.includes(percentage)) {
+          console.warn(`⚠️ Skipping existing coupon for ${dishName.trim()} at ${percentage}%`);
+          return false;
+        }
+        
+        return true;
+      });
+
+      if (newPercentages.length === 0) {
+        throw new Error(`All selected coupons already exist for ${dishName.trim()}. Existing percentages: ${existingPercentages.join(', ')}%`);
+      }
+
       const couponIds: string[] = [];
       const baseDishName = dishName.trim().replace(/\s+/g, '').toUpperCase();
       
-      for (const percentage of percentages) {
-        if (percentage <= 0 || percentage > 100) {
-          console.warn(`⚠️ Skipping invalid percentage: ${percentage}`);
-          continue;
-        }
-
+      for (const percentage of newPercentages) {
         const couponCode = `${baseDishName}${percentage}`;
         
         const couponData: Omit<DishCoupon, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -322,7 +389,13 @@ class CouponService {
         console.log(`✅ Dish coupon created: ${couponCode} with ID: ${docRef.id}`);
       }
       
-      console.log('✅ CouponService: All dish coupons created successfully');
+      const skippedCount = percentages.length - newPercentages.length;
+      let message = `✅ CouponService: ${couponIds.length} dish coupons created successfully`;
+      if (skippedCount > 0) {
+        message += `. ${skippedCount} duplicate(s) skipped`;
+      }
+      console.log(message);
+      
       return couponIds;
     } catch (error) {
       console.error('❌ CouponService: Error creating dish coupons:', error);
@@ -424,9 +497,12 @@ class CouponService {
       return 0;
     }
     
+    // Apply discount only for 1 quantity of each matching dish, not all quantities
+    // Use Math.floor to get integer value (e.g., 16.90 becomes 16)
     const totalDiscount = matchingItems.reduce((total, item) => {
-      const itemDiscount = (item.price || 0) * (dishCoupon.discountPercentage / 100) * (item.quantity || 1);
-      return total + itemDiscount;
+      const itemDiscount = (item.price || 0) * (dishCoupon.discountPercentage / 100);
+      const flooredDiscount = Math.floor(itemDiscount);
+      return total + flooredDiscount;
     }, 0);
     
     return totalDiscount;

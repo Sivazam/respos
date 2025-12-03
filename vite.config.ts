@@ -82,10 +82,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    strictPort: false,
-    hmr: {
-      port: 3000,
-    },
+    strictPort: true,
     cors: true,
     allowedHosts: [
       'ws-feb-b-c-dbb-oxrsrxlavf.cn-hongkong-vpc.fcapp.run',
@@ -95,6 +92,7 @@ export default defineConfig({
       'ws-ceb-df-bccfd-pdrrsfijwt.cn-hongkong-vpc.fcapp.run',
       'ws-fcc-fb-b-eab-mhxjvtcecy.cn-hongkong-vpc.fcapp.run',
       'ws-baaa-ae-bbdc-mlqkoeexbv.cn-hongkong-vpc.fcapp.run',
+      'ws-bccf-cbcdadc-mgojwfagaa.cn-hongkong-vpc.fcapp.run',
       'c-692f16b4-141b8308-61ccc0221820',
       'localhost',
       'ws-bddfa-ebaada-kdvgmdgadr.cn-hongkong-vpc.fcapp.run',
@@ -116,6 +114,7 @@ export default defineConfig({
       'ws-ceb-df-bccfd-pdrrsfijwt.cn-hongkong-vpc.fcapp.run',
       'ws-fcc-fb-b-eab-mhxjvtcecy.cn-hongkong-vpc.fcapp.run',
       'ws-baaa-ae-bbdc-mlqkoeexbv.cn-hongkong-vpc.fcapp.run',
+      'ws-bccf-cbcdadc-mgojwfagaa.cn-hongkong-vpc.fcapp.run',
       'c-692f16b4-141b8308-61ccc0221820',
       'localhost',
       'ws-bddfa-ebaada-kdvgmdgadr.cn-hongkong-vpc.fcapp.run',

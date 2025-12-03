@@ -39,6 +39,8 @@ const DishCouponManagement: React.FC = () => {
     dishName: '',
     selectedPercentages: []
   });
+  const [existingCoupons, setExistingCoupons] = useState<{ [dishName: string]: number[] }>({});
+  const [validationMessage, setValidationMessage] = useState('');
 
   const availablePercentages = [8, 9, 10, 11, 12, 13, 14, 15];
 
@@ -89,6 +91,7 @@ const DishCouponManagement: React.FC = () => {
     setShowSuggestions(false);
     setFilteredSuggestions([]);
     setError('');
+    setValidationMessage('');
   };
 
   const handleAddDishCoupon = () => {
@@ -97,12 +100,27 @@ const DishCouponManagement: React.FC = () => {
   };
 
   const handlePercentageToggle = (percentage: number) => {
+    const newSelectedPercentages = formData.selectedPercentages.includes(percentage)
+      ? formData.selectedPercentages.filter(p => p !== percentage)
+      : [...formData.selectedPercentages, percentage];
+    
     setFormData(prev => ({
       ...prev,
-      selectedPercentages: prev.selectedPercentages.includes(percentage)
-        ? prev.selectedPercentages.filter(p => p !== percentage)
-        : [...prev.selectedPercentages, percentage]
+      selectedPercentages: newSelectedPercentages
     }));
+    
+    // Update validation message if we have a dish name
+    if (formData.dishName.trim() && existingCoupons[formData.dishName.trim()]) {
+      const existing = existingCoupons[formData.dishName.trim()];
+      const newlySelected = newSelectedPercentages.filter(p => !formData.selectedPercentages.includes(p));
+      const newlySelectedExisting = newlySelected.filter(p => existing.includes(p));
+      
+      if (newlySelectedExisting.length > 0) {
+        setValidationMessage(prev => 
+          prev + ` (${newlySelectedExisting.join(', ')}% already exist)`
+        );
+      }
+    }
   };
 
   const handleSelectAll = () => {
@@ -112,6 +130,34 @@ const DishCouponManagement: React.FC = () => {
         ? [] 
         : [...availablePercentages]
     }));
+  };
+
+  // Check existing coupons for a dish
+  const checkExistingCoupons = async (dishName: string) => {
+    if (!dishName.trim() || !currentUser?.locationId) {
+      setExistingCoupons(prev => ({ ...prev, [dishName]: [] }));
+      setValidationMessage('');
+      return;
+    }
+
+    try {
+      const locationId = currentUser.locationId || 
+                        (currentUser.locationIds && currentUser.locationIds.length > 0 ? currentUser.locationIds[0] : null);
+      
+      if (locationId) {
+        const existing = await couponService.getExistingDishCouponsForDish(locationId, dishName.trim());
+        setExistingCoupons(prev => ({ ...prev, [dishName]: existing }));
+        
+        if (existing.length > 0) {
+          setValidationMessage(`Existing coupons for ${dishName}: ${existing.sort((a, b) => a - b).join(', ')}%`);
+        } else {
+          setValidationMessage('');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking existing coupons:', error);
+      setValidationMessage('');
+    }
   };
 
   // Autocomplete handlers
@@ -124,9 +170,13 @@ const DishCouponManagement: React.FC = () => {
       );
       setFilteredSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
+      
+      // Check existing coupons for the current dish name
+      checkExistingCoupons(value.trim());
     } else {
       setShowSuggestions(false);
       setFilteredSuggestions([]);
+      setValidationMessage('');
     }
   };
 
@@ -144,6 +194,9 @@ const DishCouponManagement: React.FC = () => {
     setFormData(prev => ({ ...prev, dishName: selectedDish.name }));
     setShowSuggestions(false);
     setFilteredSuggestions([]);
+    
+    // Check existing coupons for the selected dish
+    checkExistingCoupons(selectedDish.name);
   };
 
   const handleSuggestionBlur = () => {
@@ -197,7 +250,15 @@ const DishCouponManagement: React.FC = () => {
         currentUser.uid
       );
 
-      toast.success(`${couponIds.length} dish coupons created successfully!`);
+      const createdCount = couponIds.length;
+      const skippedCount = formData.selectedPercentages.length - createdCount;
+      
+      let successMessage = `${createdCount} dish coupons created successfully!`;
+      if (skippedCount > 0) {
+        successMessage += ` ${skippedCount} duplicate(s) skipped.`;
+      }
+      
+      toast.success(successMessage);
 
       // Reload dish coupons
       const updatedDishCoupons = await couponService.getLocationDishCoupons(locationId);
@@ -399,6 +460,11 @@ const DishCouponManagement: React.FC = () => {
                       placeholder="e.g., Chilli Chicken, Mutton Biryani"
                       className="w-full"
                     />
+                    {validationMessage && (
+                      <div className="mt-2 text-sm text-amber-600 bg-amber-50 p-2 rounded">
+                        <span className="font-medium">Note:</span> {validationMessage}
+                      </div>
+                    )}
                     {showSuggestions && filteredSuggestions.length > 0 && (
                       <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                         {filteredSuggestions.map((suggestion, index) => (
@@ -449,23 +515,37 @@ const DishCouponManagement: React.FC = () => {
                     </button>
                   </div>
                   <div className="grid grid-cols-4 gap-3">
-                    {availablePercentages.map((percentage) => (
-                      <button
-                        key={percentage}
-                        type="button"
-                        onClick={() => handlePercentageToggle(percentage)}
-                        className={`p-3 rounded-lg border-2 transition-all ${
-                          formData.selectedPercentages.includes(percentage)
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="text-lg font-bold">{percentage}%</div>
-                        <div className="text-xs text-gray-500">
-                          {generateCouponCode(formData.dishName || 'DISH', percentage)}
-                        </div>
-                      </button>
-                    ))}
+                    {availablePercentages.map((percentage) => {
+                      const isExisting = formData.dishName.trim() && 
+                                       existingCoupons[formData.dishName.trim()]?.includes(percentage);
+                      const isSelected = formData.selectedPercentages.includes(percentage);
+                      
+                      return (
+                        <button
+                          key={percentage}
+                          type="button"
+                          onClick={() => handlePercentageToggle(percentage)}
+                          disabled={isExisting && !isSelected}
+                          className={`p-3 rounded-lg border-2 transition-all ${
+                            isSelected
+                              ? 'border-orange-500 bg-orange-50 text-orange-700'
+                              : isExisting
+                                ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="text-lg font-bold">{percentage}%</div>
+                          <div className="text-xs">
+                            {generateCouponCode(formData.dishName || 'DISH', percentage)}
+                          </div>
+                          {isExisting && (
+                            <div className="text-xs font-medium text-red-600 mt-1">
+                              ✓ Exists
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                   {formData.selectedPercentages.length > 0 && (
                     <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">

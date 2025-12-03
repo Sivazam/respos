@@ -563,10 +563,28 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                 </div>
               ` : ''}
               ${order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 ? `
+                ${order.appliedCoupon.dishCoupons.map(dishCoupon => `
+                  <div class="total-row">
+                      <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
+                      <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
+                  </div>
+                `).join('')}
+              ` : ''}
+            ` : ''}
+            ${order.appliedCoupons ? `
+              ${order.appliedCoupons.regularCoupon && order.appliedCoupons.regularCoupon.discountAmount > 0 ? `
                 <div class="total-row">
-                    <div class="total-label">Dish Coupons (${order.appliedCoupon.dishCoupons.map(dc => dc.couponCode).join(', ')})</div>
-                    <div class="total-value">-${formatPrice(order.appliedCoupon.dishCoupons.reduce((sum, dc) => sum + dc.discountAmount, 0))}</div>
+                    <div class="total-label">Coupon (${order.appliedCoupons.regularCoupon.name})</div>
+                    <div class="total-value">-${formatPrice(order.appliedCoupons.regularCoupon.discountAmount)}</div>
                 </div>
+              ` : ''}
+              ${order.appliedCoupons.dishCoupons && order.appliedCoupons.dishCoupons.length > 0 ? `
+                ${order.appliedCoupons.dishCoupons.map(dishCoupon => `
+                  <div class="total-row">
+                      <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
+                      <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
+                  </div>
+                `).join('')}
               ` : ''}
             ` : ''}
             <div class="total-row grand-total">
@@ -889,10 +907,34 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                         </div>
                       )}
                       {order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 && (
+                        <>
+                          {order.appliedCoupon.dishCoupons.map((dishCoupon, index) => (
+                            <div key={index} className="flex justify-between">
+                              <div>Dish Coupon ({dishCoupon.couponCode})</div>
+                              <div>-{formatPrice(dishCoupon.discountAmount)}</div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
+                  {order.appliedCoupons && (
+                    <>
+                      {order.appliedCoupons.regularCoupon && order.appliedCoupons.regularCoupon.discountAmount > 0 && (
                         <div className="flex justify-between">
-                          <div>Dish Coupons ({order.appliedCoupon.dishCoupons.map(dc => dc.couponCode).join(', ')})</div>
-                          <div>-{formatPrice(order.appliedCoupon.dishCoupons.reduce((sum, dc) => sum + dc.discountAmount, 0))}</div>
+                          <div>Coupon ({order.appliedCoupons.regularCoupon.name})</div>
+                          <div>-{formatPrice(order.appliedCoupons.regularCoupon.discountAmount)}</div>
                         </div>
+                      )}
+                      {order.appliedCoupons.dishCoupons && order.appliedCoupons.dishCoupons.length > 0 && (
+                        <>
+                          {order.appliedCoupons.dishCoupons.map((dishCoupon, index) => (
+                            <div key={index} className="flex justify-between">
+                              <div>Dish Coupon ({dishCoupon.couponCode})</div>
+                              <div>-{formatPrice(dishCoupon.discountAmount)}</div>
+                            </div>
+                          ))}
+                        </>
                       )}
                     </>
                   )}

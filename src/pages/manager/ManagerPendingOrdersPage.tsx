@@ -73,7 +73,6 @@ const formatCouponDisplay = (order: any): { text: string; details: string[]; typ
     
     if (regularCoupon && dishCoupons.length > 0) {
       const couponCount = 1 + dishCoupons.length;
-      const couponCodes = dishCoupons.map(dc => dc.couponCode).join(', ');
       const result = { 
         text: `${couponCount} Coupons Applied`, 
         details,
@@ -90,10 +89,15 @@ const formatCouponDisplay = (order: any): { text: string; details: string[]; typ
         color: 'text-green-600' 
       };
     } else if (dishCoupons.length > 0) {
-      const couponCount = dishCoupons.length;
-      const couponCodes = dishCoupons.map(dc => dc.couponCode).join(', ');
+      const details: string[] = [];
+      
+      // Add individual dish coupon details
+      dishCoupons.forEach(dishCoupon => {
+        details.push(`${dishCoupon.couponCode}: -₹${dishCoupon.discountAmount.toFixed(2)}`);
+      });
+      
       const result = { 
-        text: `Dish Coupons (${couponCodes})`, 
+        text: `${dishCoupons.length} Dish Coupons Applied`, 
         details,
         type: 'dish', 
         color: 'text-orange-600' 
@@ -936,12 +940,29 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 console.log('🔍 Receipt generation - couponDisplay.details:', couponDisplay.details);
                 console.log('🔍 Receipt generation - timestamp:', new Date().toISOString());
                 
-                let couponHTML = `
-                  <div class="total-row">
-                      <div class="total-label">${couponDisplay.text}</div>
-                      <div class="total-value">-${formatPrice(couponAmount)}</div>
-                  </div>
-                `;
+                // Show individual dish coupons from details
+                let couponHTML = '';
+                
+                if (couponDisplay.type === 'dish' || couponDisplay.type === 'mixed') {
+                  // For dish coupons, show each one individually
+                  couponDisplay.details.forEach(detail => {
+                    const [couponCode, amount] = detail.split(': -₹');
+                    couponHTML += `
+                      <div class="total-row">
+                          <div class="total-label">Dish Coupon (${couponCode.trim()})</div>
+                          <div class="total-value">-${amount.trim()}</div>
+                      </div>
+                    `;
+                  });
+                } else {
+                  // For regular coupons, show single line
+                  couponHTML = `
+                    <div class="total-row">
+                        <div class="total-label">${couponDisplay.text}</div>
+                        <div class="total-value">-${formatPrice(couponAmount)}</div>
+                    </div>
+                  `;
+                }
                 
                 return couponHTML;
               }

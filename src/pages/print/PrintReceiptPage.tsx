@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { orderService } from '../../services/orderService';
 import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 import { useAuth } from '../../contexts/AuthContext';
+import { OrderCoupons, couponService } from '../../services/couponService';
 
 const PrintReceiptPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -187,7 +188,20 @@ const PrintReceiptPage: React.FC = () => {
     const deliveryCharge = order?.deliveryCharge || 0;
     const packagingCharge = order?.packagingCharge || 0;
     const discount = order?.discount || 0;
-    const couponAmount = order?.appliedCoupon?.discountAmount || 0;
+    
+    // Handle both old single coupon and new multiple coupons
+    let couponAmount = 0;
+    if (order?.appliedCoupon) {
+      couponAmount = order.appliedCoupon.discountAmount || 0;
+    } else if (order?.appliedCoupons) {
+      // Calculate total discount from multiple coupons
+      const { totalDiscount } = couponService.calculateTotalDiscount(
+        order.appliedCoupons, 
+        subtotal, 
+        order.items
+      );
+      couponAmount = totalDiscount;
+    }
     
     return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount - couponAmount;
   };
@@ -514,6 +528,38 @@ const PrintReceiptPage: React.FC = () => {
                   <div class="total-label">Coupon (${order.appliedCoupon.name})</div>
                   <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
               </div>
+            ` : ''}
+            ${order.appliedCoupon && (order.appliedCoupon.dishCoupons || order.appliedCoupon.regularCoupon) ? `
+              ${order.appliedCoupon.regularCoupon && order.appliedCoupon.regularCoupon.discountAmount > 0 ? `
+                <div class="total-row">
+                    <div class="total-label">Coupon (${order.appliedCoupon.regularCoupon.name})</div>
+                    <div class="total-value">-${formatPrice(order.appliedCoupon.regularCoupon.discountAmount)}</div>
+                </div>
+              ` : ''}
+              ${order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 ? `
+                ${order.appliedCoupon.dishCoupons.map(dishCoupon => `
+                  <div class="total-row">
+                      <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
+                      <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
+                  </div>
+                `).join('')}
+              ` : ''}
+            ` : ''}
+            ${order.appliedCoupons ? `
+              ${order.appliedCoupons.regularCoupon && order.appliedCoupons.regularCoupon.discountAmount > 0 ? `
+                <div class="total-row">
+                    <div class="total-label">Coupon (${order.appliedCoupons.regularCoupon.name})</div>
+                    <div class="total-value">-${formatPrice(order.appliedCoupons.regularCoupon.discountAmount)}</div>
+                </div>
+              ` : ''}
+              ${order.appliedCoupons.dishCoupons && order.appliedCoupons.dishCoupons.length > 0 ? `
+                ${order.appliedCoupons.dishCoupons.map(dishCoupon => `
+                  <div class="total-row">
+                      <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
+                      <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
+                  </div>
+                `).join('')}
+              ` : ''}
             ` : ''}
             <div class="total-row grand-total">
                 <div class="total-label">Grand Total</div>

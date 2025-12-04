@@ -535,9 +535,9 @@ const DishCouponManagement: React.FC = () => {
                           }`}
                         >
                           <div className="text-lg font-bold">{percentage}%</div>
-                          <div className="text-xs">
+                          {/* <div className="text-xs">
                             {generateCouponCode(formData.dishName || 'DISH', percentage)}
-                          </div>
+                          </div> */}
                           {isExisting && (
                             <div className="text-xs font-medium text-red-600 mt-1">
                               ✓ Exists

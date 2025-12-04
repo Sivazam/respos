@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global Font Family - Raleway */
+* {
+  font-family: 'Raleway', sans-serif;
+}
+
+
 /* Custom Animations */
 @keyframes fadeIn {
   from { opacity: 0; }

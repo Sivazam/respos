@@ -434,6 +434,43 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
               {children}
             </div>
           </div>
+          
+          {/* Beautiful Footer */}
+          <footer className="relative py-6 px-4 border-t border-gray-200">
+            {/* Background image with overlay */}
+            <div className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-100" 
+                 style={{backgroundImage: 'url(https://images.squarespace-cdn.com/content/v1/63d964babbbb421ef1dc1d02/d74f74c3-5a65-4c47-b6c9-b3ea72ec2ec8/UNCLE+SHARKII+FOOTER.png)'}}>
+              {/* Dark overlay for text visibility */}
+              <div className="absolute inset-0 bg-gradient-to-r from-gray-900/70 via-gray-800/70 to-gray-900/70"></div>
+            </div>
+            
+            {/* Content positioned above the background */}
+            <div className="relative z-10 max-w-7xl mx-auto">
+              <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 md:space-x-8">
+                {/* Left side - Copyright */}
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm text-gray-100">
+                    © {new Date().getFullYear()} Forkflow. All rights reserved.
+                  </span>
+                </div>
+                
+                {/* Center - Built with love */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-100">Built with</span>
+                  <span className="text-red-500 animate-pulse">❤️</span>
+                  <span className="text-sm text-gray-100">by</span>
+                  <span className="text-sm font-semibold text-white">Harte Labs</span>
+                </div>
+                
+                {/* Right side - Additional info */}
+                <div className="flex items-center space-x-4">
+                  <span className="text-xs text-gray-200 bg-gray-800/60 px-2 py-1 rounded-full">
+                    v3.7
+                  </span>
+                </div>
+              </div>
+            </div>
+          </footer>
         </main>
       </div>
     </div>

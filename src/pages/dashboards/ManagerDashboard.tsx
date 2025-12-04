@@ -20,8 +20,7 @@ import {
   CreditCard,
   Smartphone,
   Users,
-  BarChart3,
-  Package
+  BarChart3
 } from 'lucide-react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/db';
@@ -394,29 +393,45 @@ const ManagerDashboard: React.FC = () => {
         label: 'Revenue by Payment Method',
         data: [metrics.upiRevenue, metrics.cashRevenue, metrics.cardRevenue],
         backgroundColor: [
-          'rgba(147, 51, 234, 0.8)',
-          'rgba(34, 197, 94, 0.8)',
-          'rgba(59, 130, 246, 0.8)',
+          'rgba(139, 92, 246, 0.9)',  // Modern purple
+          'rgba(16, 185, 129, 0.9)',  // Modern emerald
+          'rgba(59, 130, 246, 0.9)',  // Modern blue
         ],
         borderColor: [
-          'rgba(147, 51, 234, 1)',
-          'rgba(34, 197, 94, 1)',
+          'rgba(139, 92, 246, 1)',
+          'rgba(16, 185, 129, 1)',
           'rgba(59, 130, 246, 1)',
         ],
-        borderWidth: 1,
+        borderWidth: 2,
+        borderRadius: 8,
+        hoverBackgroundColor: [
+          'rgba(139, 92, 246, 1)',
+          'rgba(16, 185, 129, 1)',
+          'rgba(59, 130, 246, 1)',
+        ],
       },
     ],
   };
 
+  // Convert 24-hour format to 12-hour format for peak hours
+  const convertTo12Hour = (hour24: string) => {
+    const hour = parseInt(hour24.split(':')[0]);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:00 ${ampm}`;
+  };
+
   const peakHoursChartData = {
-    labels: metrics.peakHours.map(item => item.hour),
+    labels: metrics.peakHours.map(item => convertTo12Hour(item.hour)),
     datasets: [
       {
         label: 'Orders by Hour',
         data: metrics.peakHours.map(item => item.count),
-        backgroundColor: 'rgba(251, 146, 60, 0.8)',
+        backgroundColor: 'rgba(251, 146, 60, 0.9)',
         borderColor: 'rgba(251, 146, 60, 1)',
-        borderWidth: 1,
+        borderWidth: 2,
+        borderRadius: 6,
+        hoverBackgroundColor: 'rgba(251, 146, 60, 1)',
       },
     ],
   };
@@ -428,19 +443,20 @@ const ManagerDashboard: React.FC = () => {
         label: 'Orders by Type',
         data: [metrics.dineInOrders, metrics.deliveryOrders],
         backgroundColor: [
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(147, 51, 234, 0.8)',
+          'rgba(59, 130, 246, 0.9)',
+          'rgba(236, 72, 153, 0.9)',
         ],
         borderColor: [
           'rgba(59, 130, 246, 1)',
-          'rgba(147, 51, 234, 1)',
+          'rgba(236, 72, 153, 1)',
         ],
-        borderWidth: 1,
+        borderWidth: 2,
+        hoverOffset: 8,
       },
     ],
   };
 
-  // Chart options
+  // Enhanced Chart options for bar charts
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -448,29 +464,39 @@ const ManagerDashboard: React.FC = () => {
       legend: {
         position: 'top' as const,
         labels: {
-          boxWidth: 12,
-          padding: 10,
+          boxWidth: 16,
+          padding: 15,
           font: {
-            size: 11
-          }
+            size: 12,
+            weight: '500'
+          },
+          usePointStyle: true,
+          pointStyle: 'rectRounded'
         }
       },
       tooltip: {
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        titleColor: '#ffffff',
+        bodyColor: '#ffffff',
         titleFont: {
-          size: 12
+          size: 14,
+          weight: '600'
         },
         bodyFont: {
-          size: 11
+          size: 12
         },
-        padding: 8,
-        cornerRadius: 4
+        padding: 12,
+        cornerRadius: 8,
+        displayColors: true,
+        boxPadding: 4
       }
     },
     scales: {
       x: {
         ticks: {
           font: {
-            size: 10
+            size: 11,
+            weight: '500'
           },
           maxRotation: 45,
           minRotation: 0
@@ -482,17 +508,24 @@ const ManagerDashboard: React.FC = () => {
       y: {
         ticks: {
           font: {
-            size: 10
-          }
+            size: 11,
+            weight: '500'
+          },
+          beginAtZero: true
         },
         grid: {
-          color: 'rgba(0, 0, 0, 0.05)'
+          color: 'rgba(0, 0, 0, 0.08)',
+          drawBorder: false
         }
       }
+    },
+    animation: {
+      duration: 750,
+      easing: 'easeInOutQuart' as const
     }
   };
 
-  // Pie chart options
+  // Enhanced Pie Chart options
   const pieChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -500,32 +533,47 @@ const ManagerDashboard: React.FC = () => {
       legend: {
         position: 'bottom' as const,
         labels: {
-          boxWidth: 12,
-          padding: 15,
+          boxWidth: 20,
+          padding: 20,
           font: {
-            size: 11
-          }
+            size: 12,
+            weight: '500'
+          },
+          usePointStyle: true,
+          pointStyle: 'circle'
         }
       },
       tooltip: {
+        backgroundColor: 'rgba(17, 24, 39, 0.95)',
+        titleColor: '#ffffff',
+        bodyColor: '#ffffff',
         titleFont: {
-          size: 12
+          size: 14,
+          weight: '600'
         },
         bodyFont: {
-          size: 11
+          size: 12
         },
-        padding: 8,
-        cornerRadius: 4,
+        padding: 12,
+        cornerRadius: 8,
+        displayColors: true,
+        boxPadding: 6,
         callbacks: {
           label: function(context: any) {
             const label = context.label || '';
             const value = context.parsed || 0;
             const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
             const percentage = ((value / total) * 100).toFixed(1);
-            return `${label}: ${value} (${percentage}%)`;
+            return `${label}: ${value} orders (${percentage}%)`;
           }
         }
       }
+    },
+    animation: {
+      animateRotate: true,
+      animateScale: true,
+      duration: 1000,
+      easing: 'easeInOutQuart' as const
     }
   };
 

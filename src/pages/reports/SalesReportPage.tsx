@@ -353,7 +353,7 @@ const SalesReportPage: React.FC = () => {
     };
   }, [filteredOrders, currentUser?.locationId]);
 
-  // Chart data preparation
+  // Chart data preparation - Enhanced styling
   const paymentChartData = useMemo(() => ({
     labels: ['UPI', 'Cash', 'Card'],
     datasets: [{
@@ -363,13 +363,22 @@ const SalesReportPage: React.FC = () => {
         summary.paymentBreakdown.cash.revenue,
         summary.paymentBreakdown.card.revenue
       ],
-      backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'],
-      borderColor: ['#059669', '#2563eb', '#d97706'],
-      borderWidth: 1
+      backgroundColor: [
+        'rgba(139, 92, 246, 0.9)',  // Modern purple
+        'rgba(16, 185, 129, 0.9)',  // Modern emerald
+        'rgba(59, 130, 246, 0.9)'   // Modern blue
+      ],
+      borderColor: [
+        'rgba(139, 92, 246, 1)',
+        'rgba(16, 185, 129, 1)',
+        'rgba(59, 130, 246, 1)'
+      ],
+      borderWidth: 2,
+      hoverOffset: 8
     }]
   }), [summary]);
 
-  // Prepare data for daily sales chart
+  // Prepare data for daily sales chart with smart date formatting
   const dailySalesData = useMemo(() => {
     const dailyTotals = filteredOrders.reduce((acc, order) => {
       try {
@@ -383,14 +392,54 @@ const SalesReportPage: React.FC = () => {
       return acc;
     }, {} as Record<string, number>);
 
+    const dateKeys = Object.keys(dailyTotals);
+    const dateCount = dateKeys.length;
+    
+    // Smart date formatting based on number of days
+    const formatLabels = (dates: string[]) => {
+      if (dateCount <= 7) {
+        // For 7 days or less, show full dates (e.g., "01 Jan")
+        return dates.map(date => {
+          const d = new Date(date + 'T00:00:00');
+          return format(d, 'dd MMM');
+        });
+      } else if (dateCount <= 15) {
+        // For 15 days or less, show abbreviated dates (e.g., "1/5")
+        return dates.map(date => {
+          const d = new Date(date + 'T00:00:00');
+          return format(d, 'd/M');
+        });
+      } else if (dateCount <= 31) {
+        // For a month, show short dates (e.g., "Jan 15")
+        return dates.map(date => {
+          const d = new Date(date + 'T00:00:00');
+          return format(d, 'MMM d');
+        });
+      } else {
+        // For more than a month, show month-day (e.g., "Jan-15")
+        return dates.map(date => {
+          const d = new Date(date + 'T00:00:00');
+          return format(d, 'MM-dd');
+        });
+      }
+    };
+
+    // Determine date format label
+    const dateFormatLabel = dateCount <= 7 ? 'Full Dates' : 
+                           dateCount <= 15 ? 'Compact Dates' : 
+                           dateCount <= 31 ? 'Short Dates' : 'Month-Day';
+
     return {
-      labels: Object.keys(dailyTotals),
+      labels: formatLabels(dateKeys),
+      dateFormatLabel,
       datasets: [{
         label: 'Daily Revenue',
         data: Object.values(dailyTotals),
-        backgroundColor: 'rgba(34, 197, 94, 0.2)',
-        borderColor: 'rgb(34, 197, 94)',
-        borderWidth: 1
+        backgroundColor: 'rgba(251, 146, 60, 0.9)',  // Modern orange
+        borderColor: 'rgba(251, 146, 60, 1)',
+        borderWidth: 2,
+        borderRadius: 6,
+        hoverBackgroundColor: 'rgba(251, 146, 60, 1)'
       }]
     };
   }, [filteredOrders]);
@@ -628,22 +677,97 @@ const SalesReportPage: React.FC = () => {
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">
-              Daily Revenue
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">
+                Daily Revenue
+              </h3>
+              <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                {dailySalesData.dateFormatLabel}
+              </div>
+            </div>
             <div className="h-64 sm:h-80">
               <Bar
                 data={dailySalesData}
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false
+                    },
+                    tooltip: {
+                      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                      titleColor: '#ffffff',
+                      bodyColor: '#ffffff',
+                      titleFont: {
+                        size: 14,
+                        weight: '600'
+                      },
+                      bodyFont: {
+                        size: 12
+                      },
+                      padding: 12,
+                      cornerRadius: 8,
+                      displayColors: false,
+                      callbacks: {
+                        label: (context) => {
+                          const value = context.parsed.y;
+                          const dateIndex = context.dataIndex;
+                          const dateLabel = context.chart.data.labels[dateIndex];
+                          // Convert the date label back to full date for formatting
+                          let fullDate: Date;
+                          if (dailySalesData.dateFormatLabel === 'Full Dates') {
+                            fullDate = new Date(`${dateLabel} ${new Date().getFullYear()}`); // Add current year to make it a valid date
+                          } else if (dailySalesData.dateFormatLabel === 'Compact Dates') {
+                            const [day, month] = dateLabel.split('/');
+                            fullDate = new Date(`${month}-${day}-${new Date().getFullYear()}`); // Convert to valid date
+                          } else if (dailySalesData.dateFormatLabel === 'Short Dates') {
+                            const [day, month] = dateLabel.split(' ');
+                            fullDate = new Date(`${month} ${day}, ${new Date().getFullYear()}`);
+                          } else {
+                            const [month, day] = dateLabel.split('-');
+                            fullDate = new Date(`${new Date().getFullYear()}-${month}-${day}`);
+                          }
+                          return `${format(fullDate, 'MMM dd, yyyy')}: ₹${value.toFixed(2)}`;
+                        }
+                      }
+                    }
+                  },
                   scales: {
+                    x: {
+                      ticks: {
+                        font: {
+                          size: 11,
+                          weight: '500'
+                        },
+                        maxRotation: 45,
+                        minRotation: 0,
+                        // Reduce number of labels shown when there are many dates
+                        autoSkip: true,
+                        maxTicksLimit: 10
+                      },
+                      grid: {
+                        display: false
+                      }
+                    },
                     y: {
                       beginAtZero: true,
                       ticks: {
+                        font: {
+                          size: 11,
+                          weight: '500'
+                        },
                         callback: (value) => `₹${value}`
+                      },
+                      grid: {
+                        color: 'rgba(0, 0, 0, 0.08)',
+                        drawBorder: false
                       }
                     }
+                  },
+                  animation: {
+                    duration: 750,
+                    easing: 'easeInOutQuart'
                   }
                 }}
               />
@@ -662,17 +786,49 @@ const SalesReportPage: React.FC = () => {
                   maintainAspectRatio: false,
                   plugins: {
                     legend: {
-                      position: 'bottom'
+                      position: 'bottom',
+                      labels: {
+                        boxWidth: 20,
+                        padding: 20,
+                        font: {
+                          size: 12,
+                          weight: '500'
+                        },
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                      }
                     },
                     tooltip: {
+                      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+                      titleColor: '#ffffff',
+                      bodyColor: '#ffffff',
+                      titleFont: {
+                        size: 14,
+                        weight: '600'
+                      },
+                      bodyFont: {
+                        size: 12
+                      },
+                      padding: 12,
+                      cornerRadius: 8,
+                      displayColors: true,
+                      boxPadding: 6,
                       callbacks: {
                         label: (context) => {
                           const label = context.label || '';
                           const value = context.parsed;
-                          return `${label}: ₹${value.toFixed(2)}`;
+                          const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                          const percentage = ((value / total) * 100).toFixed(1);
+                          return `${label}: ₹${value.toFixed(2)} (${percentage}%)`;
                         }
                       }
                     }
+                  },
+                  animation: {
+                    animateRotate: true,
+                    animateScale: true,
+                    duration: 1000,
+                    easing: 'easeInOutQuart'
                   }
                 }}
               />

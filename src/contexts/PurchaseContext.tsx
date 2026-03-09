@@ -41,7 +41,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
     setError(null);
     try {
       let querySnapshot;
-      
+
       if (currentLocation) {
         // If a location is selected, get all purchases and filter client-side
         const q = query(
@@ -80,7 +80,7 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
             orderBy('createdAt', 'desc')
           );
           const allSnapshot = await getDocs(q);
-          
+
           // Get all locations for this admin's franchise
           const locationsQuery = query(
             collection(db, 'locations'),
@@ -88,10 +88,10 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
           );
           const locationsSnapshot = await getDocs(locationsQuery);
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
-          
+
           // Filter purchases by franchise location IDs
           querySnapshot = {
-            docs: allSnapshot.docs.filter(doc => 
+            docs: allSnapshot.docs.filter(doc =>
               franchiseLocationIds.includes(doc.data().locationId)
             )
           };
@@ -107,13 +107,13 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
         );
         querySnapshot = await getDocs(q);
       }
-      
+
       const purchasesData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate()
       })) as Purchase[];
-      
+
       setPurchases(purchasesData);
     } catch (err: any) {
       console.error('Error fetching purchases:', err);
@@ -138,13 +138,13 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
 
       // Determine the locationId to use
       let locationId = null;
-      
+
       if (currentLocation) {
         locationId = currentLocation.id;
       } else if (currentUser?.locationId) {
         locationId = currentUser.locationId;
       }
-      
+
       if (!locationId && currentUser?.role !== 'superadmin') {
         throw new Error('No location available. Please select a location or contact an administrator.');
       }
@@ -160,10 +160,11 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
         ...data,
         productName: product.name,
         locationId: locationId,
+        franchiseId: currentLocation?.franchiseId || currentUser?.franchiseId,
         createdBy: currentUser?.uid,
         createdAt: serverTimestamp()
       });
-      
+
       await refreshPurchases();
     } catch (err: any) {
       console.error('Error adding purchase:', err);

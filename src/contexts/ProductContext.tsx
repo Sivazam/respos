@@ -132,13 +132,16 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
   const addProduct = async (data: ProductFormData) => {
     setError(null);
     try {
-      // Determine the locationId to use
+      // Determine the locationId and franchiseId to use
       let locationId = null;
+      let franchiseId = null;
       
       if (currentLocation) {
         locationId = currentLocation.id;
+        franchiseId = currentLocation.franchiseId || currentUser?.franchiseId;
       } else if (currentUser?.locationId) {
         locationId = currentUser.locationId;
+        franchiseId = currentUser.franchiseId;
       }
       
       if (!locationId && (currentUser?.role !== 'superadmin')) {
@@ -149,6 +152,7 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
         ...data,
         quantity: 0, // New products start with 0 quantity
         locationId: locationId,
+        franchiseId: franchiseId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });

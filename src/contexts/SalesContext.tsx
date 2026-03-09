@@ -38,17 +38,17 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
   const refreshSales = async () => {
     setLoading(true);
     setError(null);
-    
+
     // Don't fetch if no user is authenticated
     if (!currentUser) {
       setSales([]);
       setLoading(false);
       return;
     }
-    
+
     try {
       let querySnapshot;
-      
+
       // Use client-side filtering to avoid index requirements
       if (currentUser?.role === 'superadmin') {
         const q = query(
@@ -62,8 +62,8 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           orderBy('createdAt', 'desc')
         );
         const allSnapshot = await getDocs(q);
-        
-        const filteredDocs = allSnapshot.docs.filter(doc => 
+
+        const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.data().locationId === currentLocation.id
         );
         querySnapshot = { docs: filteredDocs };
@@ -73,8 +73,8 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           orderBy('createdAt', 'desc')
         );
         const allSnapshot = await getDocs(q);
-        
-        const filteredDocs = allSnapshot.docs.filter(doc => 
+
+        const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.data().locationId === currentUser.locationId
         );
         querySnapshot = { docs: filteredDocs };
@@ -84,8 +84,8 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           orderBy('createdAt', 'desc')
         );
         const allSnapshot = await getDocs(q);
-        
-        const filteredDocs = allSnapshot.docs.filter(doc => 
+
+        const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.data().locationId === currentUser.locationId
         );
         querySnapshot = { docs: filteredDocs };
@@ -96,18 +96,18 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
             orderBy('createdAt', 'desc')
           );
           const allSalesSnapshot = await getDocs(q);
-          
+
           const locationsQuery = query(
             collection(db, 'locations'),
             where('franchiseId', '==', currentUser.franchiseId)
           );
           const locationsSnapshot = await getDocs(locationsQuery);
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
-          
-          const filteredDocs = allSalesSnapshot.docs.filter(doc => 
+
+          const filteredDocs = allSalesSnapshot.docs.filter(doc =>
             franchiseLocationIds.includes(doc.data().locationId)
           );
-          
+
           querySnapshot = { docs: filteredDocs };
         } else {
           querySnapshot = { docs: [] };
@@ -116,7 +116,7 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
         // For users without location assignment (manager without location, etc.), don't show any sales
         querySnapshot = { docs: [] };
       }
-        
+
       const salesData = querySnapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -125,7 +125,7 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           createdAt: data.createdAt?.toDate()
         };
       }) as Sale[];
-      
+
       setSales(salesData);
     } catch (err: any) {
       console.error('Error fetching sales:', err);
@@ -142,14 +142,14 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
   const getNextInvoiceNumber = async () => {
     const counterRef = doc(db, 'counters', 'sales');
     const counterDoc = await getDoc(counterRef);
-    
+
     let currentCount = 1;
     if (counterDoc.exists()) {
       currentCount = counterDoc.data().currentCount + 1;
     }
-    
+
     await setDoc(counterRef, { currentCount });
-    
+
     // Format: MHF-YYYYMMDD-XXXX
     const invoiceNumber = `MHF-${format(new Date(), 'yyyyMMdd')}-${String(currentCount).padStart(4, '0')}`;
     return invoiceNumber;
@@ -159,10 +159,10 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
     setError(null);
     try {
       const invoiceNumber = await getNextInvoiceNumber();
-      
+
       // Determine the locationId to use
       let locationId = saleData.locationId;
-      
+
       if (!locationId) {
         if (currentLocation) {
           locationId = currentLocation.id;
@@ -170,11 +170,11 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           locationId = currentUser.locationId;
         }
       }
-      
+
       if (!locationId && currentUser?.role !== 'superadmin') {
         throw new Error('No location available. Please select a location or contact an administrator.');
       }
-      
+
       // Ensure all data is properly formatted and no undefined values
       const cleanedSaleData = {
         items: saleData.items.map(item => ({
@@ -192,17 +192,18 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
         total: Number(saleData.total) || 0,
         paymentMethod: saleData.paymentMethod || 'cash',
         createdBy: saleData.createdBy || 'unknown',
-        locationId: locationId || 'default_location'
+        locationId: locationId || 'default_location',
+        franchiseId: currentLocation?.franchiseId || currentUser?.franchiseId || 'default_franchise'
       };
-      
+
       console.log('Cleaned sale data:', cleanedSaleData);
-      
+
       const docRef = await addDoc(collection(db, 'sales'), {
         ...cleanedSaleData,
         invoiceNumber,
         createdAt: serverTimestamp()
       });
-      
+
       const newSale = {
         id: docRef.id,
         ...cleanedSaleData,
@@ -210,7 +211,7 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
         locationId,
         createdAt: new Date()
       };
-      
+
       await refreshSales();
       return newSale;
     } catch (err: any) {

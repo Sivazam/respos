@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
   onSnapshot,
   writeBatch,
   serverTimestamp
@@ -220,35 +220,35 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
             updatedAt: data.updatedAt?.toDate(),
           });
         });
-        
+
         // Sort client-side by multiple criteria for better UX
         tablesData.sort((a, b) => {
           // First by status (available first)
           const statusOrder = { 'available': 0, 'reserved': 1, 'occupied': 2, 'maintenance': 3 };
           const aStatusOrder = statusOrder[a.status as keyof typeof statusOrder] ?? 999;
           const bStatusOrder = statusOrder[b.status as keyof typeof statusOrder] ?? 999;
-          
+
           if (aStatusOrder !== bStatusOrder) {
             return aStatusOrder - bStatusOrder;
           }
-          
+
           // Then by table number (extract numeric part for proper sorting)
           const aTableNum = parseInt(a.name.replace(/\D/g, '')) || 0;
           const bTableNum = parseInt(b.name.replace(/\D/g, '')) || 0;
-          
+
           if (aTableNum !== bTableNum) {
             return aTableNum - bTableNum;
           }
-          
+
           // Finally by name as fallback
           return a.name.localeCompare(b.name);
         });
-        
+
         setTables(tablesData);
         setLoading(false);
       }, (error) => {
         console.error('Error fetching tables:', error);
-        
+
         // Check if it's an index error and provide helpful information
         if (isIndexError(error)) {
           const indexUrl = extractIndexUrl(error);
@@ -310,6 +310,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       const newTable = {
         name: tableData.name,
         locationId: currentLocation.id,
+        franchiseId: currentLocation.franchiseId || currentUser.franchiseId,
         capacity: tableData.capacity,
         status: tableData.status || 'available',
         occupiedAt: null,
@@ -538,7 +539,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
 
       // Move order and status from source to target table
       const batch = writeBatch(db);
-      
+
       // Update source table
       const fromTableRef = doc(db, 'tables', fromTableId);
       batch.update(fromTableRef, {

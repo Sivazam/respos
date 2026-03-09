@@ -1,19 +1,19 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
   onSnapshot,
   writeBatch,
   serverTimestamp,
-  Timestamp 
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../lib/db';
 import { useAuth } from './AuthContext';
@@ -302,6 +302,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
         tableIds: orderData.tableIds || [],
         tableNames: orderData.tableNames || [],
         locationId: currentLocation.id,
+        franchiseId: currentLocation.franchiseId || currentUser?.franchiseId,
         staffId: currentUser.uid,
         staffName: currentUser.displayName || 'Unknown Staff',
         items: orderData.items || [],
@@ -625,7 +626,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
 
     const afterDiscount = subtotal - discountAmount;
     const taxAmount = afterDiscount * (order.tax / 100);
-    
+
     return afterDiscount + taxAmount;
   }, []);
 
@@ -643,7 +644,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
 
       const subtotal = order.items.reduce((total, item) => total + (item.price * item.quantity), 0);
       let discountAmount = 0;
-      
+
       if (discount.type === 'percentage') {
         discountAmount = subtotal * (discount.amount / 100);
       } else {
@@ -679,7 +680,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
 
       const subtotal = order.items.reduce((total, item) => total + (item.price * item.quantity), 0);
       let discountAmount = 0;
-      
+
       if (order.discount.type === 'percentage') {
         discountAmount = subtotal * (order.discount.amount / 100);
       } else {

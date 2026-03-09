@@ -48,7 +48,7 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
     setError(null);
     try {
       let querySnapshot;
-      
+
       if (currentLocation) {
         // If a location is selected, get all returns and filter client-side
         const q = query(
@@ -87,7 +87,7 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
             orderBy('createdAt', 'desc')
           );
           const allSnapshot = await getDocs(q);
-          
+
           // Get all locations for this admin's franchise
           const locationsQuery = query(
             collection(db, 'locations'),
@@ -95,10 +95,10 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
           );
           const locationsSnapshot = await getDocs(locationsQuery);
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
-          
+
           // Filter returns by franchise location IDs
           querySnapshot = {
-            docs: allSnapshot.docs.filter(doc => 
+            docs: allSnapshot.docs.filter(doc =>
               franchiseLocationIds.includes(doc.data().locationId)
             )
           };
@@ -114,13 +114,13 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
         );
         querySnapshot = await getDocs(q);
       }
-      
+
       const returnsData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate()
       })) as Return[];
-      
+
       setReturns(returnsData);
     } catch (err: any) {
       console.error('Error fetching returns:', err);
@@ -135,8 +135,8 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
   }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const isItemReturned = (orderId: string, itemId: string) => {
-    const hasReturn = returns.some(r => 
-      r.referenceId === orderId && 
+    const hasReturn = returns.some(r =>
+      r.referenceId === orderId &&
       r.items.some(item => item.id === itemId)
     );
     return hasReturn;
@@ -181,13 +181,13 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
 
       // Determine the locationId to use
       let locationId = null;
-      
+
       if (currentLocation) {
         locationId = currentLocation.id;
       } else if (currentUser?.locationId) {
         locationId = currentUser.locationId;
       }
-      
+
       if (!locationId && currentUser?.role !== 'superadmin') {
         throw new Error('No location available. Please select a location or contact an administrator.');
       }
@@ -218,13 +218,14 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
         total,
         refundMethod: data.refundMethod,
         locationId: locationId,
+        franchiseId: currentLocation?.franchiseId || currentUser?.franchiseId,
         createdBy: currentUser?.uid,
         status: 'completed',
         createdAt: serverTimestamp()
       };
-      
+
       await addDoc(collection(db, 'returns'), returnData);
-      
+
       // Refresh both returns and sales data
       await Promise.all([
         refreshReturns(),

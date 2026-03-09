@@ -1,5 +1,5 @@
 {
-  "name": "ForkFlow POS - Restaurant Management System",
+  "name": "ForkFlow POS",
   "short_name": "ForkFlow POS",
   "description": "Complete Point of Sale system for restaurants with table management, order tracking, and delivery integration",
   "start_url": "/",
@@ -9,7 +9,11 @@
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en",
-  "categories": ["business", "productivity", "utilities"],
+  "categories": [
+    "business",
+    "productivity",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -66,21 +70,36 @@
       "short_name": "Order",
       "description": "Create a new order",
       "url": "/pos",
-      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/icons/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "Table Management",
       "short_name": "Tables",
       "description": "Manage restaurant tables",
       "url": "/tables",
-      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/icons/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
     },
     {
       "name": "Pending Orders",
       "short_name": "Pending",
       "description": "View pending orders",
       "url": "/pending-orders",
-      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+      "icons": [
+        {
+          "src": "/icons/icon-96x96.png",
+          "sizes": "96x96"
+        }
+      ]
     }
   ],
   "screenshots": [

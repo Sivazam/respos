@@ -30,10 +30,10 @@ const ManagerPOSPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { addSale } = useSales();
   const { tables } = useTables();
-  const { 
+  const {
     managerOrder,
     isManagerOrderActive,
-    startManagerOrder, 
+    startManagerOrder,
     loadOrderIntoCart: loadManagerOrderIntoCart,
     checkForExistingManagerOrder,
     addItemToManagerOrder,
@@ -56,7 +56,7 @@ const ManagerPOSPage: React.FC = () => {
   const [showOrderModeModal, setShowOrderModeModal] = useState(false);
   const [showPortionModal, setShowPortionModal] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'menu' | 'cart'>('menu');
-  
+
   // Check if this is a table-based order
   const isTableBasedOrder = location.state?.orderType && location.state?.tableIds;
   const orderType = location.state?.orderType || 'dinein';
@@ -64,7 +64,7 @@ const ManagerPOSPage: React.FC = () => {
   const tableNamesFromState = location.state?.tableNames || [];
   const isOngoingOrder = location.state?.isOngoing || false;
   const orderId = location.state?.orderId;
-  
+
   // Helper functions for order display
   const getCurrentOrderType = () => {
     return orderType;
@@ -88,21 +88,21 @@ const ManagerPOSPage: React.FC = () => {
     }
     return tableIds.join(', ');
   };
-  
+
   // Get table names from table IDs (fallback if not provided in state)
   const tableNames = useMemo(() => {
     if (tableNamesFromState && tableNamesFromState.length > 0) {
       return tableNamesFromState;
     }
-    
+
     if (!tableIds || tableIds.length === 0) return [];
-    
+
     return tableIds.map(id => {
       const table = tables.find(t => t.id === id);
       if (table) {
         return table.name || `Table ${table.number}`;
       }
-      
+
       // Fallback: extract table number from ID
       const tableMatch = id.match(/table-(\d+)/i);
       if (tableMatch) {
@@ -118,21 +118,21 @@ const ManagerPOSPage: React.FC = () => {
       return id;
     });
   }, [tableIds, tables, tableNamesFromState]);
-  
+
   // Get menu items for current location
   const locationMenuItems = useMemo(() => {
-    return menuItems.filter(item => 
+    return menuItems.filter(item =>
       item.locationId === currentUser?.locationId && item.isAvailable
     );
   }, [menuItems, currentUser?.locationId]);
-  
+
   const filteredProducts = useMemo(() => {
     return locationMenuItems.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = !selectedCategory || item.categoryId === selectedCategory;
       const matchesStock = showOutOfStock || item.isAvailable;
-      const matchesDietary = dietaryFilter === 'all' || 
-        (dietaryFilter === 'veg' && item.isVegetarian) || 
+      const matchesDietary = dietaryFilter === 'all' ||
+        (dietaryFilter === 'veg' && item.isVegetarian) ||
         (dietaryFilter === 'non-veg' && !item.isVegetarian);
       return matchesSearch && matchesCategory && matchesStock && matchesDietary;
     });
@@ -173,33 +173,33 @@ const ManagerPOSPage: React.FC = () => {
   // Initialize manager order when component mounts
   useEffect(() => {
     console.log('🔍 Manager POS Page - orderContext:', { orderType, tableIds, isOngoingOrder, orderId });
-    
+
     if (isTableBasedOrder && !isManagerOrderActive) {
       const initializeOrder = async () => {
         try {
           let existingOrder = null;
-          
+
           // If we have a specific order ID, try to load it first
           if (orderId) {
             console.log('📦 Manager loading order by ID:', orderId);
             existingOrder = await loadManagerOrderIntoCart(orderId);
             console.log('✅ Manager loaded order by ID into cart:', existingOrder);
           }
-          
+
           // If no specific order found, check for existing manager order on tables
           if (!existingOrder) {
             existingOrder = await checkForExistingManagerOrder(tableIds);
             console.log('🔍 Manager found existing order by table:', existingOrder);
-            
+
             if (existingOrder) {
               // Load the existing order into the cart
               await loadManagerOrderIntoCart(existingOrder.id);
             }
           }
-          
+
           if (!existingOrder) {
             // Start a new manager order
-            await startManagerOrder(tableIds, orderType === 'dinein' ? 'dinein' : 'delivery', 
+            await startManagerOrder(tableIds, orderType === 'dinein' ? 'dinein' : 'delivery',
               orderType === 'delivery' ? (location.state?.orderMode || 'in-store') : 'in-store');
             console.log('🆕 Manager started new manager order');
           }
@@ -228,11 +228,11 @@ const ManagerPOSPage: React.FC = () => {
 
   const handleSavePartialOrder = async () => {
     if (!isTableBasedOrder || !isManagerOrderActive) return;
-    
+
     try {
       await createPartialManagerOrder();
       toast.success('Order saved to pending orders!');
-      
+
       // Redirect to manager pending orders page
       navigate('/manager/pending-orders');
     } catch (error) {
@@ -260,15 +260,15 @@ const ManagerPOSPage: React.FC = () => {
       if (isTableBasedOrder && isManagerOrderActive) {
         // Save the manager order to Firestore
         await createPartialManagerOrder();
-        
+
         // For manager orders, we could directly settle them or transfer to pending
         // For now, let's just save and show success
         toast.success('Manager order saved successfully!');
         setShowCheckout(false);
-        
+
         // Redirect to manager pending orders page
         navigate('/manager/pending-orders');
-        
+
         // Optionally clear the manager order after saving
         setTimeout(() => {
           clearManagerOrder();
@@ -310,7 +310,7 @@ const ManagerPOSPage: React.FC = () => {
         })), currentUser.uid || currentUser.id || 'unknown');
 
         toast.success('Order created successfully!');
-        
+
         // Redirect to manager pending orders page for table-based orders
         navigate('/manager/pending-orders');
       } else {
@@ -411,212 +411,84 @@ const ManagerPOSPage: React.FC = () => {
     <>
       <DashboardLayout title="Manager POS">
         <div className="space-y-4 lg:space-y-6">
-          {/* Order Info - Mobile Compact */}
+          {/* Order Info - Compact Inline Header */}
           {isTableBasedOrder && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 lg:p-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2.5">
               {/* Mobile Header */}
-              <div className="flex items-center justify-between lg:hidden mb-2">
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-blue-900">
-                    {orderType === 'dinein' ? 'Dine In' : 'Delivery'} Order
-                  </h3>
-                  <p className="text-xs text-blue-700">
-                    Table: {getTableDisplayName()}
-                  </p>
-                  {isOngoingOrder && (
-                    <p className="text-xs text-blue-600">Editing ongoing order</p>
-                  )}
-                  {orderType === 'delivery' && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium capitalize">
-                        {getCurrentOrderMode()}
-                      </span>
-                      <button
-                        onClick={() => setShowOrderModeModal(true)}
-                        className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors"
-                      >
-                        Change
-                      </button>
-                    </div>
-                  )}
+              <div className="flex items-center justify-between lg:hidden">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => window.history.back()} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors">
+                    <Search size={0} className="hidden" />
+                    <span className="text-sm text-gray-600">←</span>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+                      {orderType === 'dinein' ? 'Dine In' : 'Delivery'}
+                    </span>
+                    <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-medium">
+                      {getTableDisplayName()}
+                    </span>
+                    {isOngoingOrder && (
+                      <span className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded text-xs">Editing</span>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => window.history.back()}
-                  className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
-                >
-                  Back
-                </button>
               </div>
 
               {/* Desktop Header */}
               <div className="hidden lg:flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-blue-900">
-                    {orderType === 'dinein' ? 'Dine In' : 'Delivery'} Order
-                  </h3>
-                  <p className="text-blue-700">
-                    Table: {getTableDisplayName()}
-                  </p>
-                  {isOngoingOrder && (
-                    <p className="text-sm text-blue-600">Editing ongoing order</p>
-                  )}
-                  {orderType === 'delivery' && (
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="text-sm text-gray-500">Delivery Type</span>
-                      <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium capitalize">
-                        {getCurrentOrderMode()}
-                      </span>
-                      <button
-                        onClick={() => setShowOrderModeModal(true)}
-                        className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-sm font-medium transition-colors"
-                      >
-                        Change
-                      </button>
+                <div className="flex items-center gap-4">
+                  <button onClick={() => window.history.back()} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors">
+                    <span className="text-gray-600 text-sm">← Back</span>
+                  </button>
+                  <div className="h-5 w-px bg-gray-200"></div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-400 uppercase tracking-wider">Type</span>
+                      <span className="text-sm font-semibold text-gray-800">{orderType === 'dinein' ? 'Dine In' : 'Delivery'}</span>
                     </div>
-                  )}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-400 uppercase tracking-wider">Table</span>
+                      <span className="text-sm font-semibold text-gray-800">{getTableDisplayName()}</span>
+                    </div>
+                    {isOngoingOrder && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-gray-400 uppercase tracking-wider">Status</span>
+                        <span className="text-sm font-semibold text-orange-600">Editing</span>
+                      </div>
+                    )}
+                    {orderType === 'delivery' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 uppercase tracking-wider">Via</span>
+                        <span className="text-sm font-semibold text-gray-800 capitalize">{getCurrentOrderMode()}</span>
+                        <button
+                          onClick={() => setShowOrderModeModal(true)}
+                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => window.history.back()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                  Back
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-400 uppercase tracking-wider">Total</span>
+                  <span className="text-xl font-bold text-green-600">₹{displayTotal}</span>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Search and Filters - Mobile Optimized */}
-          <div className="bg-white shadow rounded-lg p-3 lg:p-4">
-            {/* Mobile Filters - Compact */}
-            <div className="lg:hidden space-y-3">
-              <Input
-                placeholder="Search products..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                icon={<Search size={16} className="text-gray-500" />}
-                className="text-sm"
-              />
-              
-              {/* Mobile Filter Buttons */}
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0 min-w-[120px]"
-                >
-                  <option value="">All Categories</option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={dietaryFilter}
-                  onChange={(e) => setDietaryFilter(e.target.value as 'all' | 'veg' | 'non-veg')}
-                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 flex-shrink-0 min-w-[100px]"
-                >
-                  <option value="all">All Food</option>
-                  <option value="veg">🟢 Veg</option>
-                  <option value="non-veg">🔴 Non-Veg</option>
-                </select>
-
-                <button
-                  onClick={() => setShowOutOfStock(!showOutOfStock)}
-                  className={`px-3 py-1.5 text-xs rounded-lg transition-colors flex-shrink-0 whitespace-nowrap ${
-                    showOutOfStock 
-                      ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {showOutOfStock ? 'In Stock' : 'All Items'}
-                </button>
-
-                <button
-                  onClick={() => setUseOptimizedView(!useOptimizedView)}
-                  className={`px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1 flex-shrink-0 whitespace-nowrap ${
-                    useOptimizedView 
-                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {useOptimizedView ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                  {useOptimizedView ? 'List' : 'Grid'}
-                </button>
-              </div>
-            </div>
-
-            {/* Desktop Filters */}
-            <div className="hidden lg:flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  icon={<Search size={18} className="text-gray-500" />}
-                />
-              </div>
-              
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Categories</option>
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={dietaryFilter}
-                onChange={(e) => setDietaryFilter(e.target.value as 'all' | 'veg' | 'non-veg')}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Food</option>
-                <option value="veg">🟢 Veg</option>
-                <option value="non-veg">🔴 Non-Veg</option>
-              </select>
-
-              <button
-                onClick={() => setShowOutOfStock(!showOutOfStock)}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  showOutOfStock 
-                    ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {showOutOfStock ? 'Hide Out of Stock' : 'Show Out of Stock'}
-              </button>
-
-              <button
-                onClick={() => setUseOptimizedView(!useOptimizedView)}
-                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                  useOptimizedView 
-                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {useOptimizedView ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                {useOptimizedView ? 'Optimized View' : 'Grid View'}
-              </button>
-            </div>
-          </div>
-
           {/* Main Content - Mobile First Responsive Layout */}
-          <div className="flex flex-col h-[calc(100vh-16rem)] lg:h-[calc(100vh-12rem)]">
+          <div className="flex flex-col h-[calc(100vh-10rem)] lg:h-[calc(100vh-8rem)]">
             {/* Mobile Tab Navigation */}
             <div className="flex lg:hidden bg-white border-b border-gray-200 rounded-t-lg mb-0">
               <button
                 onClick={() => setActiveMobileTab('menu')}
-                className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-                  activeMobileTab === 'menu'
-                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
+                className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${activeMobileTab === 'menu'
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
               >
                 Menu
                 {filteredProducts.length > 0 && (
@@ -627,11 +499,10 @@ const ManagerPOSPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveMobileTab('cart')}
-                className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${
-                  activeMobileTab === 'cart'
-                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                    : 'text-gray-500 hover:text-gray-700'
-                }`}
+                className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${activeMobileTab === 'cart'
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
               >
                 Order Summary
                 {displayItems.length > 0 && (
@@ -643,14 +514,99 @@ const ManagerPOSPage: React.FC = () => {
             </div>
 
             {/* Desktop Layout - Side by Side */}
-            <div className="hidden lg:flex lg:gap-6 lg:h-full">
+            <div className="hidden lg:flex lg:gap-4 lg:h-full">
               {/* Products Section - Desktop */}
               <div className="flex-1 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
-                <h2 className="text-lg font-semibold mb-4 flex-shrink-0">Menu Items</h2>
+                {/* Search */}
+                <div className="mb-3 flex-shrink-0">
+                  <div className="flex gap-3 items-center">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Search products..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        icon={<Search size={18} className="text-gray-500" />}
+                      />
+                    </div>
+                    <button
+                      onClick={() => setShowOutOfStock(!showOutOfStock)}
+                      className={`px-3 py-2 rounded-lg transition-colors text-sm whitespace-nowrap ${showOutOfStock
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                    >
+                      {showOutOfStock ? 'In Stock' : 'All Stock'}
+                    </button>
+                    <button
+                      onClick={() => setUseOptimizedView(!useOptimizedView)}
+                      className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm whitespace-nowrap ${useOptimizedView
+                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                    >
+                      {useOptimizedView ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                      {useOptimizedView ? 'List' : 'Grid'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dietary Filters (pinned) + Scrollable Categories */}
+                <div className="mb-3 flex-shrink-0 flex items-center gap-2">
+                  {/* Pinned dietary filters — always visible */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      onClick={() => { setDietaryFilter('all'); setSelectedCategory(''); }}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'all' && !selectedCategory
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setDietaryFilter('veg')}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'veg'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                      🟢 Veg
+                    </button>
+                    <button
+                      onClick={() => setDietaryFilter('non-veg')}
+                      className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'non-veg'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                    >
+                      🔴 Non-Veg
+                    </button>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="h-5 w-px bg-gray-300 flex-shrink-0"></div>
+
+                  {/* Scrollable categories */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+                    {categories.map(category => (
+                      <button
+                        key={category.id}
+                        onClick={() => setSelectedCategory(category.id)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${selectedCategory === category.id
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                      >
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex-1 overflow-y-auto">
                   {useOptimizedView ? (
-                    <OptimizedProductList 
-                      products={filteredProducts} 
+                    <OptimizedProductList
+                      products={filteredProducts}
                       onAddToCart={(product) => {
                         const menuItem = filteredProducts.find(item => item.id === product.id);
                         if (menuItem) {
@@ -673,8 +629,8 @@ const ManagerPOSPage: React.FC = () => {
                       }))}
                     />
                   ) : (
-                    <ProductGrid 
-                      products={filteredProducts} 
+                    <ProductGrid
+                      products={filteredProducts}
                       onAddToCart={handleAddToCart}
                     />
                   )}
@@ -682,7 +638,7 @@ const ManagerPOSPage: React.FC = () => {
               </div>
 
               {/* Cart Section - Desktop */}
-              <div className="w-96 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
+              <div className="w-[340px] flex-shrink-0 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
                   <h2 className="text-lg font-semibold">Order Summary</h2>
                   {isTableBasedOrder && isManagerOrderActive && (
@@ -695,7 +651,7 @@ const ManagerPOSPage: React.FC = () => {
                   )}
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  <Cart 
+                  <Cart
                     items={displayItems}
                     subtotal={displaySubtotal}
                     cgst={displayCgst}
@@ -734,8 +690,8 @@ const ManagerPOSPage: React.FC = () => {
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <div className="flex-1 overflow-y-auto p-4">
                     {useOptimizedView ? (
-                      <OptimizedProductList 
-                        products={filteredProducts} 
+                      <OptimizedProductList
+                        products={filteredProducts}
                         onAddToCart={(product) => {
                           const menuItem = filteredProducts.find(item => item.id === product.id);
                           if (menuItem) {
@@ -760,8 +716,8 @@ const ManagerPOSPage: React.FC = () => {
                         }))}
                       />
                     ) : (
-                      <ProductGrid 
-                        products={filteredProducts} 
+                      <ProductGrid
+                        products={filteredProducts}
                         onAddToCart={(menuItem) => {
                           handleAddToCart(menuItem);
                           // Auto-switch to cart tab after adding item
@@ -770,7 +726,7 @@ const ManagerPOSPage: React.FC = () => {
                       />
                     )}
                   </div>
-                  
+
                   {/* Mobile Cart Preview */}
                   {displayItems.length > 0 && (
                     <div className="border-t border-gray-200 p-4 bg-gray-50">
@@ -794,7 +750,7 @@ const ManagerPOSPage: React.FC = () => {
               {activeMobileTab === 'cart' && (
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <div className="flex-1 overflow-y-auto p-4">
-                    <Cart 
+                    <Cart
                       items={displayItems}
                       subtotal={displaySubtotal}
                       cgst={displayCgst}
@@ -822,7 +778,7 @@ const ManagerPOSPage: React.FC = () => {
                       }}
                     />
                   </div>
-                  
+
                   {/* Mobile Cart Actions */}
                   <div className="border-t border-gray-200 p-4 bg-gray-50 space-y-3">
                     {isTableBasedOrder && isManagerOrderActive && (

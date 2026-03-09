@@ -19,7 +19,7 @@ import toast from 'react-hot-toast';
 
 interface ManagerPOSPageProps {
   // This component handles manager-specific POS functionality
-}  
+}
 
 const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   const navigate = useNavigate();
@@ -67,12 +67,12 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
     console.log('🔍 Manager POS Page rendering - orderContext:', orderContext);
     console.log('🔍 Manager POS Page rendering - isManagerOrderActive:', isManagerOrderActive);
     console.log('🔍 Manager POS Page rendering - current managerOrder:', managerOrder);
-    
+
     if (orderContext) {
       const initializeOrder = async () => {
         try {
           console.log('🚀 Starting manager order initialization with context:', orderContext);
-          
+
           // Always clear any existing order first to prevent stale data
           if (isManagerOrderActive || managerOrder) {
             console.log('🧹 Clearing existing manager order before initialization...');
@@ -80,29 +80,29 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
             // Wait a moment for the state to update
             await new Promise(resolve => setTimeout(resolve, 100));
           }
-          
+
           let existingOrder = null;
-          
+
           // If we have a specific order ID, try to load it first
           if (orderContext.orderId) {
             console.log('📦 Loading manager order by ID:', orderContext.orderId);
             existingOrder = await loadOrderIntoCart(orderContext.orderId);
             console.log('✅ Loaded manager order by ID into cart:', existingOrder);
           }
-          
+
           // If no specific order found, check for existing order on tables
           if (!existingOrder) {
             console.log('🔍 No order loaded by ID, checking for existing manager order on tables:', orderContext.tableIds);
             existingOrder = await checkForExistingManagerOrder(orderContext.tableIds);
             console.log('🔍 Found existing manager order by table:', existingOrder);
-            
+
             if (existingOrder) {
               // Load the existing order into the cart
               console.log('📦 Loading existing manager order into cart:', existingOrder.id);
               await loadOrderIntoCart(existingOrder.id);
             }
           }
-          
+
           if (existingOrder) {
             // Set order mode if it's a delivery order
             if (existingOrder.orderType === 'delivery' && existingOrder.orderMode) {
@@ -117,8 +117,8 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
               orderMode: orderContext.orderType === 'delivery' ? orderMode : undefined
             });
             await startManagerOrder(
-              orderContext.tableIds, 
-              orderContext.orderType, 
+              orderContext.tableIds,
+              orderContext.orderType,
               orderContext.orderType === 'delivery' ? orderMode : undefined
             );
           }
@@ -126,7 +126,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
           console.error('❌ Failed to initialize manager order:', error);
         }
       };
-      
+
       initializeOrder();
     }
   }, [orderContext]); // Remove other dependencies to prevent re-initialization loops
@@ -139,7 +139,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   }, [orderMode, managerOrder, updateOrderMode]);
 
   // Get menu items for current location
-  const locationMenuItems = menuItems.filter(item => 
+  const locationMenuItems = menuItems.filter(item =>
     item.locationId === currentUser?.locationId && item.isAvailable
   );
 
@@ -147,8 +147,8 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   const filteredProducts = locationMenuItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || item.categoryId === selectedCategory;
-    const matchesDietary = dietaryFilter === 'all' || 
-      (dietaryFilter === 'veg' && item.isVegetarian) || 
+    const matchesDietary = dietaryFilter === 'all' ||
+      (dietaryFilter === 'veg' && item.isVegetarian) ||
       (dietaryFilter === 'non-veg' && !item.isVegetarian);
     return matchesSearch && matchesCategory && matchesDietary;
   });
@@ -156,7 +156,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   // Handle adding items to order
   const handleAddItem = (menuItem: MenuItem) => {
     console.log('🛒 ManagerPOSPage.handleAddItem called:', menuItem);
-    
+
     if (menuItem.hasHalfPortion) {
       console.log('🍽️ Item has half portion, showing modal');
       setSelectedMenuItem(menuItem);
@@ -182,7 +182,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   // Handle portion selection
   const handlePortionSelect = (portionSize: 'half' | 'full', price: number) => {
     console.log('🍽️ ManagerPOSPage.handlePortionSelect called:', { portionSize, price, selectedMenuItem });
-    
+
     if (selectedMenuItem) {
       const orderItem: OrderItem = {
         id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -195,10 +195,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
         addedAt: new Date(),
         portionSize: portionSize
       };
-      
+
       console.log('🛒 Calling addItemToManagerOrder with:', orderItem);
       addItemToManagerOrder(orderItem);
-      
+
       // Close the modal and clear selection
       setShowPortionModal(false);
       setSelectedMenuItem(null);
@@ -210,27 +210,27 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
     if (managerOrder && managerOrder.items.length > 0) {
       try {
         console.log('Placing partial manager order for:', managerOrder);
-        
+
         // Show loading toast
         const loadingToast = toast.loading('Creating partial order...');
-        
+
         // Create the partial order first
         const updatedOrder = await createPartialManagerOrder();
         console.log('Partial manager order created:', updatedOrder);
-        
+
         // Refresh tables to ensure the latest status is reflected
         await refreshTables();
         console.log('Tables refreshed');
-        
+
         // Clear the current order from state (but keep it in localStorage)
         clearCurrentManagerOrder();
         console.log('Current manager order cleared from state');
-        
+
         // Show success toast
-        toast.success(`Partial order ${updatedOrder.orderNumber} created successfully!`, { 
-          id: loadingToast 
+        toast.success(`Partial order ${updatedOrder.orderNumber} created successfully!`, {
+          id: loadingToast
         });
-        
+
         // Navigate to manager pending orders page
         console.log('Navigating to manager pending orders...');
         // Always navigate to pending orders for new orders, regardless of fromLocation
@@ -278,13 +278,13 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
     if (managerOrder && managerOrder.items.length > 0 && isEditingOrder && currentUser) {
       try {
         console.log('Saving changes to manager order:', managerOrder);
-        
+
         // Show loading toast
         const loadingToast = toast.loading('Saving changes...');
-        
+
         // Import orderService dynamically to avoid circular imports
         const { orderService } = await import('../../services/orderService');
-        
+
         // Update the order in database using OrderService
         await orderService.updateOrderItems(
           managerOrder.id,
@@ -292,14 +292,14 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
           currentUser.uid
         );
         console.log('✅ Manager order updated in database');
-        
+
         // Update the existing order in localStorage as backup
         const updatedOrder = {
           ...managerOrder,
           updatedAt: new Date(),
           totalAmount: totals.total
         };
-        
+
         // Save to localStorage with manager_pending_ prefix
         const key = `manager_pending_${updatedOrder.id}`;
         localStorage.setItem(key, JSON.stringify({
@@ -308,18 +308,18 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
           sessionStartedAt: updatedOrder.sessionStartedAt.toISOString(),
           updatedAt: updatedOrder.updatedAt.toISOString(),
         }));
-        
+
         // Refresh tables to ensure the latest status is reflected
         await refreshTables();
-        
+
         // Clear the current order from state
         clearCurrentManagerOrder();
-        
+
         // Show success toast
-        toast.success(`Manager order ${updatedOrder.orderNumber} updated successfully!`, { 
-          id: loadingToast 
+        toast.success(`Manager order ${updatedOrder.orderNumber} updated successfully!`, {
+          id: loadingToast
         });
-        
+
         // Navigate back to manager pending orders
         // Always navigate to pending orders for edited orders, regardless of fromLocation
         navigate('/manager/pending-orders');
@@ -336,7 +336,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   const handleBackToPending = () => {
     // Clear the current order from state without saving
     clearCurrentManagerOrder();
-    
+
     // Navigate back to manager pending orders
     if (orderContext?.fromLocation) {
       navigate(orderContext.fromLocation);
@@ -349,65 +349,54 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
 
   return (
     <DashboardLayout title="Manager POS">
-      {/* Mobile-First Header with Compact Info */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 lg:p-4 mb-4 lg:mb-6">
-        {/* Mobile Header - Compact */}
-        <div className="flex items-center justify-between lg:hidden mb-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleBack}
-            className="flex items-center gap-1 text-xs px-2 py-1"
-          >
-            <ArrowLeft size={14} />
-            Back
-          </Button>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Total</p>
-            <p className="text-lg font-bold text-green-600">₹{totals.total}</p>
+      {/* Compact Header Bar */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2.5 mb-4">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between lg:hidden">
+          <div className="flex items-center gap-3">
+            <button onClick={handleBack} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors">
+              <ArrowLeft size={18} className="text-gray-600" />
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium">{getOrderTypeDisplay()}</span>
+              {orderContext?.orderType === 'dinein' && (
+                <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs font-medium">{getTableNames().join(', ')}</span>
+              )}
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">{getOrderFlowDisplay()}</span>
+            </div>
           </div>
+          <span className="text-lg font-bold text-green-600">₹{totals.total}</span>
         </div>
 
-        {/* Desktop Header - Full */}
+        {/* Desktop Header */}
         <div className="hidden lg:flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleBack}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft size={16} />
-              Back
-            </Button>
-            
-            <div className="flex items-center space-x-4 flex-wrap">
-              <div>
-                <span className="text-sm text-gray-500">Order Type</span>
-                <p className="font-semibold">{getOrderTypeDisplay()}</p>
+          <div className="flex items-center gap-4">
+            <button onClick={handleBack} className="p-1.5 rounded-md hover:bg-gray-100 transition-colors">
+              <ArrowLeft size={18} className="text-gray-600" />
+            </button>
+            <div className="h-5 w-px bg-gray-200"></div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-400 uppercase tracking-wider">Type</span>
+                <span className="text-sm font-semibold text-gray-800">{getOrderTypeDisplay()}</span>
               </div>
-              
-              <div>
-                <span className="text-sm text-gray-500">Status</span>
-                <p className="font-semibold">{getOrderFlowDisplay()}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-400 uppercase tracking-wider">Status</span>
+                <span className="text-sm font-semibold text-gray-800">{getOrderFlowDisplay()}</span>
               </div>
-              
               {orderContext?.orderType === 'dinein' && (
-                <div>
-                  <span className="text-sm text-gray-500">Table(s)</span>
-                  <p className="font-semibold">{getTableNames().join(', ')}</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-gray-400 uppercase tracking-wider">Table</span>
+                  <span className="text-sm font-semibold text-gray-800">{getTableNames().join(', ')}</span>
                 </div>
               )}
-              
               {orderContext?.orderType === 'delivery' && (
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div>
-                    <span className="text-sm text-gray-500">Delivery Type</span>
-                    <p className="font-semibold capitalize">{orderMode}</p>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 uppercase tracking-wider">Via</span>
+                  <span className="text-sm font-semibold text-gray-800 capitalize">{orderMode}</span>
                   <button
                     onClick={() => setShowOrderModeModal(true)}
-                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors whitespace-nowrap"
+                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                   >
                     Change
                   </button>
@@ -415,41 +404,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
               )}
             </div>
           </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <span className="text-sm text-gray-500">Order Total</span>
-              <p className="text-2xl font-bold text-green-600">₹{totals.total}</p>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-400 uppercase tracking-wider">Total</span>
+            <span className="text-xl font-bold text-green-600">₹{totals.total}</span>
           </div>
-        </div>
-
-        {/* Mobile Order Info Pills */}
-        <div className="flex flex-wrap gap-2 lg:hidden">
-          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-            {getOrderTypeDisplay()}
-          </span>
-          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
-            {getOrderFlowDisplay()}
-          </span>
-          {orderContext?.orderType === 'dinein' && getTableNames().map((table, idx) => (
-            <span key={idx} className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-              {table}
-            </span>
-          ))}
-          {orderContext?.orderType === 'delivery' && (
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium capitalize">
-                {orderMode}
-              </span>
-              <button
-                onClick={() => setShowOrderModeModal(true)}
-                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 rounded-full text-xs font-medium transition-colors"
-              >
-                Change
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -459,11 +417,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
         <div className="flex lg:hidden bg-white border-b border-gray-200 rounded-t-lg mb-0">
           <button
             onClick={() => setActiveMobileTab('menu')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              activeMobileTab === 'menu'
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${activeMobileTab === 'menu'
+              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Menu
             {filteredProducts.length > 0 && (
@@ -474,11 +431,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
           </button>
           <button
             onClick={() => setActiveMobileTab('cart')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${
-              activeMobileTab === 'cart'
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${activeMobileTab === 'cart'
+              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Manager Order
             {managerOrder?.items.length ? (
@@ -490,79 +446,69 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
         </div>
 
         {/* Desktop Layout - Side by Side */}
-        <div className="hidden lg:flex lg:gap-6 lg:h-full">
+        <div className="hidden lg:flex lg:gap-4 lg:h-full">
           {/* Menu Section - Desktop */}
           <div className="flex-1 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
-            <h2 className="text-lg font-semibold mb-4 flex-shrink-0">Menu Items</h2>
-            
-            {/* Search and Filters - Desktop */}
-            <div className="mb-4 space-y-3 flex-shrink-0">
+            {/* Search */}
+            <div className="mb-3 flex-shrink-0">
               <Input
                 placeholder="Search menu items..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 icon={<Search size={18} className="text-gray-500" />}
               />
-              
-              {/* Categories */}
-              <div className="flex flex-wrap gap-2">
+            </div>
+
+            {/* Dietary Filters (pinned) + Scrollable Categories */}
+            <div className="mb-3 flex-shrink-0 flex items-center gap-2">
+              {/* Pinned dietary filters — always visible */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 <button
-                  onClick={() => setSelectedCategory('')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    !selectedCategory
+                  onClick={() => { setDietaryFilter('all'); setSelectedCategory(''); }}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'all' && !selectedCategory
                       ? 'bg-green-100 text-green-800'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  All Categories
-                </button>
-                {categories.map(category => (
-                  <button
-                    key={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                      selectedCategory === category.id
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
-                  >
-                    {category.name}
-                  </button>
-                ))}
-              </div>
-              
-              {/* Dietary Filters */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setDietaryFilter('all')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    dietaryFilter === 'all'
-                      ? 'bg-orange-100 text-orange-800'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
                 >
-                  All Food
+                  All
                 </button>
                 <button
                   onClick={() => setDietaryFilter('veg')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    dietaryFilter === 'veg'
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'veg'
                       ? 'bg-green-100 text-green-800'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                    }`}
                 >
                   🟢 Veg
                 </button>
                 <button
                   onClick={() => setDietaryFilter('non-veg')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    dietaryFilter === 'non-veg'
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'non-veg'
                       ? 'bg-red-100 text-red-800'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                    }`}
                 >
                   🔴 Non-Veg
                 </button>
+              </div>
+
+              {/* Divider */}
+              <div className="h-5 w-px bg-gray-300 flex-shrink-0"></div>
+
+              {/* Scrollable categories */}
+              <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'thin' }}>
+                {categories.map(category => (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${selectedCategory === category.id
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -589,7 +535,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
           </div>
 
           {/* Cart Section - Desktop */}
-          <div className="w-96 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
+          <div className="w-[340px] flex-shrink-0 bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <h2 className="text-lg font-semibold">Manager Order</h2>
               {managerOrder && (
@@ -722,16 +668,15 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   icon={<Search size={18} className="text-gray-500" />}
                 />
-                
+
                 {/* Mobile Categories */}
                 <div className="flex gap-2 overflow-x-auto pb-2">
                   <button
                     onClick={() => setSelectedCategory('')}
-                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
-                      !selectedCategory
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${!selectedCategory
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     All Categories
                   </button>
@@ -739,46 +684,42 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     <button
                       key={category.id}
                       onClick={() => setSelectedCategory(category.id)}
-                      className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
-                        selectedCategory === category.id
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                      className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${selectedCategory === category.id
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
                     >
                       {category.name}
                     </button>
                   ))}
                 </div>
-                
+
                 {/* Mobile Dietary Filters */}
                 <div className="flex gap-2 overflow-x-auto pb-2">
                   <button
                     onClick={() => setDietaryFilter('all')}
-                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
-                      dietaryFilter === 'all'
-                        ? 'bg-orange-100 text-orange-800'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${dietaryFilter === 'all'
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     All Food
                   </button>
                   <button
                     onClick={() => setDietaryFilter('veg')}
-                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
-                      dietaryFilter === 'veg'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${dietaryFilter === 'veg'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     🟢 Veg
                   </button>
                   <button
                     onClick={() => setDietaryFilter('non-veg')}
-                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${
-                      dietaryFilter === 'non-veg'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`px-3 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${dietaryFilter === 'non-veg'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     🔴 Non-Veg
                   </button>
@@ -799,8 +740,8 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     </div>
                   </div>
                 ) : (
-                  <ProductGrid 
-                    products={filteredProducts} 
+                  <ProductGrid
+                    products={filteredProducts}
                     onAddToCart={(menuItem) => {
                       handleAddItem(menuItem);
                       // Auto-switch to cart tab after adding item
@@ -809,7 +750,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                   />
                 )}
               </div>
-              
+
               {/* Mobile Cart Preview */}
               {managerOrder && managerOrder.items.length > 0 && (
                 <div className="border-t border-gray-200 p-4 bg-gray-50">
@@ -832,7 +773,7 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
 
           {activeMobileTab === 'cart' && (
             <div className="flex-1 bg-white rounded-b-lg shadow-sm p-3 overflow-hidden flex flex-col">
-              
+
               {managerOrder && managerOrder.items.length > 0 ? (
                 <div className="flex-1 flex flex-col overflow-hidden">
                   {/* Mobile Cart Items */}
@@ -994,18 +935,17 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                   </svg>
                 </button>
               </div>
-              
+
               <div className="space-y-3">
                 <button
                   onClick={() => {
                     setOrderMode('zomato');
                     setShowOrderModeModal(false);
                   }}
-                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
-                    orderMode === 'zomato'
-                      ? 'bg-pink-100 border-pink-300 text-pink-800'
-                      : 'bg-gray-50 border-gray-200 hover:bg-pink-50 hover:border-pink-200'
-                  }`}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${orderMode === 'zomato'
+                    ? 'bg-pink-100 border-pink-300 text-pink-800'
+                    : 'bg-gray-50 border-gray-200 hover:bg-pink-50 hover:border-pink-200'
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={orderMode === 'zomato' ? 'text-pink-600' : 'text-gray-400'}>
@@ -1023,11 +963,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     setOrderMode('swiggy');
                     setShowOrderModeModal(false);
                   }}
-                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
-                    orderMode === 'swiggy'
-                      ? 'bg-orange-100 border-orange-300 text-orange-800'
-                      : 'bg-gray-50 border-gray-200 hover:bg-orange-50 hover:border-orange-200'
-                  }`}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${orderMode === 'swiggy'
+                    ? 'bg-orange-100 border-orange-300 text-orange-800'
+                    : 'bg-gray-50 border-gray-200 hover:bg-orange-50 hover:border-orange-200'
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={orderMode === 'swiggy' ? 'text-orange-600' : 'text-gray-400'}>
@@ -1045,11 +984,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     setOrderMode('in-store');
                     setShowOrderModeModal(false);
                   }}
-                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${
-                    orderMode === 'in-store'
-                      ? 'bg-blue-100 border-blue-300 text-blue-800'
-                      : 'bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200'
-                  }`}
+                  className={`w-full p-3 rounded-lg border-2 transition-all duration-200 text-left ${orderMode === 'in-store'
+                    ? 'bg-blue-100 border-blue-300 text-blue-800'
+                    : 'bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200'
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={orderMode === 'in-store' ? 'text-blue-600' : 'text-gray-400'}>

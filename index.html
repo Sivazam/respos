@@ -1,103 +1,229 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#15803d" />
-    <meta name="description" content="A comprehensive restaurant point-of-sale system with table management, order processing, and real-time menu updates." />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Restaurant POS" />
-    <meta name="application-name" content="Restaurant POS" />
-    <meta name="msapplication-TileColor" content="#15803d" />
-    
-    <!-- Icons -->
-    <link rel="icon" type="image/png" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
-    
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
-    
-    <!-- Google Fonts - Raleway -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    
-    
 
-    <title>Fork Flow Pos - Point of Sale System</title>
-  </head>
-  <body>
-    <!-- Initial Loading Screen -->
-    <div id="initial-loader" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-green-600 via-green-700 to-emerald-800">
-      <style>
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#15803d" />
+  <meta name="description"
+    content="A comprehensive restaurant point-of-sale system with table management, order processing, and real-time menu updates." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ForkFlow POS" />
+  <meta name="application-name" content="ForkFlow POS" />
+  <meta name="msapplication-TileColor" content="#15803d" />
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Google Fonts - Raleway -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600;700;800;900&display=swap"
+    rel="stylesheet">
+
+
+
+  <title>ForkFlow POS</title>
+</head>
+
+<body>
+  <!-- Initial Loading Screen -->
+  <div id="initial-loader"
+    style="position:fixed; top:0; left:0; right:0; bottom:0; z-index:50; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #15803d 0%, #166534 40%, #14532d 100%);">
+    <style>
+      @keyframes splashFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
         }
-        .fade-in-up {
-          animation: fadeInUp 0.8s ease-out;
+
+        to {
+          opacity: 1;
+          transform: translateY(0);
         }
-        .text-shadow {
-          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      @keyframes splashPulse {
+
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.6;
         }
-      </style>
-      
-      <div class="text-center fade-in-up">
-        <!-- Main Loading Container -->
-        <div class="mb-10">
-          <div class="w-16 h-16 border-3 border-white/25 border-t-white rounded-full animate-spin mx-auto mb-6"></div>
+
+        50% {
+          transform: scale(1.15);
+          opacity: 0;
+        }
+      }
+
+      @keyframes splashIconFloat {
+
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+
+        50% {
+          transform: translateY(-6px);
+        }
+      }
+
+      @keyframes splashProgress {
+        0% {
+          width: 0%;
+        }
+
+        60% {
+          width: 70%;
+        }
+
+        100% {
+          width: 100%;
+        }
+      }
+
+      @keyframes splashDotPulse {
+
+        0%,
+        80%,
+        100% {
+          opacity: 0.3;
+          transform: scale(0.8);
+        }
+
+        40% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      .splash-fade {
+        animation: splashFadeIn 0.7s ease-out both;
+      }
+
+      .splash-delay-1 {
+        animation-delay: 0.15s;
+      }
+
+      .splash-delay-2 {
+        animation-delay: 0.3s;
+      }
+
+      .splash-delay-3 {
+        animation-delay: 0.5s;
+      }
+
+      .splash-delay-4 {
+        animation-delay: 0.7s;
+      }
+
+      .splash-icon {
+        animation: splashIconFloat 2.5s ease-in-out infinite;
+      }
+
+      .splash-ring {
+        animation: splashPulse 2s ease-out infinite;
+      }
+
+      .splash-progress-bar {
+        animation: splashProgress 2.5s ease-in-out forwards;
+        animation-delay: 0.6s;
+      }
+
+      .splash-dot {
+        animation: splashDotPulse 1.4s ease-in-out infinite;
+      }
+
+      .splash-dot:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+
+      .splash-dot:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+    </style>
+
+    <div style="text-align:center; max-width:360px; padding:0 24px;">
+      <!-- Animated Icon -->
+      <div class="splash-fade" style="position:relative; width:88px; height:88px; margin:0 auto 32px;">
+        <!-- Pulse ring -->
+        <div class="splash-ring"
+          style="position:absolute; inset:-8px; border-radius:50%; border:2px solid rgba(255,255,255,0.25);"></div>
+        <!-- Icon container -->
+        <div class="splash-icon"
+          style="width:88px; height:88px; border-radius:50%; background:rgba(255,255,255,0.12); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; border:1px solid rgba(255,255,255,0.2);">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+            <path d="M7 2v20" />
+            <path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+          </svg>
         </div>
+      </div>
 
-        <!-- App Name -->
-        <h1 class="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight text-shadow">
-          Fork Flow Pos
-        </h1>
-        
-        <!-- Subtitle -->
-        <p class="text-green-100 text-xl mb-12 font-light text-shadow">
-          Point of Sale System
-        </p>
-        
-        <!-- Loading text -->
-        <div class="flex items-center justify-center space-x-2">
-          <div class="w-4 h-4 border-2 border-white/60 border-t-white rounded-full animate-spin"></div>
-          <span class="text-white text-base">Loading your experience...</span>
+      <!-- App Name -->
+      <h1 class="splash-fade splash-delay-1"
+        style="font-family:'Raleway',sans-serif; font-size:32px; font-weight:700; color:#fff; margin:0 0 6px; letter-spacing:-0.5px;">
+        ForkFlow
+      </h1>
+      <p class="splash-fade splash-delay-2"
+        style="font-family:'Raleway',sans-serif; font-size:13px; font-weight:500; color:rgba(255,255,255,0.55); margin:0 0 40px; letter-spacing:3px; text-transform:uppercase;">
+        Point of Sale
+      </p>
+
+      <!-- Progress bar -->
+      <div class="splash-fade splash-delay-3"
+        style="width:100%; height:3px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden; margin:0 0 16px;">
+        <div class="splash-progress-bar"
+          style="height:100%; width:0%; background:linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.8)); border-radius:2px;">
+        </div>
+      </div>
+
+      <!-- Loading dots -->
+      <div class="splash-fade splash-delay-4"
+        style="display:flex; align-items:center; justify-content:center; gap:6px;">
+        <div class="splash-dot" style="width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,0.5);">
+        </div>
+        <div class="splash-dot" style="width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,0.5);">
+        </div>
+        <div class="splash-dot" style="width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,0.5);">
         </div>
       </div>
     </div>
+  </div>
 
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-    
-    <script>
-      // Hide initial loader when React app mounts
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          const loader = document.getElementById('initial-loader');
-          if (loader) {
-            loader.style.opacity = '0';
-            loader.style.transition = 'opacity 0.5s ease-out';
-            setTimeout(function() {
-              loader.remove();
-            }, 500);
-          }
-        }, 1000);
-      });
-    </script>
-  </body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+
+  <script>
+    // Hide initial loader when React app mounts
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        const loader = document.getElementById('initial-loader');
+        if (loader) {
+          loader.style.opacity = '0';
+          loader.style.transition = 'opacity 0.5s ease-out';
+          setTimeout(function () {
+            loader.remove();
+          }, 500);
+        }
+      }, 1000);
+    });
+  </script>
+</body>
+
 </html>

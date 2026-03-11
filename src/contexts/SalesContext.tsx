@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, getDocsFromCache, addDoc, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Sale } from '../types';
 import { format } from 'date-fns';
@@ -55,13 +55,30 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           collection(db, 'sales'),
           orderBy('createdAt', 'desc')
         );
-        querySnapshot = await getDocs(q);
+        try {
+          if (!navigator.onLine) {
+            querySnapshot = await getDocsFromCache(q);
+          } else {
+            querySnapshot = await getDocs(q);
+          }
+        } catch (err) {
+          querySnapshot = await getDocsFromCache(q);
+        }
       } else if (currentLocation) {
         const q = query(
           collection(db, 'sales'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let allSnapshot;
+        try {
+          if (!navigator.onLine) {
+            allSnapshot = await getDocsFromCache(q);
+          } else {
+            allSnapshot = await getDocs(q);
+          }
+        } catch (err) {
+          allSnapshot = await getDocsFromCache(q);
+        }
 
         const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.data().locationId === currentLocation.id
@@ -95,13 +112,27 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
             collection(db, 'sales'),
             orderBy('createdAt', 'desc')
           );
-          const allSalesSnapshot = await getDocs(q);
+          let allSalesSnapshot;
+          try {
+            if (!navigator.onLine) {
+              allSalesSnapshot = await getDocsFromCache(q);
+            } else {
+              allSalesSnapshot = await getDocs(q);
+            }
+          } catch (err) {
+            allSalesSnapshot = await getDocsFromCache(q);
+          }
 
           const locationsQuery = query(
             collection(db, 'locations'),
             where('franchiseId', '==', currentUser.franchiseId)
           );
-          const locationsSnapshot = await getDocs(locationsQuery);
+          let locationsSnapshot;
+          try {
+            locationsSnapshot = await getDocs(locationsQuery);
+          } catch (err) {
+            locationsSnapshot = await getDocsFromCache(locationsQuery);
+          }
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
 
           const filteredDocs = allSalesSnapshot.docs.filter(doc =>
@@ -118,11 +149,11 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
       }
 
       const salesData = querySnapshot.docs.map(doc => {
-        const data = doc.data();
+        const data = doc.data() as any;
         return {
           id: doc.id,
           ...data,
-          createdAt: data.createdAt?.toDate()
+          createdAt: data.createdAt?.toDate?.() || data.createdAt
         };
       }) as Sale[];
 
@@ -233,5 +264,5 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
     <SalesContext.Provider value={value}>
       {children}
     </SalesContext.Provider>
-  );
+  ) as any;
 };

@@ -1,30 +1,37 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
   setDoc,
-  deleteDoc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
+  getDoc,
+  getDocs,
+  getDocFromCache,
+  getDocsFromCache,
+  limit,
+  query,
+  where,
+  orderBy,
   onSnapshot,
   writeBatch,
   serverTimestamp,
-  Timestamp,
-  limit,
   documentId
 } from 'firebase/firestore';
 import { db } from '../lib/db';
-import { Order, OrderItem, TemporaryOrder, OrderFormData, User, Table } from '../types';
+import {
+  Order,
+  OrderFormData,
+  OrderItem,
+  TemporaryOrder,
+  OrderStatus,
+  User
+} from '../types';
 import { SetupService } from './setupService';
 
 // Order Service for handling all order operations
 export class OrderService {
   private static instance: OrderService;
-  
+
   static getInstance(): OrderService {
     if (!OrderService.instance) {
       OrderService.instance = new OrderService();
@@ -36,13 +43,21 @@ export class OrderService {
   private async getLocationName(locationId: string): Promise<string> {
     try {
       const locationRef = doc(db, 'locations', locationId);
-      const locationDoc = await getDoc(locationRef);
-      
+      let locationDoc;
+
+      try {
+        // Try cache first for faster response and offline support
+        locationDoc = await getDocFromCache(locationRef);
+      } catch (cacheError) {
+        // Fallback to network if cache fails
+        locationDoc = await getDoc(locationRef);
+      }
+
       if (locationDoc.exists()) {
         const locationData = locationDoc.data();
         return locationData.name || locationData.displayName || 'Unknown Location';
       }
-      
+
       return 'Unknown Location';
     } catch (error) {
       console.error('Error fetching location name:', error);
@@ -50,51 +65,16 @@ export class OrderService {
     }
   }
 
-  // Calculate GST using location settings
-  private async calculateGST(subtotal: number, locationId: string): Promise<{ cgstAmount: number; sgstAmount: number; totalGstAmount: number }> {
-    try {
-      const result = await SetupService.getLocationSettings(locationId);
-      if (result.success && result.settings && result.settings.tax) {
-        const cgstRate = result.settings.tax.cgst / 100;
-        const sgstRate = result.settings.tax.sgst / 100;
-        const cgstAmount = subtotal * cgstRate;
-        const sgstAmount = subtotal * sgstRate;
-        const totalGstAmount = cgstAmount + sgstAmount;
-        
-        return {
-          cgstAmount,
-          sgstAmount,
-          totalGstAmount
-        };
-      }
-      
-      // Fallback to 0% total GST if no settings found
-      const fallbackAmount = 0;
-      return {
-        cgstAmount: 0,
-        sgstAmount: 0,
-        totalGstAmount: 0
-      };
-    } catch (error) {
-      console.error('Error calculating GST:', error);
-      // Fallback to 0% total GST
-      const fallbackAmount = 0;
-      return {
-        cgstAmount: 0,
-        sgstAmount: 0,
-        totalGstAmount: 0
-      };
-    }
-  }
 
   // Get location GST settings
   async getLocationGSTSettings(locationId: string): Promise<{ cgst: number; sgst: number }> {
     try {
       const result = await SetupService.getLocationSettings(locationId);
-      if (result.success && result.settings && result.settings.tax) {
+      if (result.success && result.settings && (result.settings as any).tax) {
+        const tax = (result.settings as any).tax;
         return {
-          cgst: result.settings.tax.cgst || 0,
-          sgst: result.settings.tax.sgst || 0
+          cgst: tax.cgst || 0,
+          sgst: tax.sgst || 0
         };
       }
       // Default values if no settings found
@@ -111,7 +91,7 @@ export class OrderService {
     const cgstAmount = subtotal * (cgst / 100);
     const sgstAmount = subtotal * (sgst / 100);
     const totalGST = cgstAmount + sgstAmount;
-    
+
     return {
       cgstAmount,
       sgstAmount,
@@ -123,37 +103,51 @@ export class OrderService {
   async generateOrderNumber(locationId: string): Promise<string> {
     try {
       const today = new Date();
-      const dateStr = today.getFullYear().toString().slice(-2) + 
-                     (today.getMonth() + 1).toString().padStart(2, '0') + 
-                     today.getDate().toString().padStart(2, '0');
-      
-      // Query existing orders for today to get next sequence
+      const dateStr = today.getFullYear().toString().slice(-2) +
+        (today.getMonth() + 1).toString().padStart(2, '0') +
+        today.getDate().toString().padStart(2, '0');
+
+      // Query existing orders for today - optimize to only get most recent
       const ordersQuery = query(
         collection(db, 'orders'),
-        where('locationId', '==', locationId)
+        where('locationId', '==', locationId),
+        orderBy('createdAt', 'desc'),
+        limit(20) // Fetch only a small batch instead of all orders
       );
-      
-      const snapshot = await getDocs(ordersQuery);
+
+      let snapshot;
+      try {
+        snapshot = await getDocs(ordersQuery);
+      } catch (error) {
+        console.warn('Network query failed for order number, trying cache:', error);
+        snapshot = await getDocsFromCache(ordersQuery);
+      }
+
       let sequence = 1;
-      
+
       if (!snapshot.empty) {
-        // Filter and sort client-side
+        // Find the latest order with today's date prefix
+        const todayPrefix = `ORD-${dateStr}-`;
         const todayOrders = snapshot.docs
-          .map(doc => doc.data().orderNumber)
-          .filter(orderNumber => orderNumber && orderNumber.startsWith(`ORD-${dateStr}`))
-          .sort((a, b) => b.localeCompare(a)); // Sort descending
-        
+          .map(doc => doc.data().orderNumber as string)
+          .filter(orderNumber => orderNumber && orderNumber.startsWith(todayPrefix))
+          .sort((a, b) => b.localeCompare(a));
+
         if (todayOrders.length > 0) {
           const lastOrderNumber = todayOrders[0];
-          const lastSequence = parseInt(lastOrderNumber.split('-')[2]);
-          sequence = lastSequence + 1;
+          const parts = lastOrderNumber.split('-');
+          if (parts.length >= 3) {
+            const lastSequence = parseInt(parts[2]);
+            if (!isNaN(lastSequence)) {
+              sequence = lastSequence + 1;
+            }
+          }
         }
       }
-      
+
       return `ORD-${dateStr}-${sequence.toString().padStart(3, '0')}`;
     } catch (error) {
       console.error('Error generating order number:', error);
-      // Fallback to timestamp-based number
       return `ORD-${Date.now()}`;
     }
   }
@@ -162,57 +156,52 @@ export class OrderService {
   async generateManagerOrderNumber(locationId: string, franchiseId: string): Promise<string> {
     try {
       const today = new Date();
-      const dateStr = today.getDate().toString().padStart(2, '0') + 
-                     (today.getMonth() + 1).toString().padStart(2, '0') + 
-                     today.getFullYear().toString().slice(-2);
-      
-      // Reference to the counter document for this franchise/location
+      const dateStr = today.getDate().toString().padStart(2, '0') +
+        (today.getMonth() + 1).toString().padStart(2, '0') +
+        today.getFullYear().toString().slice(-2);
+
+      // Reference to the counter document
       const counterRef = doc(db, 'order_counters', `${franchiseId}_${locationId}`);
-      
+
       try {
-        // Try to get existing counter
-        const counterDoc = await getDoc(counterRef);
-        
+        let counterDoc;
+        try {
+          counterDoc = await getDoc(counterRef);
+        } catch (error) {
+          console.warn('Network fetch for counter failed, trying cache:', error);
+          counterDoc = await getDocFromCache(counterRef);
+        }
+
         if (counterDoc.exists()) {
-          // Increment existing counter
           const currentCounter = counterDoc.data().counter || 1;
           const newCounter = currentCounter + 1;
-          
-          // Update the counter
-          await updateDoc(counterRef, {
+
+          // Attempt but don't block if updateDoc fails (will retry later if Firestore persistence is healthy)
+          updateDoc(counterRef, {
             counter: newCounter,
             lastUpdated: serverTimestamp()
-          });
-          
+          }).catch(err => console.error('Failed to update counter document (will retry later):', err));
+
           return `MGR-${dateStr}-${newCounter.toString().padStart(2, '0')}`;
         } else {
-          // Create new counter document starting from 1
-          await setDoc(counterRef, {
-            franchiseId,
-            locationId,
-            counter: 1,
-            created: serverTimestamp(),
-            lastUpdated: serverTimestamp()
-          });
-          
+          // If online, try to create it. If offline, use a local fallback.
+          if (navigator.onLine) {
+            await setDoc(counterRef, {
+              franchiseId,
+              locationId,
+              counter: 1,
+              created: serverTimestamp(),
+              lastUpdated: serverTimestamp()
+            });
+          }
           return `MGR-${dateStr}-01`;
         }
       } catch (error) {
         console.error('Error managing counter document:', error);
-        // Fallback: create counter if it doesn't exist
-        await setDoc(counterRef, {
-          franchiseId,
-          locationId,
-          counter: 1,
-          created: serverTimestamp(),
-          lastUpdated: serverTimestamp()
-        });
-        
-        return `MGR-${dateStr}-01`;
+        return `MGR-${dateStr}-${Math.floor(Math.random() * 90 + 10)}`; // Random fallback suffix if everything fails
       }
     } catch (error) {
       console.error('Error generating manager order number:', error);
-      // Fallback to timestamp-based number
       return `MGR-${Date.now()}`;
     }
   }
@@ -226,22 +215,22 @@ export class OrderService {
   ): Promise<string> {
     try {
       const orderNumber = await this.generateOrderNumber(locationId);
-      
+
       // Fetch table names if not provided
       let tableNames = orderData.tableNames || [];
       if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
         try {
           // Fetch table documents to get their names
-          const tablePromises = orderData.tableIds.map((tableId: string) => 
+          const tablePromises = orderData.tableIds.map((tableId: string) =>
             getDoc(doc(db, 'tables', tableId))
           );
           const tableDocs = await Promise.all(tablePromises);
-          
-          tableNames = tableDocs.map(tableDoc => {
+
+          tableNames = tableDocs.map((tableDoc, index) => {
             if (tableDoc.exists()) {
               return `Table ${tableDoc.data().name}`;
             }
-            return tableId; // Fallback to ID if table not found
+            return orderData.tableIds[index];
           });
         } catch (error) {
           console.error('Error fetching table names:', error);
@@ -249,7 +238,7 @@ export class OrderService {
           tableNames = orderData.tableIds;
         }
       }
-      
+
       // Create main order document - filter out undefined fields
       const orderDoc: Record<string, any> = {
         orderNumber,
@@ -295,7 +284,7 @@ export class OrderService {
         locationId,
         locationName: await this.getLocationName(locationId),
         staffId: staff.uid,
-        staffName: staff.name || staff.email || 'Unknown Staff',
+        staffName: staff.name || staff.displayName || staff.email || 'Unknown Staff',
         tableIds: orderData.tableIds,
         status: 'temporary',
         sessionStartedAt: serverTimestamp(),
@@ -307,15 +296,16 @@ export class OrderService {
 
       await addDoc(collection(db, 'temporary_orders'), tempOrderDoc);
 
-      // Update table status to occupied
-      await this.updateTablesStatus(orderData.tableIds, 'occupied', orderId, locationId);
+      // Execute background updates without blocking the main workflow if possible
+      // Using .catch on promises instead of await for non-critical secondary updates
+      this.updateTablesStatus(orderData.tableIds, 'occupied', orderId, locationId)
+        .catch(err => console.error('Background table status update failed:', err));
 
-      // Create order history entry
-      await this.createOrderHistoryEntry(orderId, locationId, 'created', staff.uid, {
+      this.createOrderHistoryEntry(orderId, locationId, 'created', staff.uid, {
         orderNumber,
         tableIds: orderData.tableIds,
         orderType: orderData.orderType
-      });
+      }).catch(err => console.error('Background history entry failed:', err));
 
       console.log('✅ Temporary order created:', orderId);
       return orderId;
@@ -335,29 +325,29 @@ export class OrderService {
       // Get order details to find locationId
       const orderRef = doc(db, 'orders', orderId);
       const orderDoc = await getDoc(orderRef);
-      
+
       if (!orderDoc.exists()) {
         throw new Error('Order not found');
       }
-      
+
       const orderData = orderDoc.data();
       const locationId = orderData.locationId;
-      
+
       // Ensure table names are present
       let tableNames = orderData.tableNames || [];
       if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
         try {
           // Fetch table documents to get their names
-          const tablePromises = orderData.tableIds.map((tableId: string) => 
+          const tablePromises = orderData.tableIds.map((tableId: string) =>
             getDoc(doc(db, 'tables', tableId))
           );
           const tableDocs = await Promise.all(tablePromises);
-          
-          tableNames = tableDocs.map(tableDoc => {
+
+          tableNames = tableDocs.map((tableDoc, index) => {
             if (tableDoc.exists()) {
               return `Table ${tableDoc.data().name}`;
             }
-            return tableId; // Fallback to ID if table not found
+            return orderData.tableIds[index];
           });
         } catch (error) {
           console.error('Error fetching table names:', error);
@@ -365,7 +355,7 @@ export class OrderService {
           tableNames = orderData.tableIds;
         }
       }
-      
+
       // Calculate totals with proper GST
       const subtotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
       const gstCalculation = await this.calculateOrderGST(subtotal, locationId);
@@ -419,25 +409,25 @@ export class OrderService {
       if (customerData) {
         console.log('👤 Customer data provided:', customerData);
       }
-      
+
       // First, get the temporary order from temporary_orders collection
       const tempOrdersQuery = query(
         collection(db, 'temporary_orders'),
         where('orderId', '==', orderId)
       );
-      
+
       const tempSnapshot = await getDocs(tempOrdersQuery);
-      
+
       if (tempSnapshot.empty) {
         throw new Error('Temporary order not found');
       }
-      
+
       const tempOrderData = tempSnapshot.docs[0].data();
       console.log('📋 Found temporary order:', tempOrderData);
-      
+
       // Get staff name from the temporary order
       const staffName = tempOrderData.staffName || 'Unknown Staff';
-      
+
       // Update the order document with customer info if provided
       if (customerData) {
         const orderRef = doc(db, 'orders', orderId);
@@ -459,7 +449,7 @@ export class OrderService {
         await updateDoc(orderRef, updateData);
         console.log('✅ Updated order document with customer info');
       }
-      
+
       // Create manager pending order entry with the correct structure
       const managerPendingDoc = {
         orderId: orderId,
@@ -500,7 +490,7 @@ export class OrderService {
   async completeOrder(orderId: string, managerId: string): Promise<void> {
     try {
       const orderRef = doc(db, 'orders', orderId);
-      
+
       await updateDoc(orderRef, {
         status: 'completed',
         completedAt: serverTimestamp(),
@@ -563,7 +553,7 @@ export class OrderService {
       // Client-side filtering for locationId to avoid index requirement
       const filteredDocs = snapshot.docs.filter(doc => doc.data().locationId === locationId);
       const tempOrderIds = filteredDocs.map(doc => doc.data().orderId);
-      
+
       if (tempOrderIds.length === 0) {
         callback([]);
         return;
@@ -572,14 +562,14 @@ export class OrderService {
       // Get full order details - split into multiple queries to avoid 'in' clause limits
       const promises: Promise<any>[] = [];
       const batchSize = 10;
-      
+
       for (let i = 0; i < tempOrderIds.length; i += batchSize) {
         const batch = tempOrderIds.slice(i, i + batchSize);
         const ordersQuery = query(
           collection(db, 'orders'),
           where(documentId(), 'in', batch)
         );
-        
+
         promises.push(
           new Promise((resolve) => {
             const unsubscribe = onSnapshot(ordersQuery, (orderSnapshot) => {
@@ -629,17 +619,17 @@ export class OrderService {
 
     const unsubscribe = onSnapshot(pendingQuery, async (snapshot) => {
       const firestoreOrders: any[] = [];
-      
+
       // Sort client-side by transferredAt
       const sortedDocs = snapshot.docs.sort((a, b) => {
         const aTime = a.data().transferredAt?.toMillis() || 0;
         const bTime = b.data().transferredAt?.toMillis() || 0;
         return bTime - aTime; // descending
       });
-      
+
       for (const docSnapshot of sortedDocs) {
         const pendingData = docSnapshot.data();
-        
+
         // Only process pending, assigned, or in_progress orders
         if (['pending', 'assigned', 'in_progress'].includes(pendingData.status)) {
           // Get full order details
@@ -659,7 +649,7 @@ export class OrderService {
           }
         }
       }
-      
+
       // Only call callback if orders have actually changed
       if (JSON.stringify(firestoreOrders) !== JSON.stringify(currentOrders)) {
         currentOrders = firestoreOrders;
@@ -681,9 +671,9 @@ export class OrderService {
         collection(db, 'manager_pending_orders'),
         where('orderId', '==', orderId)
       );
-      
+
       const snapshot = await getDocs(pendingQuery);
-      
+
       if (!snapshot.empty) {
         const pendingDoc = snapshot.docs[0];
         await updateDoc(pendingDoc.ref, {
@@ -705,7 +695,7 @@ export class OrderService {
     try {
       const orderRef = doc(db, 'orders', orderId);
       const orderDoc = await getDoc(orderRef);
-      
+
       if (!orderDoc.exists()) {
         throw new Error('Order not found');
       }
@@ -717,16 +707,16 @@ export class OrderService {
       if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
         try {
           // Fetch table documents to get their names
-          const tablePromises = orderData.tableIds.map((tableId: string) => 
+          const tablePromises = orderData.tableIds.map((tableId: string) =>
             getDoc(doc(db, 'tables', tableId))
           );
           const tableDocs = await Promise.all(tablePromises);
-          
-          tableNames = tableDocs.map(tableDoc => {
+
+          tableNames = tableDocs.map((tableDoc, index) => {
             if (tableDoc.exists()) {
               return `Table ${tableDoc.data().name}`;
             }
-            return tableId; // Fallback to ID if table not found
+            return orderData.tableIds[index];
           });
         } catch (error) {
           console.error('Error fetching table names:', error);
@@ -740,7 +730,7 @@ export class OrderService {
       const subtotal = items.reduce((total: number, item: any) => total + (item.price * item.quantity), 0);
       const gstCalculation = await this.calculateOrderGST(subtotal, orderData.locationId);
       const totalWithTax = subtotal + gstCalculation.totalGST;
-      
+
       // Apply coupon discount if present
       const couponDiscount = orderData.appliedCoupon?.discountAmount || 0;
       const finalTotal = Math.max(0, totalWithTax - couponDiscount);
@@ -776,7 +766,7 @@ export class OrderService {
         where('orderId', '==', orderId)
       );
       const pendingSnapshot = await getDocs(pendingQuery);
-      
+
       const batch = writeBatch(db);
       pendingSnapshot.forEach((doc) => {
         batch.delete(doc.ref);
@@ -808,25 +798,25 @@ export class OrderService {
     locationId?: string
   ): Promise<void> {
     const batch = writeBatch(db);
-    
+
     for (const tableId of tableIds) {
       const tableRef = doc(db, 'tables', tableId);
       const tableDoc = await getDoc(tableRef);
-      
+
       // Only update if the table exists
       if (tableDoc.exists()) {
         const updateData: any = {
           status,
           updatedAt: serverTimestamp()
         };
-        
+
         if (status === 'occupied' && orderId) {
           updateData.currentOrderId = orderId;
           updateData.occupiedAt = serverTimestamp();
         } else if (status === 'available') {
           updateData.currentOrderId = null;
         }
-        
+
         batch.update(tableRef, updateData);
       } else {
         // Create the table if it doesn't exist (for test tables)
@@ -850,7 +840,7 @@ export class OrderService {
         }
       }
     }
-    
+
     await batch.commit();
   }
 
@@ -862,7 +852,7 @@ export class OrderService {
       collection(db, 'temporary_orders'),
       where('orderId', '==', orderId)
     );
-    
+
     const snapshot = await getDocs(tempOrdersQuery);
     // Client-side filtering for staffId to avoid index requirement
     const filteredDocs = snapshot.docs.filter(doc => doc.data().staffId === staffId);
@@ -880,7 +870,7 @@ export class OrderService {
     try {
       const orderRef = doc(db, 'orders', orderId);
       const orderDoc = await getDoc(orderRef);
-      
+
       if (!orderDoc.exists()) {
         throw new Error('Order not found');
       }
@@ -984,7 +974,7 @@ export class OrderService {
     try {
       const orderRef = doc(db, 'orders', orderId);
       const orderDoc = await getDoc(orderRef);
-      
+
       if (!orderDoc.exists()) {
         throw new Error('Order not found');
       }
@@ -1028,14 +1018,14 @@ export class OrderService {
       collection(db, 'temporary_orders'),
       where('orderId', '==', orderId)
     );
-    
+
     const snapshot = await getDocs(tempOrdersQuery);
     const batch = writeBatch(db);
-    
+
     snapshot.forEach((doc) => {
       batch.delete(doc.ref);
     });
-    
+
     await batch.commit();
   }
 
@@ -1048,22 +1038,22 @@ export class OrderService {
   ): Promise<string> {
     try {
       const orderNumber = await this.generateManagerOrderNumber(locationId, franchiseId);
-      
+
       // Fetch table names if not provided
       let tableNames = orderData.tableNames || [];
       if ((!tableNames || tableNames.length === 0) && orderData.tableIds && orderData.tableIds.length > 0) {
         try {
           // Fetch table documents to get their names
-          const tablePromises = orderData.tableIds.map((tableId: string) => 
+          const tablePromises = orderData.tableIds.map((tableId: string) =>
             getDoc(doc(db, 'tables', tableId))
           );
           const tableDocs = await Promise.all(tablePromises);
-          
-          tableNames = tableDocs.map(tableDoc => {
+
+          tableNames = tableDocs.map((tableDoc, index) => {
             if (tableDoc.exists()) {
               return `Table ${tableDoc.data().name}`;
             }
-            return tableId; // Fallback to ID if table not found
+            return orderData.tableIds[index];
           });
         } catch (error) {
           console.error('Error fetching table names:', error);
@@ -1071,7 +1061,7 @@ export class OrderService {
           tableNames = orderData.tableIds;
         }
       }
-      
+
       // Create main order document
       const orderDoc: Record<string, any> = {
         orderNumber,
@@ -1153,14 +1143,14 @@ export class OrderService {
       collection(db, 'manager_pending_orders'),
       where('orderId', '==', orderId)
     );
-    
+
     const snapshot = await getDocs(pendingQuery);
     const batch = writeBatch(db);
-    
+
     snapshot.forEach((doc) => {
       batch.delete(doc.ref);
     });
-    
+
     await batch.commit();
   }
 
@@ -1168,12 +1158,12 @@ export class OrderService {
   async updateOrderPendingPaymentMethod(orderId: string, paymentMethod: 'cash' | 'card' | 'upi'): Promise<void> {
     try {
       const orderRef = doc(db, 'orders', orderId);
-      
+
       await updateDoc(orderRef, {
         pendingPaymentMethod: paymentMethod,
         updatedAt: serverTimestamp()
       });
-      
+
       console.log('✅ Pending payment method updated:', orderId, paymentMethod);
     } catch (error) {
       console.error('Error updating pending payment method:', error);
@@ -1215,7 +1205,7 @@ export class OrderService {
       // Client-side filtering for locationId to avoid index requirement
       const filteredDocs = tempSnapshot.docs.filter(doc => doc.data().locationId === locationId);
       const tempOrderIds = filteredDocs.map(doc => doc.data().orderId);
-      
+
       if (tempOrderIds.length === 0) {
         return [];
       }
@@ -1223,14 +1213,14 @@ export class OrderService {
       // Get full order details - split into multiple queries to avoid 'in' clause limits
       const orders: TemporaryOrder[] = [];
       const batchSize = 10;
-      
+
       for (let i = 0; i < tempOrderIds.length; i += batchSize) {
         const batch = tempOrderIds.slice(i, i + batchSize);
         const ordersQuery = query(
           collection(db, 'orders'),
           where(documentId(), 'in', batch)
         );
-        
+
         const orderSnapshot = await getDocs(ordersQuery);
         orderSnapshot.forEach((doc) => {
           const data = doc.data();
@@ -1260,11 +1250,11 @@ export class OrderService {
     try {
       const orderRef = doc(db, 'orders', orderId);
       const orderDoc = await getDoc(orderRef);
-      
+
       if (!orderDoc.exists()) {
         return null;
       }
-      
+
       const orderData = orderDoc.data();
       return {
         id: orderDoc.id,
@@ -1297,7 +1287,7 @@ export class OrderService {
       changes,
       timestamp: serverTimestamp()
     };
-    
+
     await addDoc(collection(db, 'order_history'), historyDoc);
   }
 }

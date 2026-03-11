@@ -7,6 +7,8 @@ import {
   deleteDoc,
   getDoc,
   getDocs,
+  getDocsFromCache,
+  getDocFromCache,
   query,
   where,
   orderBy,
@@ -208,8 +210,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
           ordersData.push({
             id: doc.id,
             orderNumber: data.orderNumber,
-            tableId: data.tableId,
-            tableIds: data.tableIds || [],
+            tableIds: data.tableIds || (data.tableId ? [data.tableId] : []),
             tableNames: data.tableNames || [],
             locationId: data.locationId,
             staffId: data.staffId,
@@ -222,7 +223,6 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
             total: data.total || 0,
             paymentStatus: data.paymentStatus || 'pending',
             paymentMethod: data.paymentMethod,
-            paymentDetails: data.paymentDetails,
             orderType: data.orderType || 'dine-in',
             customerInfo: data.customerInfo,
             specialInstructions: data.specialInstructions,
@@ -237,8 +237,50 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
         ordersData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
         setOrders(ordersData);
         setLoading(false);
-      }, (error) => {
+      }, async (error) => {
         console.error('Error fetching orders:', error);
+
+        // Attempt to load from cache if listener fails
+        try {
+          const cacheSnapshot = await getDocsFromCache(ordersQuery);
+          if (cacheSnapshot.docs.length > 0) {
+            const ordersData: Order[] = [];
+            cacheSnapshot.forEach((doc) => {
+              const data = doc.data();
+              ordersData.push({
+                id: doc.id,
+                orderNumber: data.orderNumber,
+                tableIds: data.tableIds || (data.tableId ? [data.tableId] : []),
+                tableNames: data.tableNames || [],
+                locationId: data.locationId,
+                staffId: data.staffId,
+                staffName: data.staffName,
+                items: data.items || [],
+                status: data.status,
+                subtotal: data.subtotal || 0,
+                tax: data.tax || 0,
+                discount: data.discount || { type: 'percentage', amount: 0 },
+                total: data.total || 0,
+                paymentStatus: data.paymentStatus || 'pending',
+                paymentMethod: data.paymentMethod,
+                paymentDetails: data.paymentDetails,
+                orderType: data.orderType || 'dine-in',
+                customerInfo: data.customerInfo,
+                specialInstructions: data.specialInstructions,
+                estimatedTime: data.estimatedTime?.toDate?.() || data.estimatedTime,
+                completedAt: data.completedAt?.toDate?.() || data.completedAt,
+                createdAt: data.createdAt?.toDate?.() || data.createdAt,
+                updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+                statusHistory: data.statusHistory || [],
+              } as any);
+            });
+            ordersData.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+            setOrders(ordersData);
+          }
+        } catch (cacheErr) {
+          console.error('Cache fetch also failed for orders:', cacheErr);
+        }
+
         setError('Failed to fetch orders');
         setLoading(false);
       });
@@ -755,5 +797,5 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({ children }) => {
     <OrderContext.Provider value={value}>
       {children}
     </OrderContext.Provider>
-  );
+  ) as any;
 };

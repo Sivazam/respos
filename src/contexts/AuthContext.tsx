@@ -1,13 +1,26 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, getDocs, serverTimestamp, collection, query, limit, addDoc, updateDoc, where } from 'firebase/firestore';
+import {
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  getDocFromCache,
+  serverTimestamp,
+  collection,
+  query,
+  limit,
+  addDoc,
+  updateDoc,
+  where
+} from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 import { User, UserRole } from '../types';
 import { SetupService } from '../services/setupService';
@@ -50,33 +63,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const getUserWithRole = async (firebaseUser: FirebaseUser): Promise<User | null> => {
     try {
-      // Force refresh the user token to get latest data
-      await firebaseUser.reload();
-      
+      // Force refresh the user token to get latest data only if online
+      if (navigator.onLine) {
+        try {
+          await firebaseUser.reload();
+        } catch (reloadError) {
+          console.warn('Failed to reload firebase user (might be offline):', reloadError);
+        }
+      }
+
       // Add multiple attempts to get the latest user data with exponential backoff
       let userDoc;
       let attempts = 0;
       const maxAttempts = 3;
-      
+
       while (attempts < maxAttempts) {
-        userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        
-        if (userDoc.exists()) {
+        try {
+          // If offline, specifically try cache first or implicitly let Firestore handle it
+          // But here we explicitly try to get it, and if it fails or is slow, we can try cache
+          userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+
+          if (userDoc.exists()) {
+            break;
+          }
+        } catch (getDocError: any) {
+          console.warn(`Attempt ${attempts + 1} to fetch user doc failed:`, getDocError);
+
+          // If we're offline or get a network error, try picking from cache immediately
+          if (!navigator.onLine || getDocError.code === 'unavailable') {
+            try {
+              userDoc = await getDocFromCache(doc(db, 'users', firebaseUser.uid));
+              if (userDoc.exists()) break;
+            } catch (cacheError) {
+              console.warn('Failed to fetch user from cache:', cacheError);
+            }
+          }
+        }
+
+        // Wait with exponential backoff if online
+        if (navigator.onLine) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 200));
+        } else {
+          // If offline and we reached here, no point in waiting
           break;
         }
-        
-        // Wait with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 200));
         attempts++;
       }
-      
+
       if (!userDoc?.exists()) {
         console.warn('User document not found after retries:', firebaseUser.uid);
         return null;
       }
-      
+
       const userData = userDoc.data();
-      
+
       const user: User = {
         uid: firebaseUser.uid,
         email: firebaseUser.email || userData.email,
@@ -88,6 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         locationIds: userData.locationIds,
         franchiseId: userData.franchiseId,
         phone: userData.phone,
+        permissions: userData.permissions || [],
         createdAt: userData.createdAt?.toDate() || new Date(),
         lastLogin: userData.lastLogin?.toDate() || new Date()
       };
@@ -96,11 +137,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if ((user.role === 'admin' || user.role === 'manager') && user.locationId) {
         try {
           const setupResult = await SetupService.checkUserSetupStatus(user.uid);
-          
+
           // User needs setup if they haven't completed their personal setup yet
           // Location settings are created by admin during restaurant setup, so we don't need to check them here
           const needsGlobalSetup = !setupResult.success || !setupResult.hasCompletedSetup;
-          
+
           setNeedsSetup(needsGlobalSetup);
         } catch (error) {
           console.warn('Failed to check setup status:', error);
@@ -152,15 +193,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const register = async (
-    email: string, 
-    password: string, 
-    role: UserRole = 'staff', 
+    email: string,
+    password: string,
+    role: UserRole = 'staff',
     franchiseId?: string,
     locationId?: string
   ): Promise<FirebaseUser> => {
     clearError();
     setLoading(true);
-    
+
     try {
       // For superadmin, we don't need franchiseId
       if (role !== 'superadmin' && !franchiseId) {
@@ -168,7 +209,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           const franchiseQuery = query(collection(db, 'franchises'), limit(10));
           const franchiseSnapshot = await getDocs(franchiseQuery);
-          
+
           if (franchiseSnapshot.empty) {
             // Create a default franchise if none exists
             const defaultFranchiseData = {
@@ -184,7 +225,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp()
             };
-            
+
             const franchiseRef = await addDoc(collection(db, 'franchises'), defaultFranchiseData);
             franchiseId = franchiseRef.id;
           } else {
@@ -196,15 +237,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Continue without franchiseId for now, will be handled later
         }
       }
-      
+
       // Validate location for staff (now optional, will be assigned by admin/manager)
       // if (role === 'staff' && !locationId) {
       //   throw new Error('Location is required for staff role. Please select a location.');
       // }
-      
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
+
       // Prepare user data object with display name
       const userData: any = {
         email: user.email,
@@ -215,7 +256,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp()
       };
-      
+
       // Handle franchiseId and locationId based on role
       if (role === 'superadmin') {
         // For superadmin, explicitly set franchiseId and locationId to null
@@ -227,7 +268,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           throw new Error('Unable to create user: No franchise available. Please ensure a franchise exists before creating users.');
         }
         userData.franchiseId = franchiseId;
-        
+
         // For staff, locationId is optional (will be assigned by admin/manager)
         // For admin and manager, it's optional
         if (locationId) {
@@ -243,7 +284,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           userData.requestedLocationId = null;
         }
       }
-      
+
       await setDoc(doc(db, 'users', user.uid), userData);
 
       // Only set current user if this is the first user being created (superadmin)
@@ -251,11 +292,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userWithRole = await getUserWithRole(user);
         setCurrentUser(userWithRole);
       }
-      
+
       return user;
     } catch (err: any) {
       console.error('Registration error:', err);
-      
+
       // Provide more user-friendly error messages
       let errorMessage = 'Failed to register';
       if (err.code === 'auth/email-already-in-use') {
@@ -267,7 +308,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else if (err.message) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -278,7 +319,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string, locationId?: string) => {
     clearError();
     setLoading(true);
-    
+
     try {
       // Validate inputs
       if (!email?.trim()) {
@@ -290,13 +331,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
-      
+
       // Force reload the user to get the latest token and data
       await user.reload();
-      
+
       // Add a small delay to ensure Firestore is updated
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       let userWithRole = await getUserWithRole(user);
       if (!userWithRole) {
         throw new Error('User account not found. Please contact an administrator.');
@@ -306,18 +347,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // This handles potential race conditions in Firestore synchronization
       if (userWithRole.role === 'admin' && !userWithRole.isActive) {
         console.log('Admin account appears inactive, performing multiple retries...');
-        
+
         for (let attempt = 1; attempt <= 3; attempt++) {
           await new Promise(resolve => setTimeout(resolve, attempt * 500));
           await user.reload(); // Reload Firebase user
           const retryUser = await getUserWithRole(user);
-          
+
           if (retryUser && retryUser.isActive) {
             console.log(`Admin account status corrected on attempt ${attempt}`);
             userWithRole = retryUser;
             break;
           }
-          
+
           console.log(`Admin account still inactive on attempt ${attempt}`);
         }
       }
@@ -332,7 +373,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Allow all users to log in regardless of approval status
       // Features will be restricted at dashboard level based on approval
       setCurrentUser(userWithRole);
-      
+
       try {
         const userRef = doc(db, 'users', user.uid);
         await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
@@ -342,7 +383,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      
+
       // Provide more user-friendly error messages
       let errorMessage = 'Failed to log in';
       if (err.code === 'auth/invalid-credential') {
@@ -360,7 +401,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else if (err.message) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -371,7 +412,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     clearError();
     setLoading(true);
-    
+
     try {
       await signOut(auth);
       setCurrentUser(null);
@@ -388,16 +429,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const resetPassword = async (email: string) => {
     clearError();
     setLoading(true);
-    
+
     try {
       if (!email?.trim()) {
         throw new Error('Email is required');
       }
-      
+
       await sendPasswordResetEmail(auth, email.trim());
     } catch (err: any) {
       console.error('Password reset error:', err);
-      
+
       let errorMessage = 'Failed to send password reset email';
       if (err.code === 'auth/user-not-found') {
         errorMessage = 'No account found with this email address';
@@ -406,7 +447,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else if (err.message) {
         errorMessage = err.message;
       }
-      
+
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -417,15 +458,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const approveUser = async (userId: string, locationId?: string) => {
     clearError();
     setLoading(true);
-    
+
     try {
       const userRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userRef);
-      
+
       if (!userDoc.exists()) {
         throw new Error('User not found');
       }
-      
+
       const userData = userDoc.data();
       const updateData: any = {
         isApproved: true,
@@ -433,7 +474,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         approvedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
-      
+
       // Handle location assignment based on role
       if (userData.role === 'admin' || userData.role === 'owner') {
         // For Admin/Owner roles - assign all locations from their franchise
@@ -444,7 +485,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               where('franchiseId', '==', userData.franchiseId)
             );
             const locationsSnapshot = await getDocs(locationsQuery);
-            
+
             const locationIds = locationsSnapshot.docs.map(doc => doc.id);
             updateData.locationIds = locationIds; // Array of all location IDs
             updateData.locationId = null; // Clear single location ID
@@ -479,7 +520,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               limit(10)
             );
             const locationsSnapshot = await getDocs(locationsQuery);
-            
+
             if (!locationsSnapshot.empty) {
               const firstLocation = locationsSnapshot.docs[0];
               updateData.locationId = firstLocation.id;
@@ -490,7 +531,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
       }
-      
+
       await updateDoc(userRef, updateData);
     } catch (err: any) {
       console.error('Error approving user:', err);
@@ -504,7 +545,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const rejectUser = async (userId: string, reason?: string) => {
     clearError();
     setLoading(true);
-    
+
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
@@ -513,7 +554,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         rejectionReason: reason || 'Application rejected',
         updatedAt: serverTimestamp()
       });
-      
+
     } catch (err: any) {
       console.error('Error rejecting user:', err);
       setError(err.message || 'Failed to reject user');
@@ -530,7 +571,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     clearError();
     setLoading(true);
-    
+
     try {
       const result = await SetupService.markSetupComplete(currentUser.uid);
       if (result.success) {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, getDocsFromCache, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { StockUpdate, StockUpdateFormData } from '../types';
 import { useProducts } from './ProductContext';
@@ -48,9 +48,15 @@ export const StockProvider: React.FC<StockProviderProps> = ({ children }) => {
           collection(db, 'stockUpdates'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let allSnapshot;
+        try {
+          allSnapshot = await getDocs(q);
+        } catch (error) {
+          console.warn('Network fetch failed for stock updates, trying cache:', error);
+          allSnapshot = await getDocsFromCache(q);
+        }
         querySnapshot = {
-          docs: allSnapshot.docs.filter(doc => doc.data().locationId === currentLocation.id)
+          docs: allSnapshot.docs.filter(doc => (doc.data() as any).locationId === currentLocation.id)
         };
       } else if (currentUser?.role === 'staff' && currentUser?.locationId) {
         // Staff can only see stock updates from their location
@@ -79,14 +85,24 @@ export const StockProvider: React.FC<StockProviderProps> = ({ children }) => {
             collection(db, 'stockUpdates'),
             orderBy('createdAt', 'desc')
           );
-          const allSnapshot = await getDocs(q);
+          let allSnapshot;
+          try {
+            allSnapshot = await getDocs(q);
+          } catch (error) {
+            allSnapshot = await getDocsFromCache(q);
+          }
 
           // Get all locations for this admin's franchise
           const locationsQuery = query(
             collection(db, 'locations'),
             where('franchiseId', '==', currentUser.franchiseId)
           );
-          const locationsSnapshot = await getDocs(locationsQuery);
+          let locationsSnapshot;
+          try {
+            locationsSnapshot = await getDocs(locationsQuery);
+          } catch (error) {
+            locationsSnapshot = await getDocsFromCache(locationsQuery);
+          }
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
 
           // Filter stock updates by franchise location IDs
@@ -105,14 +121,25 @@ export const StockProvider: React.FC<StockProviderProps> = ({ children }) => {
           collection(db, 'stockUpdates'),
           orderBy('createdAt', 'desc')
         );
-        querySnapshot = await getDocs(q);
+        try {
+          if (!navigator.onLine) {
+            querySnapshot = await getDocsFromCache(q);
+          } else {
+            querySnapshot = await getDocs(q);
+          }
+        } catch (error) {
+          querySnapshot = await getDocsFromCache(q);
+        }
       }
 
-      const stockData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate()
-      })) as StockUpdate[];
+      const stockData = querySnapshot.docs.map(doc => {
+        const data = doc.data() as any;
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate?.() || data.createdAt
+        };
+      }) as StockUpdate[];
 
       setStockUpdates(stockData);
     } catch (err: any) {
@@ -189,5 +216,5 @@ export const StockProvider: React.FC<StockProviderProps> = ({ children }) => {
     <StockContext.Provider value={value}>
       {children}
     </StockContext.Provider>
-  );
+  ) as any;
 };

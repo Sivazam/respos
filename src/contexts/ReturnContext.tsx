@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, getDocsFromCache, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Return, ReturnFormData, ReturnItem } from '../types';
 import { useProducts } from './ProductContext';
@@ -55,9 +55,19 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
           collection(db, 'returns'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let allSnapshot;
+        try {
+          if (!navigator.onLine) {
+            allSnapshot = await getDocsFromCache(q);
+          } else {
+            allSnapshot = await getDocs(q);
+          }
+        } catch (error) {
+          console.warn('Network fetch failed for returns, trying cache:', error);
+          allSnapshot = await getDocsFromCache(q);
+        }
         querySnapshot = {
-          docs: allSnapshot.docs.filter(doc => doc.data().locationId === currentLocation.id)
+          docs: allSnapshot.docs.filter(doc => (doc.data() as any).locationId === currentLocation.id)
         };
       } else if (currentUser?.role === 'staff' && currentUser?.locationId) {
         // Staff can only see returns from their location
@@ -65,9 +75,18 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
           collection(db, 'returns'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let snapshot;
+        try {
+          if (!navigator.onLine) {
+            snapshot = await getDocsFromCache(q);
+          } else {
+            snapshot = await getDocs(q);
+          }
+        } catch (error) {
+          snapshot = await getDocsFromCache(q);
+        }
         querySnapshot = {
-          docs: allSnapshot.docs.filter(doc => doc.data().locationId === currentUser.locationId)
+          docs: snapshot.docs.filter(doc => (doc.data() as any).locationId === currentUser.locationId)
         };
       } else if (currentUser?.role === 'manager' && currentUser?.locationId) {
         // Manager can only see returns from their location
@@ -75,9 +94,18 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
           collection(db, 'returns'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let snapshotInner;
+        try {
+          if (!navigator.onLine) {
+            snapshotInner = await getDocsFromCache(q);
+          } else {
+            snapshotInner = await getDocs(q);
+          }
+        } catch (error) {
+          snapshotInner = await getDocsFromCache(q);
+        }
         querySnapshot = {
-          docs: allSnapshot.docs.filter(doc => doc.data().locationId === currentUser.locationId)
+          docs: snapshotInner.docs.filter(doc => (doc.data() as any).locationId === currentUser.locationId)
         };
       } else if (currentUser?.role === 'admin') {
         // Admin can see returns from all locations in their franchise
@@ -86,14 +114,30 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
             collection(db, 'returns'),
             orderBy('createdAt', 'desc')
           );
-          const allSnapshot = await getDocs(q);
+          let allSnapshot;
+          try {
+            if (!navigator.onLine) {
+              allSnapshot = await getDocsFromCache(q);
+            } else {
+              allSnapshot = await getDocs(q);
+            }
+          } catch (error) {
+            console.warn('Network fetch failed for returns, trying cache:', error);
+            allSnapshot = await getDocsFromCache(q);
+          }
 
           // Get all locations for this admin's franchise
           const locationsQuery = query(
             collection(db, 'locations'),
             where('franchiseId', '==', currentUser.franchiseId)
           );
-          const locationsSnapshot = await getDocs(locationsQuery);
+          let locationsSnapshot;
+          try {
+            locationsSnapshot = await getDocs(locationsQuery);
+          } catch (error) {
+            console.warn('Network fetch failed for locations, trying cache:', error);
+            locationsSnapshot = await getDocsFromCache(locationsQuery);
+          }
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
 
           // Filter returns by franchise location IDs
@@ -112,14 +156,26 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
           collection(db, 'returns'),
           orderBy('createdAt', 'desc')
         );
-        querySnapshot = await getDocs(q);
+        try {
+          if (!navigator.onLine) {
+            querySnapshot = await getDocsFromCache(q);
+          } else {
+            querySnapshot = await getDocs(q);
+          }
+        } catch (error) {
+          console.warn('Network fetch failed for returns, trying cache:', error);
+          querySnapshot = await getDocsFromCache(q);
+        }
       }
 
-      const returnsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate()
-      })) as Return[];
+      const returnsData = querySnapshot.docs.map(doc => {
+        const data = doc.data() as any;
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate?.() || data.createdAt
+        };
+      }) as Return[];
 
       setReturns(returnsData);
     } catch (err: any) {
@@ -203,10 +259,16 @@ export const ReturnProvider: React.FC<ReturnProviderProps> = ({ children }) => {
         // For purchase returns, decrease stock
         const quantityChange = data.type === 'sale' ? item.quantity : -item.quantity;
 
-        await updateProduct(product.id, {
-          ...product,
-          quantity: product.quantity + quantityChange
-        });
+        try {
+          await updateProduct(product.id, {
+            ...product,
+            quantity: product.quantity + quantityChange
+          });
+        } catch (updateErr) {
+          console.error(`Failed to update product ${product.id} during return:`, updateErr);
+          // Don't throw here to allow return record to be created even if stock update fails offline
+          // (Firestore will eventually sync both if they were using standard set/update)
+        }
       }
 
       // Add return record

@@ -25,7 +25,7 @@ const ReturnsPage: React.FC = () => {
   // Get today's sales that haven't been returned
   const todaysSales = useMemo(() => {
     const today = new Date();
-    return sales.filter(sale => 
+    return sales.filter(sale =>
       sale.createdBy === currentUser?.uid &&
       isWithinInterval(sale.createdAt, {
         start: startOfToday(),
@@ -39,7 +39,7 @@ const ReturnsPage: React.FC = () => {
     try {
       console.log('Processing return with data:', data);
       await addReturn(data);
-      
+
       // Generate return receipt with correct amounts
       const sale = sales.find(s => s.id === data.referenceId);
       if (sale) {
@@ -67,13 +67,13 @@ const ReturnsPage: React.FC = () => {
             total: returnTotal,
             paymentMethod: data.refundMethod || 'cash'
           },
-          businessName: 'ForkFlow',
-          businessAddress: '123 Food Street, Bangalore, Karnataka 560001',
-          gstNumber: 'GSTIN29ABCDE1234F1Z5',
-          contactNumber: '+91 80 1234 5678',
-          email: 'contact@millethomefoods.com'
+          businessName: '',
+          businessAddress: '',
+          gstNumber: '',
+          contactNumber: '',
+          email: ''
         };
-        
+
         console.log('Generated return receipt:', receipt);
         setCurrentReceipt(receipt);
         setShowReceipt(true);
@@ -113,11 +113,11 @@ const ReturnsPage: React.FC = () => {
           total: returnTotal,
           paymentMethod: returnItem.refundMethod || 'cash'
         },
-        businessName: 'ForkFlow',
-        businessAddress: '123 Food Street, Bangalore, Karnataka 560001',
-        gstNumber: 'GSTIN29ABCDE1234F1Z5',
-        contactNumber: '+91 80 1234 5678',
-        email: 'contact@millethomefoods.com'
+        businessName: '',
+        businessAddress: '',
+        gstNumber: '',
+        contactNumber: '',
+        email: ''
       };
       setCurrentReceipt(receipt);
       setShowReceipt(true);
@@ -125,7 +125,7 @@ const ReturnsPage: React.FC = () => {
   };
 
   const filteredReturns = returns.filter(r =>
-    r.items.some(item => 
+    r.items.some(item =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase())
     ) ||
     r.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -144,7 +144,7 @@ const ReturnsPage: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full sm:w-64"
           />
-          
+
           {!showForm && (
             <Button
               variant="primary"
@@ -160,7 +160,7 @@ const ReturnsPage: React.FC = () => {
         {showForm ? (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">Process Sales Return</h2>
-            
+
             {!selectedSale && (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -182,7 +182,7 @@ const ReturnsPage: React.FC = () => {
                               Order #{sale.invoiceNumber}
                             </p>
                             <p className="text-sm text-gray-500 mt-1">
-                              {format(sale.createdAt, 'HH:mm')} - 
+                              {format(sale.createdAt, 'HH:mm')} -
                               {sale.items.map(item => ` ${item.quantity}x ${item.name}`).join(', ')}
                             </p>
                           </div>
@@ -295,7 +295,7 @@ const ReturnsPage: React.FC = () => {
             setShowReceipt(false);
             setCurrentReceipt(null);
           }}
-          onPrint={() => {}} // Print function is now handled internally
+          locationId={currentUser?.locationId}
           isReturn={true}
         />
       )}

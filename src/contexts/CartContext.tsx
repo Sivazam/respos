@@ -4,7 +4,7 @@ import { CartItem } from '../types';
 import { useMenuItems } from './MenuItemContext';
 import { useAuth } from './AuthContext';
 import { useLocations } from './LocationContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromCache } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 interface CartContextType {
@@ -42,7 +42,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
   const { menuItems } = useMenuItems();
   const { currentLocation } = useLocations();
   const { currentUser } = useAuth();
-  
+
   // Load cart from localStorage on mount
   useEffect(() => {
     const savedCart = localStorage.getItem('pos-cart');
@@ -55,7 +55,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
       }
     }
   }, []);
-  
+
   // Save cart to localStorage whenever it changes
   useEffect(() => {
     if (items.length > 0) {
@@ -64,16 +64,23 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
       localStorage.removeItem('pos-cart');
     }
   }, [items]);
-  
+
   // Load GST settings from location
   useEffect(() => {
     const loadGstSettings = async () => {
       const locationId = currentLocation?.id || currentUser?.locationId;
       if (locationId) {
         try {
-          const settingsDoc = await getDoc(doc(db, 'locationSettings', locationId));
+          const settingsRef = doc(db, 'locationSettings', locationId);
+          let settingsDoc;
+          try {
+            settingsDoc = await getDocFromCache(settingsRef);
+          } catch (cacheErr) {
+            settingsDoc = await getDoc(settingsRef);
+          }
+
           if (settingsDoc.exists()) {
-            const settings = settingsDoc.data();
+            const settings = settingsDoc.data() as any;
             console.log('Raw location settings:', settings);
             // Check both possible structures for GST rates
             const cgst = settings.tax?.cgst ?? settings.operations?.taxRates?.cgst ?? 0;
@@ -87,13 +94,13 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         }
       }
     };
-    
+
     loadGstSettings();
   }, [currentLocation?.id, currentUser?.uid, currentUser?.role]);
 
   const addItem = (cartItem: Omit<CartItem, 'id' | 'quantity'>) => {
     console.log('🛒 CartContext.addItem called with:', cartItem);
-    
+
     // Check if the menu item exists and is available
     const menuItem = menuItems.find(item => item.id === cartItem.menuItemId);
     if (!menuItem || !menuItem.isAvailable) {
@@ -109,16 +116,16 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
 
     setItems(currentItems => {
       console.log('📦 Current cart items:', currentItems);
-      
+
       // Find existing item with same menuItemId, modifications, notes, and portionSize
       // This ensures different portions (Half vs Full) are treated as separate entries
-      const existingItem = currentItems.find(item => 
+      const existingItem = currentItems.find(item =>
         item.menuItemId === cartItem.menuItemId &&
         JSON.stringify(item.modifications || []) === JSON.stringify(cartItem.modifications || []) &&
         (item.notes || '') === (cartItem.notes || '') &&
         (item.portionSize || 'full') === (cartItem.portionSize || 'full')
       );
-      
+
       console.log('🔍 Portion comparison:', {
         existingItem: existingItem ? {
           name: existingItem.name,
@@ -129,7 +136,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         menuItemId: cartItem.menuItemId,
         willCreateNewEntry: !existingItem
       });
-      
+
       if (existingItem) {
         console.log('✅ Updating existing item quantity for same portion');
         return currentItems.map(item =>
@@ -138,7 +145,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
             : item
         );
       }
-      
+
       console.log('➕ Adding new item to cart with portion:', cartItem.portionSize || 'full');
       const newItem = {
         id: uuidv4(),
@@ -151,7 +158,7 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
         portionSize: cartItem.portionSize || 'full'
       };
       console.log('🆕 New item being added:', newItem);
-      
+
       return [...currentItems, newItem];
     });
   };

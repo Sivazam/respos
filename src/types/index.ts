@@ -7,6 +7,7 @@ export type LegacyUserRole = 'salesperson' | 'restaurantowner' | 'franchise_mana
 export interface User {
   uid: string;
   email: string | null;
+  name?: string | null; // Added for convenience/legacy
   displayName?: string | null;
   role: UserRole;
   permissions: string[]; // Granular permissions array
@@ -81,7 +82,7 @@ export interface RestaurantFormData {
 export interface Location {
   id: string;
   name: string; // Store name/identifier (e.g., "ramachandrapuram")
-  storeName: string; // Display name (e.g., "Na Potta Na Istam - Main Store")
+  storeName: string; // Display name (e.g., "Main Store Branch")
   address: string;
   city?: string;
   state?: string;
@@ -150,9 +151,11 @@ export interface Category {
   name: string;
   description?: string;
   restaurantId: string;
+  franchiseId?: string; // Added to match usage in context
   locationId?: string; // For location-specific categories
   displayOrder: number;
   isActive: boolean;
+  imageUrl?: string; // Added to match usage in context
   createdAt: Date;
   updatedAt: Date;
 }
@@ -171,6 +174,7 @@ export interface MenuItem {
   spiceLevel: 'mild' | 'medium' | 'hot' | 'extra_hot';
   restaurantId: string;
   locationId?: string; // For location-specific pricing/availability
+  franchiseId?: string; // Links to Franchise (Restaurant)
   hasHalfPortion?: boolean; // New field for portion variant
   halfPortionCost?: number; // New field for half portion cost
   createdAt: Date;
@@ -251,6 +255,8 @@ export interface CustomerData {
 }
 
 // Order Management - Enhanced for new POS system
+export type OrderStatus = 'temporary' | 'ongoing' | 'transferred' | 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled' | 'settled';
+
 export interface Order {
   id: string;
   locationId: string; // Required - every order belongs to a location
@@ -305,6 +311,7 @@ export interface OrderItem {
 
 export interface OrderFormData {
   tableIds: string[];
+  tableNames?: string[]; // Added for display support
   orderType: 'dinein' | 'delivery';
   orderMode?: 'zomato' | 'swiggy' | 'in-store';
   items: OrderItem[];
@@ -593,7 +600,7 @@ export interface FranchiseStoredFeatures {
 // Franchise (Restaurant Business) - Main entity for each restaurant customer
 export interface Franchise {
   id: string;
-  name: string; // Restaurant name (e.g., "Na Potta Na Istam")
+  name: string; // Restaurant name (e.g., "Sample Restaurant")
   businessName?: string; // Legal business name
   ownerName: string;
   email: string;

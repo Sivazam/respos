@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  addDoc, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  serverTimestamp 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  getDocsFromCache,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { MenuItem } from '../types';
@@ -51,7 +52,7 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
   const refreshMenuItems = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Check if user has location assigned
       if (hasNoLocationAssigned(currentUser)) {
@@ -63,7 +64,7 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
 
       // Build simple query to avoid composite indexes
       let q;
-      
+
       if (currentUser?.role === 'superadmin') {
         // Superadmin sees all menu items - simple query
         q = query(collection(db, 'menuItems'));
@@ -75,7 +76,17 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
         q = query(collection(db, 'menuItems'), where('locationId', '==', currentUser?.locationId));
       }
 
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        if (!navigator.onLine) {
+          querySnapshot = await getDocsFromCache(q);
+        } else {
+          querySnapshot = await getDocs(q);
+        }
+      } catch (error) {
+        console.warn('Network fetch failed for menu items, trying cache:', error);
+        querySnapshot = await getDocsFromCache(q);
+      }
 
       const menuItemsData = querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -89,7 +100,7 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
 
       // Client-side filtering and sorting
       let filteredMenuItems = menuItemsData;
-      
+
       // Filter by location for admin users - they can see menu items from all their franchise locations
       if (currentUser?.role === 'admin' && currentUser?.franchiseId) {
         // Get all locations for this admin's franchise
@@ -97,15 +108,21 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
           collection(db, 'locations'),
           where('franchiseId', '==', currentUser.franchiseId)
         );
-        const locationsSnapshot = await getDocs(locationsQuery);
+        let locationsSnapshot;
+        try {
+          locationsSnapshot = await getDocs(locationsQuery);
+        } catch (error) {
+          console.warn('Network fetch failed for locations, trying cache:', error);
+          locationsSnapshot = await getDocsFromCache(locationsQuery);
+        }
         const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
-        
+
         // Filter menu items by franchise location IDs
-        filteredMenuItems = filteredMenuItems.filter(item => 
-          franchiseLocationIds.includes(item.locationId)
+        filteredMenuItems = filteredMenuItems.filter(item =>
+          franchiseLocationIds.includes(item.locationId as string)
         );
       }
-      
+
       // Sort by createdAt descending
       filteredMenuItems.sort((a, b) => {
         const dateA = a.createdAt ? a.createdAt.getTime() : 0;
@@ -127,7 +144,7 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
 
   const addMenuItem = async (itemData: Omit<MenuItem, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);
-    
+
     try {
       // Check if user has location assigned
       if (hasNoLocationAssigned(currentUser)) {
@@ -148,25 +165,27 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
         }
       }
 
-      if (!locationId || !franchiseId) {
+
+      if (!locationId || !(franchiseId || (itemData as any).restaurantId)) {
         throw new Error('No location available. Please select a location or contact an administrator.');
       }
 
-      const cleanedItemData = {
+      const cleanedItemData: any = {
         name: itemData.name || 'Unknown Item',
         description: itemData.description || '',
         price: Number(itemData.price) || 0,
         categoryId: itemData.categoryId || '',
         locationId,
         franchiseId,
+        restaurantId: franchiseId, // Map franchiseId to restaurantId
         isAvailable: itemData.isAvailable !== false,
         isVegetarian: itemData.isVegetarian !== false,
         spiceLevel: itemData.spiceLevel || 'medium',
         preparationTime: Number(itemData.preparationTime) || 15,
         imageUrl: itemData.imageUrl || '',
-        ingredients: itemData.ingredients || [],
-        allergens: itemData.allergens || [],
-        modifications: itemData.modifications || [],
+        ingredients: (itemData as any).ingredients || [],
+        allergens: (itemData as any).allergens || [],
+        modifications: (itemData as any).modifications || [],
         hasHalfPortion: itemData.hasHalfPortion || false,
         halfPortionCost: itemData.hasHalfPortion ? Number(itemData.halfPortionCost) || 0 : null
       };
@@ -195,10 +214,10 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
 
   const updateMenuItem = async (id: string, updates: Partial<MenuItem>) => {
     setError(null);
-    
+
     try {
       const itemRef = doc(db, 'menuItems', id);
-      
+
       const cleanedUpdates = {
         ...updates,
         updatedAt: serverTimestamp()
@@ -206,8 +225,8 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
 
       // Remove undefined values
       Object.keys(cleanedUpdates).forEach(key => {
-        if (cleanedUpdates[key] === undefined) {
-          delete cleanedUpdates[key];
+        if ((cleanedUpdates as any)[key] === undefined) {
+          delete (cleanedUpdates as any)[key];
         }
       });
 
@@ -222,7 +241,7 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
 
   const deleteMenuItem = async (id: string) => {
     setError(null);
-    
+
     try {
       await deleteDoc(doc(db, 'menuItems', id));
       await refreshMenuItems();
@@ -241,16 +260,16 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
       } else if (currentUser?.role === 'admin' && currentUser?.franchiseId) {
         // For admin, get menu items from all their franchise locations
         const franchiseLocationIds = locations
-          .filter(loc => loc.franchiseId === currentUser.franchiseId)
-          .map(loc => loc.id);
-        return menuItems.filter(item => franchiseLocationIds.includes(item.locationId));
+          .filter((loc: any) => loc.franchiseId === currentUser.franchiseId)
+          .map((loc: any) => loc.id);
+        return menuItems.filter((item: any) => franchiseLocationIds.includes(item.locationId));
       } else {
-        return menuItems.filter(item => item.locationId === currentUser?.locationId);
+        return menuItems.filter((item: any) => item.locationId === currentUser?.locationId);
       }
     }
-    
+
     // Return menu items for specific location
-    return menuItems.filter(item => item.locationId === locationId);
+    return menuItems.filter((item: any) => item.locationId === locationId);
   };
 
   const value: MenuItemContextType = {
@@ -268,5 +287,5 @@ export const MenuItemProvider: React.FC<MenuItemProviderProps> = ({ children }) 
     <MenuItemContext.Provider value={value}>
       {children}
     </MenuItemContext.Provider>
-  );
+  ) as any;
 };

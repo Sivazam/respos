@@ -8,14 +8,14 @@ import { useFranchises } from '../../contexts/FranchiseContext';
 
 const FranchiseSettingsPage: React.FC = () => {
   const { currentFranchise, updateFranchise } = useFranchises();
-  
+
   const [settings, setSettings] = useState({
-    franchiseName: currentFranchise?.name || 'ForkFlow - Mumbai',
-    ownerName: currentFranchise?.ownerName || 'Rajesh Sharma',
-    email: currentFranchise?.email || 'rajesh@mumbai.millethomefoods.com',
-    phone: currentFranchise?.phone || '+91 98765 43210',
-    address: currentFranchise?.address || 'Shop No. 15, Andheri West, Mumbai, Maharashtra 400058',
-    gstNumber: currentFranchise?.gstNumber || 'GSTIN27ABCDE1234F1Z5',
+    franchiseName: currentFranchise?.name || '',
+    ownerName: currentFranchise?.ownerName || '',
+    email: currentFranchise?.email || '',
+    phone: currentFranchise?.phone || '',
+    address: currentFranchise?.address || '',
+    gstNumber: currentFranchise?.gstNumber || '',
     businessHours: {
       openTime: '09:00',
       closeTime: '21:00',
@@ -24,7 +24,7 @@ const FranchiseSettingsPage: React.FC = () => {
     preferences: {
       currency: 'INR',
       taxRate: '5',
-      receiptFooter: currentFranchise?.branding?.receiptFooter || 'Thank you for choosing ForkFlow!',
+      receiptFooter: currentFranchise?.branding?.receiptFooter || '',
       enableNotifications: true,
       autoBackup: true
     }
@@ -79,7 +79,7 @@ const FranchiseSettingsPage: React.FC = () => {
       setError('No franchise selected');
       return;
     }
-    
+
     setLoading(true);
     setError('');
     setSuccess('');
@@ -98,7 +98,7 @@ const FranchiseSettingsPage: React.FC = () => {
           receiptFooter: settings.preferences.receiptFooter
         }
       });
-      
+
       setSuccess('Franchise settings saved successfully');
     } catch (err: any) {
       setError(err.message || 'Failed to save settings');
@@ -119,7 +119,7 @@ const FranchiseSettingsPage: React.FC = () => {
     <DashboardLayout title="Franchise Settings">
       <div className="space-y-6">
         {error && <ErrorAlert message={error} onClose={() => setError('')} />}
-        
+
         {success && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex">
@@ -139,7 +139,7 @@ const FranchiseSettingsPage: React.FC = () => {
             <Store className="h-6 w-6 text-blue-600 mr-2" />
             <h2 className="text-lg font-medium text-gray-900">Basic Information</h2>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
               label="Franchise Name"
@@ -147,14 +147,14 @@ const FranchiseSettingsPage: React.FC = () => {
               onChange={(e) => handleInputChange('franchiseName', e.target.value)}
               placeholder="Enter franchise name"
             />
-            
+
             <Input
               label="Owner Name"
               value={settings.ownerName}
               onChange={(e) => handleInputChange('ownerName', e.target.value)}
               placeholder="Enter owner name"
             />
-            
+
             <Input
               label="Email"
               type="email"
@@ -163,7 +163,7 @@ const FranchiseSettingsPage: React.FC = () => {
               placeholder="Enter email address"
               icon={<Mail size={18} className="text-gray-500" />}
             />
-            
+
             <Input
               label="Phone"
               value={settings.phone}
@@ -171,7 +171,7 @@ const FranchiseSettingsPage: React.FC = () => {
               placeholder="Enter phone number"
               icon={<Phone size={18} className="text-gray-500" />}
             />
-            
+
             <Input
               label="GST Number"
               value={settings.gstNumber}
@@ -179,7 +179,7 @@ const FranchiseSettingsPage: React.FC = () => {
               placeholder="Enter GST number"
             />
           </div>
-          
+
           <div className="mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               <MapPin size={16} className="inline mr-1" />
@@ -201,7 +201,7 @@ const FranchiseSettingsPage: React.FC = () => {
             <Settings className="h-6 w-6 text-purple-600 mr-2" />
             <h2 className="text-lg font-medium text-gray-900">Business Hours</h2>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <Input
               label="Opening Time"
@@ -209,7 +209,7 @@ const FranchiseSettingsPage: React.FC = () => {
               value={settings.businessHours.openTime}
               onChange={(e) => handleInputChange('businessHours.openTime', e.target.value)}
             />
-            
+
             <Input
               label="Closing Time"
               type="time"
@@ -217,7 +217,7 @@ const FranchiseSettingsPage: React.FC = () => {
               onChange={(e) => handleInputChange('businessHours.closeTime', e.target.value)}
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Working Days
@@ -244,7 +244,7 @@ const FranchiseSettingsPage: React.FC = () => {
             <Users className="h-6 w-6 text-green-600 mr-2" />
             <h2 className="text-lg font-medium text-gray-900">Preferences</h2>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -260,7 +260,7 @@ const FranchiseSettingsPage: React.FC = () => {
                 <option value="EUR">Euro (€)</option>
               </select>
             </div>
-            
+
             <Input
               label="Tax Rate (%)"
               type="number"
@@ -271,7 +271,7 @@ const FranchiseSettingsPage: React.FC = () => {
               max="100"
             />
           </div>
-          
+
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Receipt Footer Message
@@ -284,7 +284,7 @@ const FranchiseSettingsPage: React.FC = () => {
               rows={2}
             />
           </div>
-          
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -294,18 +294,16 @@ const FranchiseSettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleInputChange('preferences.enableNotifications', !settings.preferences.enableNotifications)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
-                  settings.preferences.enableNotifications ? 'bg-green-600' : 'bg-gray-200'
-                }`}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${settings.preferences.enableNotifications ? 'bg-green-600' : 'bg-gray-200'
+                  }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    settings.preferences.enableNotifications ? 'translate-x-5' : 'translate-x-0'
-                  }`}
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${settings.preferences.enableNotifications ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
-            
+
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium text-gray-900">Auto Backup</h3>
@@ -314,14 +312,12 @@ const FranchiseSettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleInputChange('preferences.autoBackup', !settings.preferences.autoBackup)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
-                  settings.preferences.autoBackup ? 'bg-green-600' : 'bg-gray-200'
-                }`}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${settings.preferences.autoBackup ? 'bg-green-600' : 'bg-gray-200'
+                  }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    settings.preferences.autoBackup ? 'translate-x-5' : 'translate-x-0'
-                  }`}
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${settings.preferences.autoBackup ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -335,7 +331,7 @@ const FranchiseSettingsPage: React.FC = () => {
               <Settings className="h-6 w-6 text-amber-600 mr-2" />
               <h2 className="text-lg font-medium text-gray-900">Subscription Information</h2>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="font-medium text-gray-900 mb-2">Current Plan</h3>
@@ -358,7 +354,7 @@ const FranchiseSettingsPage: React.FC = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="font-medium text-gray-900 mb-2">Feature Limits</h3>
                 <div className="space-y-1">
@@ -376,7 +372,7 @@ const FranchiseSettingsPage: React.FC = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="font-medium text-gray-900 mb-2">Enabled Features</h3>
                 <div className="space-y-1">

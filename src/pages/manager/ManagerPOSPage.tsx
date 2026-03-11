@@ -13,12 +13,14 @@ import ProductGrid from '../../components/pos/ProductGrid';
 import OptimizedProductList from '../../components/pos/OptimizedProductList';
 import Cart from '../../components/pos/Cart';
 import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import CheckoutModal from '../../components/pos/CheckoutModal';
 import ReceiptModal from '../../components/pos/ReceiptModal';
 import PortionSelectionModal from '../../components/pos/PortionSelectionModal';
 import OrderModeSelection from '../../components/order/OrderModeSelection';
 import { Sale, Receipt, MenuItem, CartItem } from '../../types';
+import { orderService } from '../../services/orderService';
 import toast from 'react-hot-toast';
 
 const ManagerPOSPage: React.FC = () => {
@@ -97,10 +99,10 @@ const ManagerPOSPage: React.FC = () => {
 
     if (!tableIds || tableIds.length === 0) return [];
 
-    return tableIds.map(id => {
+    return tableIds.map((id: string) => {
       const table = tables.find(t => t.id === id);
       if (table) {
-        return table.name || `Table ${table.number}`;
+        return table.name || `Table ${(table as any).number}`;
       }
 
       // Fallback: extract table number from ID
@@ -144,9 +146,11 @@ const ManagerPOSPage: React.FC = () => {
       setShowPortionModal(true);
     } else {
       handleAddItem({
+        id: `cart_${Date.now()}_${Math.random()}`,
         menuItemId: menuItem.id,
         name: menuItem.name,
         price: menuItem.price,
+        quantity: 1,
         modifications: [],
         notes: '',
         portionSize: 'full'
@@ -157,9 +161,11 @@ const ManagerPOSPage: React.FC = () => {
   const handlePortionSelect = (portionSize: 'half' | 'full', price: number) => {
     if (selectedMenuItem) {
       handleAddItem({
+        id: `cart_${Date.now()}_${Math.random()}`,
         menuItemId: selectedMenuItem.id,
         name: selectedMenuItem.name,
         price: price,
+        quantity: 1,
         modifications: [],
         notes: '',
         portionSize: portionSize
@@ -277,7 +283,7 @@ const ManagerPOSPage: React.FC = () => {
         // Create a temporary order for table-based orders using orderService
         const orderFormData = {
           tableIds,
-          orderType: orderType === 'dinein' ? 'dinein' : (orderType === 'delivery' ? 'delivery' : 'dinein'),
+          orderType: (orderType === 'dinein' ? 'dinein' : 'delivery') as 'dinein' | 'delivery',
           items: items.map(item => ({
             ...item,
             id: item.id || `temp_${Date.now()}_${Math.random()}`,
@@ -286,7 +292,8 @@ const ManagerPOSPage: React.FC = () => {
             price: Number(item.price) || 0,
             quantity: Number(item.quantity) || 1,
             modifications: item.modifications || [],
-            notes: item.notes || ''
+            notes: item.notes || '',
+            addedAt: new Date()
           })),
         };
 
@@ -306,8 +313,9 @@ const ManagerPOSPage: React.FC = () => {
           price: Number(item.price) || 0,
           quantity: Number(item.quantity) || 1,
           modifications: item.modifications || [],
-          notes: item.notes || ''
-        })), currentUser.uid || currentUser.id || 'unknown');
+          notes: item.notes || '',
+          addedAt: new Date()
+        })), currentUser.uid || (currentUser as any).id || 'unknown');
 
         toast.success('Order created successfully!');
 
@@ -331,7 +339,7 @@ const ManagerPOSPage: React.FC = () => {
           sgst: Number(sgst) || 0,
           total: Number(total) || 0,
           paymentMethod,
-          createdBy: currentUser.uid || currentUser.id || 'unknown',
+          createdBy: currentUser.uid || (currentUser as any).id || 'unknown',
           locationId: locationId || 'default_location'
         };
 
@@ -339,11 +347,11 @@ const ManagerPOSPage: React.FC = () => {
 
         const receipt: Receipt = {
           sale: newSale,
-          businessName: 'ForkFlow',
-          businessAddress: '123 Food Street, Bangalore, Karnataka 560001',
-          gstNumber: 'GSTIN29ABCDE1234F1Z5',
-          contactNumber: '+91 80 1234 5678',
-          email: 'contact@millethomefoods.com'
+          businessName: '',
+          businessAddress: '',
+          gstNumber: '',
+          contactNumber: '',
+          email: ''
         };
 
         setCurrentReceipt(receipt);
@@ -376,7 +384,8 @@ const ManagerPOSPage: React.FC = () => {
         quantity: Number(item.quantity) || 1,
         modifications: item.modifications || [],
         notes: item.notes || '',
-        portionSize: item.portionSize || 'full'
+        portionSize: item.portionSize || 'full',
+        addedAt: new Date()
       };
       addItemToManagerOrder(managerOrderItem);
     } else {
@@ -557,8 +566,8 @@ const ManagerPOSPage: React.FC = () => {
                     <button
                       onClick={() => { setDietaryFilter('all'); setSelectedCategory(''); }}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'all' && !selectedCategory
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                     >
                       All
@@ -566,8 +575,8 @@ const ManagerPOSPage: React.FC = () => {
                     <button
                       onClick={() => setDietaryFilter('veg')}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'veg'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                     >
                       🟢 Veg
@@ -575,8 +584,8 @@ const ManagerPOSPage: React.FC = () => {
                     <button
                       onClick={() => setDietaryFilter('non-veg')}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${dietaryFilter === 'non-veg'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                     >
                       🔴 Non-Veg
@@ -593,8 +602,8 @@ const ManagerPOSPage: React.FC = () => {
                         key={category.id}
                         onClick={() => setSelectedCategory(category.id)}
                         className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-all ${selectedCategory === category.id
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                       >
                         {category.name}
@@ -769,13 +778,6 @@ const ManagerPOSPage: React.FC = () => {
                           console.log('Update quantity for item:', itemId, newQuantity);
                         }
                       }}
-                      onRemoveItem={(itemId) => {
-                        if (isTableBasedOrder && isManagerOrderActive) {
-                          removeItemFromManagerOrder(itemId);
-                        } else {
-                          console.log('Remove item:', itemId);
-                        }
-                      }}
                     />
                   </div>
 
@@ -806,14 +808,12 @@ const ManagerPOSPage: React.FC = () => {
       {/* Checkout Modal */}
       {showCheckout && (
         <CheckoutModal
-          isOpen={showCheckout}
-          onClose={() => setShowCheckout(false)}
-          items={displayItems}
           subtotal={displaySubtotal}
           cgst={displayCgst}
           sgst={displaySgst}
           total={displayTotal}
           onConfirm={handleConfirmCheckout}
+          onCancel={() => setShowCheckout(false)}
           cgstRate={cgstRate}
           sgstRate={sgstRate}
         />
@@ -827,6 +827,7 @@ const ManagerPOSPage: React.FC = () => {
             setShowReceipt(false);
             setCurrentReceipt(null);
           }}
+          locationId={currentUser?.locationId}
         />
       )}
 
@@ -845,15 +846,19 @@ const ManagerPOSPage: React.FC = () => {
 
       {/* Order Mode Selection Modal */}
       {showOrderModeModal && (
-        <OrderModeSelection
+        <Modal
           isOpen={showOrderModeModal}
           onClose={() => setShowOrderModeModal(false)}
-          onSelect={(mode) => {
-            setOrderMode(mode);
-            setShowOrderModeModal(false);
-          }}
-          currentMode={orderMode}
-        />
+          title="Select Order Mode"
+        >
+          <OrderModeSelection
+            onModeChange={(mode) => {
+              setOrderMode(mode);
+              setShowOrderModeModal(false);
+            }}
+            selectedMode={orderMode}
+          />
+        </Modal>
       )}
     </>
   );

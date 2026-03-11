@@ -1,15 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  getDocs, 
-  addDoc, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
+import {
+  collection,
+  query,
+  orderBy,
+  getDocs,
+  getDocsFromCache,
+  getDocFromCache,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
-  getDoc 
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Franchise } from '../types';
@@ -50,13 +52,15 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
   const refreshFranchises = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      console.log('=== FRANCHISES CONTEXT FETCH ===');
-      console.log('Current user:', currentUser?.email, 'role:', currentUser?.role);
+      if (currentUser) {
+        console.log('=== FRANCHISES CONTEXT FETCH ===');
+        console.log('Current user:', currentUser?.email, 'role:', currentUser?.role);
+      }
 
       let querySnapshot;
-      
+
       if (currentUser?.role === 'superadmin') {
         // Superadmin sees all franchises
         console.log('Querying all franchises (superadmin)');
@@ -73,13 +77,19 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
           collection(db, 'franchises'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(allFranchisesQuery);
-        
+        let allSnapshot;
+        try {
+          allSnapshot = await getDocs(allFranchisesQuery);
+        } catch (error) {
+          console.warn('Network fetch failed for franchises, trying cache:', error);
+          allSnapshot = await getDocsFromCache(allFranchisesQuery);
+        }
+
         // Then filter client-side by ID to avoid composite index
-        const filteredDocs = allSnapshot.docs.filter(doc => 
+        const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.id === currentUser.franchiseId
         );
-        
+
         // Create a mock querySnapshot with filtered docs
         querySnapshot = { docs: filteredDocs };
       } else {
@@ -90,7 +100,16 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
           collection(db, 'franchises'),
           orderBy('createdAt', 'desc')
         );
-        querySnapshot = await getDocs(franchisesQuery);
+        try {
+          if (!navigator.onLine) {
+            querySnapshot = await getDocsFromCache(franchisesQuery);
+          } else {
+            querySnapshot = await getDocs(franchisesQuery);
+          }
+        } catch (error) {
+          console.warn('Network fetch failed for franchises (registration), trying cache:', error);
+          querySnapshot = await getDocsFromCache(franchisesQuery);
+        }
       }
       console.log('Franchises query completed, docs:', querySnapshot.docs.length);
 
@@ -122,7 +141,7 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
 
   const addFranchise = async (franchiseData: Omit<Franchise, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);
-    
+
     try {
       // Only superadmin can add franchises
       if (currentUser?.role !== 'superadmin') {
@@ -151,11 +170,11 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
       });
 
       const newFranchise = {
+        ...franchiseData,
         id: docRef.id,
-        ...cleanedFranchiseData,
         createdAt: new Date(),
         updatedAt: new Date()
-      };
+      } as unknown as Franchise;
 
       await refreshFranchises();
       return newFranchise;
@@ -168,10 +187,10 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
 
   const updateFranchise = async (id: string, updates: Partial<Franchise>) => {
     setError(null);
-    
+
     try {
       const franchiseRef = doc(db, 'franchises', id);
-      
+
       const cleanedUpdates = {
         ...updates,
         updatedAt: serverTimestamp()
@@ -179,8 +198,8 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
 
       // Remove undefined values
       Object.keys(cleanedUpdates).forEach(key => {
-        if (cleanedUpdates[key] === undefined) {
-          delete cleanedUpdates[key];
+        if ((cleanedUpdates as any)[key] === undefined) {
+          delete (cleanedUpdates as any)[key];
         }
       });
 
@@ -195,7 +214,7 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
 
   const deleteFranchise = async (id: string) => {
     setError(null);
-    
+
     try {
       // Only superadmin can delete franchises
       if (currentUser?.role !== 'superadmin') {
@@ -203,7 +222,13 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
       }
 
       // Check if franchise has locations
-      const franchiseDoc = await getDoc(doc(db, 'franchises', id));
+      const franchiseRef = doc(db, 'franchises', id);
+      let franchiseDoc;
+      try {
+        franchiseDoc = await getDocFromCache(franchiseRef);
+      } catch (cacheError) {
+        franchiseDoc = await getDoc(franchiseRef);
+      }
       if (franchiseDoc.exists()) {
         const franchiseData = franchiseDoc.data();
         if (franchiseData.locations && franchiseData.locations.length > 0) {
@@ -222,7 +247,7 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
 
   const approveFranchise = async (id: string) => {
     setError(null);
-    
+
     try {
       // Only superadmin can approve franchises
       if (currentUser?.role !== 'superadmin') {
@@ -236,7 +261,7 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
         approvedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      
+
       await refreshFranchises();
     } catch (err: any) {
       console.error('Error approving franchise:', err);
@@ -247,7 +272,7 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
 
   const suspendFranchise = async (id: string) => {
     setError(null);
-    
+
     try {
       // Only superadmin can suspend franchises
       if (currentUser?.role !== 'superadmin') {
@@ -259,7 +284,7 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
         isActive: false,
         updatedAt: serverTimestamp()
       });
-      
+
       await refreshFranchises();
     } catch (err: any) {
       console.error('Error suspending franchise:', err);
@@ -284,5 +309,5 @@ export const FranchiseProvider: React.FC<FranchiseProviderProps> = ({ children }
     <FranchiseContext.Provider value={value}>
       {children}
     </FranchiseContext.Provider>
-  );
+  ) as any;
 };

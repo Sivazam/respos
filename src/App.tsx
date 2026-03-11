@@ -10,6 +10,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import FeatureGuard from './components/ui/FeatureGuard';
 import DisabledFeatureNotice from './components/ui/DisabledFeatureNotice';
 import SetupTrigger from './components/SetupTrigger';
+import OfflineIndicator from './components/ui/OfflineIndicator';
 
 // Auth Pages
 import LoginPage from './pages/auth/LoginPage';
@@ -105,560 +106,561 @@ function App() {
       <AuthProvider>
         <OrderCountProvider>
           <Router>
-          <Routes>
-            {/* Auth Routes - Minimal Providers Only */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register-superadmin" element={<SuperAdminRegistrationPage />} />
-            <Route path="/register-restaurant" element={
-              <RestaurantProvider>
-                <RestaurantRegistrationPage />
-              </RestaurantProvider>
-            } />
-            <Route 
-              path="/register" 
-              element={
-                <FeatureGuard 
-                  feature="users.userRegistration"
-                  fallback={<Navigate to="/login" replace />}
-                >
-                  <FranchiseProvider>
-                    <LocationProvider>
-                      <RegisterPage />
-                    </LocationProvider>
-                  </FranchiseProvider>
-                </FeatureGuard>
-              } 
-            />
-            
-            {/* All authenticated routes need full providers */}
-            <Route path="/*" element={
-              <FranchiseProvider>
-                <LocationProvider>
-                  <FullAppProviders>
-                    <Routes>
-                      {/* Super Admin Routes */}
-                      <Route 
-                        path="/superadmin" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <SuperAdminDashboard />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/franchises" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <FranchisesPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/locations" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <LocationsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <SuperAdminOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/users" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <FeatureGuard 
-                              feature="users.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="User Management"
-                                  reason="User management is disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <SuperAdminUsersPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/reports" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <FeatureGuard 
-                              feature="reports.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="Reports"
-                                  reason="Reporting features are disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <SuperAdminSalesReportPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/settings" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <SuperAdminSettingsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/analytics" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <AdvancedAnalyticsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/global-analytics" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <GlobalAnalyticsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/superadmin/system-settings" 
-                        element={
-                          <ProtectedRoute allowedRoles={['superadmin']}>
-                            <SuperAdminSystemSettingsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
+            <OfflineIndicator />
+            <Routes>
+              {/* Auth Routes - Minimal Providers Only */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register-superadmin" element={<SuperAdminRegistrationPage />} />
+              <Route path="/register-restaurant" element={
+                <RestaurantProvider>
+                  <RestaurantRegistrationPage />
+                </RestaurantProvider>
+              } />
+              <Route
+                path="/register"
+                element={
+                  <FeatureGuard
+                    feature="users.userRegistration"
+                    fallback={<Navigate to="/login" replace />}
+                  >
+                    <FranchiseProvider>
+                      <LocationProvider>
+                        <RegisterPage />
+                      </LocationProvider>
+                    </FranchiseProvider>
+                  </FeatureGuard>
+                }
+              />
 
-                      {/* Admin Routes */}
-                      <Route 
-                        path="/admin" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <AdminDashboard />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/locations" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <AdminLocationsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/categories" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <CategoryPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/menu" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <MenuPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/products" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <ProductPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/inventory" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <InventoryPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/purchase" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <FeatureGuard 
-                              feature="inventory.purchaseTracking"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="Purchase Tracking"
-                                  reason="Purchase tracking is disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <PurchasePage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <AdminOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/enhanced-orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <EnhancedAdminOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/returns" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <FeatureGuard 
-                              feature="returns.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="Returns Management"
-                                  reason="Returns processing is disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <ReturnsPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/users" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <FeatureGuard 
-                              feature="users.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="User Management"
-                                  reason="User management is disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <UsersPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/reports" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <FeatureGuard 
-                              feature="reports.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="Reports"
-                                  reason="Reporting features are disabled for this store configuration."
-                                />
-                              }
-                            >
+              {/* All authenticated routes need full providers */}
+              <Route path="/*" element={
+                <FranchiseProvider>
+                  <LocationProvider>
+                    <FullAppProviders>
+                      <Routes>
+                        {/* Super Admin Routes */}
+                        <Route
+                          path="/superadmin"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <SuperAdminDashboard />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/franchises"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <FranchisesPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/locations"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <LocationsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <SuperAdminOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/users"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <FeatureGuard
+                                feature="users.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="User Management"
+                                    reason="User management is disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <SuperAdminUsersPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/reports"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <FeatureGuard
+                                feature="reports.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="Reports"
+                                    reason="Reporting features are disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <SuperAdminSalesReportPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/settings"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <SuperAdminSettingsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/analytics"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <AdvancedAnalyticsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/global-analytics"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <GlobalAnalyticsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/superadmin/system-settings"
+                          element={
+                            <ProtectedRoute allowedRoles={['superadmin']}>
+                              <SuperAdminSystemSettingsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+
+                        {/* Admin Routes */}
+                        <Route
+                          path="/admin"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <AdminDashboard />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/locations"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <AdminLocationsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/categories"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <CategoryPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/menu"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <MenuPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/products"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <ProductPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/inventory"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <InventoryPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/purchase"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <FeatureGuard
+                                feature="inventory.purchaseTracking"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="Purchase Tracking"
+                                    reason="Purchase tracking is disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <PurchasePage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <AdminOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/enhanced-orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <EnhancedAdminOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/returns"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <FeatureGuard
+                                feature="returns.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="Returns Management"
+                                    reason="Returns processing is disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <ReturnsPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/users"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <FeatureGuard
+                                feature="users.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="User Management"
+                                    reason="User management is disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <UsersPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/reports"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <FeatureGuard
+                                feature="reports.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="Reports"
+                                    reason="Reporting features are disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <SalesReportPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/admin/settings"
+                          element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                              <AdminSettingsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+
+                        {/* Manager Routes */}
+                        <Route
+                          path="/manager"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <ManagerDashboard />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <OrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/users"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <FeatureGuard
+                                feature="users.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="User Management"
+                                    reason="User management is disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <ManagerUsersPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/settings"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <ManagerSettingsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/menu"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <ManagerMenuPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/pos"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <POSPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/tables"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <ManagerTablesPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/categories"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <CategoryPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/catalog"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <ManagerCatalogPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/pending-orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
+                              <ManagerPendingOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/manager/reports"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager']}>
                               <SalesReportPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/admin/settings" 
-                        element={
-                          <ProtectedRoute allowedRoles={['admin']}>
-                            <AdminSettingsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
+                            </ProtectedRoute>
+                          }
+                        />
 
-                      {/* Manager Routes */}
-                      <Route 
-                        path="/manager" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerDashboard />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <OrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/users" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <FeatureGuard 
-                              feature="users.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="User Management"
-                                  reason="User management is disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <ManagerUsersPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/settings" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerSettingsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/menu" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerMenuPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/pos" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <POSPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/tables" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerTablesPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/categories" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <CategoryPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/catalog" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerCatalogPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/pending-orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <ManagerPendingOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/manager/reports" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager']}>
-                            <SalesReportPage />
-                          </ProtectedRoute>
-                        } 
-                      />
+                        {/* Userbase Route - Shared by Manager, Admin, and Super Admin */}
+                        <Route
+                          path="/userbase"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager', 'admin', 'owner', 'superadmin']}>
+                              <UserbasePage />
+                            </ProtectedRoute>
+                          }
+                        />
 
-                      {/* Userbase Route - Shared by Manager, Admin, and Super Admin */}
-                      <Route 
-                        path="/userbase" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager', 'admin', 'owner', 'superadmin']}>
-                            <UserbasePage />
-                          </ProtectedRoute>
-                        } 
-                      />
+                        {/* Staff Routes */}
+                        <Route
+                          path="/staff"
+                          element={
+                            <ProtectedRoute allowedRoles={['staff']}>
+                              <StaffDashboard />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/staff/tables"
+                          element={
+                            <ProtectedRoute allowedRoles={['staff']}>
+                              <StaffTablesPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/staff/catalog"
+                          element={
+                            <ProtectedRoute allowedRoles={['staff']}>
+                              <StaffCatalogPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/staff/orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['staff']}>
+                              <StaffOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/staff/pending-orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['staff']}>
+                              <EnhancedStaffPendingOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/debug-staff-orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['staff', 'manager', 'admin']}>
+                              <DebugStaffOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
 
-                      {/* Staff Routes */}
-                      <Route 
-                        path="/staff" 
-                        element={
-                          <ProtectedRoute allowedRoles={['staff']}>
-                            <StaffDashboard />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/staff/tables" 
-                        element={
-                          <ProtectedRoute allowedRoles={['staff']}>
-                            <StaffTablesPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/staff/catalog" 
-                        element={
-                          <ProtectedRoute allowedRoles={['staff']}>
-                            <StaffCatalogPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/staff/orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['staff']}>
-                            <StaffOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/staff/pending-orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['staff']}>
-                            <EnhancedStaffPendingOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/debug-staff-orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['staff', 'manager', 'admin']}>
-                            <DebugStaffOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
+                        {/* POS Routes */}
+                        <Route
+                          path="/pos"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager', 'staff']}>
+                              <POSPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/pos/orders"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager', 'staff']}>
+                              <POSOrdersPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/pos/catalog"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager', 'staff']}>
+                              <ProductCatalogPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/pos/returns"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager', 'staff']}>
+                              <FeatureGuard
+                                feature="returns.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="Returns Management"
+                                    reason="Returns processing is disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <SalesReturnsPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
 
-                      {/* POS Routes */}
-                      <Route 
-                        path="/pos" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager', 'staff']}>
-                            <POSPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/pos/orders" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager', 'staff']}>
-                            <POSOrdersPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/pos/catalog" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager', 'staff']}>
-                            <ProductCatalogPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/pos/returns" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager', 'staff']}>
-                            <FeatureGuard 
-                              feature="returns.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="Returns Management"
-                                  reason="Returns processing is disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <SalesReturnsPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
+                        {/* Table Selection Route */}
+                        <Route
+                          path="/select-table"
+                          element={
+                            <ProtectedRoute allowedRoles={['manager', 'staff']}>
+                              <TableSelectionPage />
+                            </ProtectedRoute>
+                          }
+                        />
 
-                      {/* Table Selection Route */}
-                      <Route 
-                        path="/select-table" 
-                        element={
-                          <ProtectedRoute allowedRoles={['manager', 'staff']}>
-                            <TableSelectionPage />
-                          </ProtectedRoute>
-                        } 
-                      />
+                        {/* Franchise Routes */}
+                        <Route
+                          path="/franchise"
+                          element={
+                            <ProtectedRoute allowedRoles={['owner']}>
+                              <FranchiseDashboard />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/franchise/users"
+                          element={
+                            <ProtectedRoute allowedRoles={['owner']}>
+                              <FeatureGuard
+                                feature="users.enabled"
+                                fallback={
+                                  <DisabledFeatureNotice
+                                    featureName="User Management"
+                                    reason="User management is disabled for this store configuration."
+                                  />
+                                }
+                              >
+                                <FranchiseUsersPage />
+                              </FeatureGuard>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/franchise/locations"
+                          element={
+                            <ProtectedRoute allowedRoles={['owner']}>
+                              <FranchiseLocationsPage />
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/franchise/settings"
+                          element={
+                            <ProtectedRoute allowedRoles={['owner']}>
+                              <FranchiseSettingsPage />
+                            </ProtectedRoute>
+                          }
+                        />
 
-                      {/* Franchise Routes */}
-                      <Route 
-                        path="/franchise" 
-                        element={
-                          <ProtectedRoute allowedRoles={['owner']}>
-                            <FranchiseDashboard />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/franchise/users" 
-                        element={
-                          <ProtectedRoute allowedRoles={['owner']}>
-                            <FeatureGuard 
-                              feature="users.enabled"
-                              fallback={
-                                <DisabledFeatureNotice 
-                                  featureName="User Management"
-                                  reason="User management is disabled for this store configuration."
-                                />
-                              }
-                            >
-                              <FranchiseUsersPage />
-                            </FeatureGuard>
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/franchise/locations" 
-                        element={
-                          <ProtectedRoute allowedRoles={['owner']}>
-                            <FranchiseLocationsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route 
-                        path="/franchise/settings" 
-                        element={
-                          <ProtectedRoute allowedRoles={['owner']}>
-                            <FranchiseSettingsPage />
-                          </ProtectedRoute>
-                        } 
-                      />
 
-  
-                      {/* Print Receipt Route - Public for silent printing */}
-                      <Route path="/print-receipt" element={<PrintReceiptPage />} />
+                        {/* Print Receipt Route - Public for silent printing */}
+                        <Route path="/print-receipt" element={<PrintReceiptPage />} />
 
-                      {/* Default redirect */}
-                      <Route path="/" element={<Navigate to="/login" replace />} />
-                      
-                      {/* 404 */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                    <SetupTrigger />
-                  </FullAppProviders>
-                </LocationProvider>
-              </FranchiseProvider>
-            } />
-          </Routes>
-        </Router>
+                        {/* Default redirect */}
+                        <Route path="/" element={<Navigate to="/login" replace />} />
+
+                        {/* 404 */}
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                      <SetupTrigger />
+                    </FullAppProviders>
+                  </LocationProvider>
+                </FranchiseProvider>
+              } />
+            </Routes>
+          </Router>
         </OrderCountProvider>
       </AuthProvider>
     </ErrorBoundary>

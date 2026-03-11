@@ -124,11 +124,11 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
             </head>
             <body>
               <div class="header">
-                ${franchiseData?.franchiseLogo ? `<img src="${franchiseData.franchiseLogo}" alt="Restaurant Logo" class="logo" />` : ''}
-                <div class="business-name">${franchiseData?.franchiseName || 'ForkFlow'}</div>
-                <div class="business-address">${franchiseData?.franchiseAddress || '123 Food Street, Bangalore, Karnataka 560001'}</div>
+                ${franchiseData?.franchiseLogo ? `<div class="logo-container"><img src="${franchiseData.franchiseLogo}" alt="Restaurant Logo" class="logo" /></div>` : ''}
+                <div class="business-name">${franchiseData?.franchiseName || ''}</div>
+                <div class="business-address">${franchiseData?.franchiseAddress || ''}</div>
                 ${franchiseData?.franchisePhone ? `<div class="business-phone">${franchiseData.franchisePhone}</div>` : ''}
-                <div class="gst-number">GSTIN: ${franchiseData?.gstNumber || '29ABCDE1234F1Z5'}</div>
+                <div class="gst-number">GSTIN: ${franchiseData?.gstNumber || ''}</div>
               </div>
               
               <div class="order-info">
@@ -191,14 +191,14 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
               <div class="payment-info">
                 <div style="margin-bottom: 5px;"><strong>Payment Method:</strong></div>
                 <div style="text-transform: capitalize; font-size: 16px;">
-                  ${selectedPaymentMethod === 'cash' ? '💵 Cash' : 
-                    selectedPaymentMethod === 'card' ? '💳 Card' : 
-                    '📱 UPI'}
+                  ${selectedPaymentMethod === 'cash' ? '💵 Cash' :
+            selectedPaymentMethod === 'card' ? '💳 Card' :
+              '📱 UPI'}
                 </div>
                 <div style="margin-top: 10px; font-size: 14px;">
-                  ${selectedPaymentMethod === 'cash' ? 'Paid in Cash' : 
-                    selectedPaymentMethod === 'card' ? 'Paid via Card' : 
-                    'Paid via UPI'}
+                  ${selectedPaymentMethod === 'cash' ? 'Paid in Cash' :
+            selectedPaymentMethod === 'card' ? 'Paid via Card' :
+              'Paid via UPI'}
                 </div>
               </div>
               
@@ -209,7 +209,7 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
             </body>
           </html>
         `;
-        
+
         printWindow.document.write(receiptContent);
         printWindow.document.close();
         printWindow.print();
@@ -250,7 +250,7 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         {/* Backdrop */}
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={onClose}
         />
@@ -313,15 +313,13 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
                     <button
                       key={method.id}
                       onClick={() => setSelectedPaymentMethod(method.id as any)}
-                      className={`p-4 rounded-lg border-2 transition-all ${
-                        selectedPaymentMethod === method.id
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
+                      className={`p-4 rounded-lg border-2 transition-all ${selectedPaymentMethod === method.id
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        }`}
                     >
-                      <Icon size={24} className={`mx-auto mb-2 ${
-                        selectedPaymentMethod === method.id ? 'text-green-600' : 'text-gray-600'
-                      }`} />
+                      <Icon size={24} className={`mx-auto mb-2 ${selectedPaymentMethod === method.id ? 'text-green-600' : 'text-gray-600'
+                        }`} />
                       <div className="font-medium text-sm">{method.name}</div>
                       <div className="text-xs text-gray-500 mt-1">{method.description}</div>
                       {selectedPaymentMethod === method.id && (
@@ -375,7 +373,7 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
                 <span>{isPrinting ? 'Printing...' : 'Print Receipt'}</span>
               </Button>
             </div>
-            
+
             <div className="flex space-x-3">
               <Button
                 variant="outline"
@@ -384,7 +382,7 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
               >
                 Cancel
               </Button>
-              
+
               <Button
                 onClick={handleConfirmPayment}
                 disabled={isProcessing || !selectedPaymentMethod}

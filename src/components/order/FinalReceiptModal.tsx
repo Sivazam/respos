@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Receipt, 
-  X, 
+import {
+  Receipt,
+  X,
   Printer
 } from 'lucide-react';
 import Button from '../ui/Button';
@@ -49,13 +49,7 @@ interface FinalReceiptModalProps {
     total?: number;
     locationId?: string;
     // Support both old single coupon and new multiple coupons
-    appliedCoupon?: {
-      couponId: string;
-      name: string;
-      type: 'fixed' | 'percentage';
-      discountAmount: number;
-      appliedAt: any;
-    } | null;
+    appliedCoupon?: (OrderCoupons & { discountAmount?: number; name?: string }) | null;
     appliedCoupons?: OrderCoupons;
     originalTotalAmount?: number;
   };
@@ -136,7 +130,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
   const calculateGrandTotal = () => {
     if (order.totalAmount) return order.totalAmount;
     if (order.total) return order.total;
-    
+
     const subtotal = calculateSubtotal();
     const cgst = calculateCGST();
     const sgst = calculateSGST();
@@ -144,7 +138,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     const deliveryCharge = order.deliveryCharge || 0;
     const packagingCharge = order.packagingCharge || 0;
     const discount = order.discount || 0;
-    
+
     // Handle both old single coupon and new multiple coupons
     let couponAmount = 0;
     if (order.appliedCoupon) {
@@ -152,13 +146,13 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     } else if (order.appliedCoupons) {
       // Calculate total discount from multiple coupons
       const { totalDiscount } = couponService.calculateTotalDiscount(
-        order.appliedCoupons, 
-        subtotal, 
+        order.appliedCoupons,
+        subtotal,
         order.items
       );
       couponAmount = totalDiscount;
     }
-    
+
     return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount - couponAmount;
   };
 
@@ -179,7 +173,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
 
     try {
       let dateObj: Date;
-      
+
       if (dateInput?.toDate) {
         dateObj = dateInput.toDate();
       } else if (dateInput?.seconds) {
@@ -191,7 +185,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
       } else {
         dateObj = new Date();
       }
-      
+
       return {
         date: dateObj.toLocaleDateString('en-IN'),
         time: dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -212,7 +206,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     if (tableNames && tableNames.length > 0) {
       return tableNames.join(', ');
     }
-    
+
     if (tableIds && tableIds.length > 0) {
       const tableNumbers = tableIds.map(id => {
         const tableMatch = id.match(/table-(\d+)/i);
@@ -230,7 +224,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
       });
       return tableNumbers.join(', ');
     }
-    
+
     return 'N/A';
   };
 
@@ -246,8 +240,8 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
     const { date: receiptDate, time: receiptTime } = formatReceiptDate();
     const tableDisplay = getTableDisplay(order.tableNames, order.tableIds);
     // Use franchise logo if available, otherwise use default
-    const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
-    
+    const logoUrl = franchiseData?.logoUrl;
+
     return `
 <!DOCTYPE html>
 <html>
@@ -282,9 +276,10 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
         }
         
         .logo img {
-            width: 160px;
-            height: auto;
-            max-height: auto;
+            width: 150px;
+            height: 150px;
+            max-width: 150px;
+            max-height: 150px;
             object-fit: contain;
         }
         
@@ -452,14 +447,16 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
 </head>
 <body>
     <div class="receipt">
+        ${logoUrl ? `
         <div class="logo">
             <img src="${logoUrl}" alt="Restaurant Logo" />
         </div>
+        ` : ''}
         
         <div class="header">
             <div class="header-line">${franchiseData?.name || 'FORKFLOW POS'}</div>
-            <div class="header-subtitle">${franchiseData?.address || '123 Main Street, City'}</div>
-            <div class="header-subtitle">Phone: ${franchiseData?.phone || '+91 98765 43210'}</div>
+            ${franchiseData?.address ? `<div class="header-subtitle">${franchiseData.address}</div>` : ''}
+            ${franchiseData?.phone ? `<div class="header-subtitle">Phone: ${franchiseData.phone}</div>` : ''}
             ${franchiseData?.gstNumber ? `<div class="header-subtitle">GSTIN: ${franchiseData.gstNumber}</div>` : ''}
         </div>
         
@@ -467,11 +464,11 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
         
         <div class="order-info">
             <div>Date: ${receiptDate}    Time: ${receiptTime}</div>
-            ${tableDisplay && tableDisplay !== 'N/A' ? 
-              `<div>Table: ${tableDisplay}</div>
-               <div>Order: #${order.orderNumber}</div>` : 
-              `<div>Order: #${order.orderNumber}</div>`
-            }
+            ${tableDisplay && tableDisplay !== 'N/A' ?
+        `<div>Table: ${tableDisplay}</div>
+               <div>Order: #${order.orderNumber}</div>` :
+        `<div>Order: #${order.orderNumber}</div>`
+      }
         </div>
         
         <div class="divider"></div>
@@ -485,25 +482,25 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
             </div>
             
             ${order.items.map(item => {
-              const itemName = item.name || 'Unknown Item';
-              const quantity = item.quantity || 1;
-              const price = item.price || 0;
-              const itemTotal = price * quantity;
-              const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
-              
-              return `
+        const itemName = item.name || 'Unknown Item';
+        const quantity = item.quantity || 1;
+        const price = item.price || 0;
+        const itemTotal = price * quantity;
+        const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
+
+        return `
                 <div class="item">
                     <div class="item-name">${itemName}${portionTag}</div>
                     <div class="item-qty">${quantity}</div>
                     <div class="item-price">${formatPrice(price)}</div>
                     <div class="item-total">${formatPrice(itemTotal)}</div>
-                    ${item.modifications && item.modifications.length > 0 ? 
-                      `<div class="modifications">${item.modifications.join(', ')}</div>` : 
-                      ''
-                    }
+                    ${item.modifications && item.modifications.length > 0 ?
+            `<div class="modifications">${item.modifications.join(', ')}</div>` :
+            ''
+          }
                 </div>
               `;
-            }).join('')}
+      }).join('')}
         </div>
         
         <div class="divider"></div>
@@ -525,31 +522,31 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   <div class="total-value">${formatPrice(sgst)}</div>
               </div>
             ` : ''}
-            ${order.serviceCharge > 0 ? `
+            ${(order.serviceCharge || 0) > 0 ? `
               <div class="total-row">
                   <div class="total-label">Service Charge</div>
                   <div class="total-value">${formatPrice(order.serviceCharge)}</div>
               </div>
             ` : ''}
-            ${order.deliveryCharge > 0 ? `
+            ${(order.deliveryCharge || 0) > 0 ? `
               <div class="total-row">
                   <div class="total-label">Delivery Charge</div>
                   <div class="total-value">${formatPrice(order.deliveryCharge)}</div>
               </div>
             ` : ''}
-            ${order.packagingCharge > 0 ? `
+            ${(order.packagingCharge || 0) > 0 ? `
               <div class="total-row">
                   <div class="total-label">Packaging Charge</div>
                   <div class="total-value">${formatPrice(order.packagingCharge)}</div>
               </div>
             ` : ''}
-            ${order.discount > 0 ? `
+            ${(order.discount || 0) > 0 ? `
               <div class="total-row">
                   <div class="total-label">Discount</div>
                   <div class="total-value">-${formatPrice(order.discount)}</div>
               </div>
             ` : ''}
-            ${order.appliedCoupon && order.appliedCoupon.discountAmount > 0 ? `
+            ${order.appliedCoupon && (order.appliedCoupon.discountAmount || 0) > 0 ? `
               <div class="total-row">
                   <div class="total-label">Coupon (${order.appliedCoupon.name})</div>
                   <div class="total-value">-${formatPrice(order.appliedCoupon.discountAmount)}</div>
@@ -563,7 +560,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                 </div>
               ` : ''}
               ${order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 ? `
-                ${order.appliedCoupon.dishCoupons.map(dishCoupon => `
+                ${order.appliedCoupon.dishCoupons.map((dishCoupon: any) => `
                   <div class="total-row">
                       <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
                       <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
@@ -579,7 +576,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                 </div>
               ` : ''}
               ${order.appliedCoupons.dishCoupons && order.appliedCoupons.dishCoupons.length > 0 ? `
-                ${order.appliedCoupons.dishCoupons.map(dishCoupon => `
+                ${order.appliedCoupons.dishCoupons.map((dishCoupon: any) => `
                   <div class="total-row">
                       <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
                       <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
@@ -613,17 +610,17 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
 
   const handlePrint = async () => {
     setPrintStatus(null);
-    
+
     try {
       setIsProcessing(true);
-      
+
       // Get your existing HTML receipt content
       const receiptHTML = getReceiptHTMLContent();
-      
+
       // Try silent printing with your HTML format
       try {
-        const { browserPrintService } = await import('../../lib/browserPrint');
-        
+        // Silent printing with HTML format
+
         // Create a hidden iframe for silent printing
         const iframe = document.createElement('iframe');
         iframe.style.position = 'fixed';
@@ -633,29 +630,26 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
         iframe.style.height = '0';
         iframe.style.border = 'none';
         iframe.style.visibility = 'hidden';
-        
+
         document.body.appendChild(iframe);
-        
+
         const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
         if (iframeDoc) {
           iframeDoc.open();
           iframeDoc.write(receiptHTML);
           iframeDoc.close();
-          
+
           // Wait for content to load, then print silently
           iframe.onload = () => {
             setTimeout(() => {
               try {
-                iframe.contentWindow?.print({
-                  silent: true,
-                  printBackground: false
-                });
-                
+                (iframe.contentWindow as any)?.print();
+
                 // Remove iframe after printing
                 setTimeout(() => {
                   document.body.removeChild(iframe);
                 }, 1000);
-                
+
                 setPrintStatus({ type: 'success', message: 'Receipt printed successfully!' });
                 setIsProcessing(false);
               } catch (printError) {
@@ -669,36 +663,36 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
         } else {
           throw new Error('Could not access iframe document');
         }
-        
+
         return; // Success path
-        
+
       } catch (silentPrintError) {
         console.warn('Silent printing not supported, using fallback:', silentPrintError);
       }
-      
+
       // Fallback function
       const fallbackPrintWindow = () => {
         const printWindow = window.open('', '_blank');
-        
+
         if (printWindow) {
           printWindow.document.write(receiptHTML);
           printWindow.document.close();
-          
+
           printWindow.focus();
           setTimeout(() => {
             printWindow.print();
             printWindow.close();
           }, 250);
-          
+
           setPrintStatus({ type: 'success', message: 'Receipt sent to printer successfully!' });
         } else {
           throw new Error('Failed to open print window');
         }
       };
-      
+
       // Use fallback if silent printing failed
       fallbackPrintWindow();
-      
+
     } catch (error) {
       console.error('Print failed:', error);
       setPrintStatus({ type: 'error', message: 'Failed to print receipt. Please try again.' });
@@ -710,13 +704,13 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
   const { date: receiptDate, time: receiptTime } = formatReceiptDate();
   const tableDisplay = getTableDisplay(order.tableNames, order.tableIds);
   // Use franchise logo if available, otherwise use default
-  const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
+  const logoUrl = franchiseData?.logoUrl;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         {/* Backdrop */}
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={onClose}
         />
@@ -760,46 +754,46 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
           <div className="p-6">
             {/* Print Status */}
             {printStatus && (
-              <Alert className={`mb-4 ${
-                printStatus.type === 'success' ? 'border-green-500 bg-green-50' :
+              <Alert className={`mb-4 ${printStatus.type === 'success' ? 'border-green-500 bg-green-50' :
                 printStatus.type === 'error' ? 'border-red-500 bg-red-50' :
-                'border-blue-500 bg-blue-50'
-              }`}>
+                  'border-blue-500 bg-blue-50'
+                }`}>
                 <AlertDescription>
                   {printStatus.message}
                 </AlertDescription>
               </Alert>
             )}
-            
+
             {/* Receipt Preview */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6" style={{ 
-                fontFamily: 'Courier New, monospace', 
-                fontSize: '12px', 
-                lineHeight: '1.3',
-                width: '100%', 
-                maxWidth: '350px', 
-                margin: '0 auto'
-              }}>
-              {/* Logo */}
-              <div className="text-center mb-4">
-                <img 
-                  src={logoUrl} 
-                  alt="Restaurant Logo" 
-                  className="mx-auto"
-                  style={{ width: '160px', height: 'auto', maxHeight: 'auto', objectFit: 'contain' }}
-                />
-              </div>
-              
+            <div className="bg-white border border-gray-200 rounded-lg p-6" style={{
+              fontFamily: 'Courier New, monospace',
+              fontSize: '12px',
+              lineHeight: '1.3',
+              width: '100%',
+              maxWidth: '350px',
+              margin: '0 auto'
+            }}>
+              {logoUrl && (
+                <div className="text-center mb-4">
+                  <img
+                    src={logoUrl}
+                    alt="Restaurant Logo"
+                    className="mx-auto"
+                    style={{ width: '150px', height: '150px', maxWidth: '150px', maxHeight: '150px', objectFit: 'contain' }}
+                  />
+                </div>
+              )}
+
               {/* Header */}
               <div className="text-center mb-4">
-                <div className="text-base font-bold">{franchiseData?.name || 'FORKFLOW POS'}</div>
-                <div className="text-xs text-gray-600">{franchiseData?.address || '123 Main Street, City'}</div>
-                <div className="text-xs text-gray-600">Phone: {franchiseData?.phone || '+91 98765 43210'}</div>
+                <div className="text-base font-bold">${franchiseData?.name || 'FORKFLOW POS'}</div>
+                {franchiseData?.address && <div className="text-xs text-gray-600">{franchiseData.address}</div>}
+                {franchiseData?.phone && <div className="text-xs text-gray-600">Phone: {franchiseData.phone}</div>}
                 {franchiseData?.gstNumber && (
                   <div className="text-xs text-gray-600">GSTIN: {franchiseData.gstNumber}</div>
                 )}
               </div>
-              
+
               <div className="border-t border-b border-gray-400 py-2 my-3">
                 <div className="text-center text-xs font-bold">
                   <div>Date: {receiptDate}    Time: {receiptTime}</div>
@@ -813,7 +807,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   )}
                 </div>
               </div>
-              
+
               {/* Items Grid */}
               <div className="mb-4">
                 <div className="grid grid-cols-[2fr_40px_50px_50px] gap-1 mb-2 font-black text-xs border-b border-gray-400 pb-1">
@@ -822,7 +816,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   <div className="text-right">Rate</div>
                   <div className="text-right">Total</div>
                 </div>
-                
+
                 {order.items.map((item, index) => {
                   const itemTotal = item.price * item.quantity;
                   return (
@@ -848,7 +842,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   );
                 })}
               </div>
-              
+
               <div className="border-t border-b border-gray-400 py-2 my-3">
                 {/* Totals */}
                 <div className="space-y-1 text-xs font-semibold">
@@ -868,31 +862,31 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                       <div>{formatPrice(sgst)}</div>
                     </div>
                   )}
-                  {order.serviceCharge > 0 && (
+                  {(order.serviceCharge || 0) > 0 && (
                     <div className="flex justify-between">
                       <div>Service Charge</div>
                       <div>{formatPrice(order.serviceCharge)}</div>
                     </div>
                   )}
-                  {order.deliveryCharge > 0 && (
+                  {(order.deliveryCharge || 0) > 0 && (
                     <div className="flex justify-between">
                       <div>Delivery Charge</div>
                       <div>{formatPrice(order.deliveryCharge)}</div>
                     </div>
                   )}
-                  {order.packagingCharge > 0 && (
+                  {(order.packagingCharge || 0) > 0 && (
                     <div className="flex justify-between">
                       <div>Packaging Charge</div>
                       <div>{formatPrice(order.packagingCharge)}</div>
                     </div>
                   )}
-                  {order.discount > 0 && (
+                  {(order.discount || 0) > 0 && (
                     <div className="flex justify-between">
                       <div>Discount</div>
                       <div>-{formatPrice(order.discount)}</div>
                     </div>
                   )}
-                  {order.appliedCoupon && order.appliedCoupon.discountAmount > 0 && (
+                  {order.appliedCoupon && (order.appliedCoupon.discountAmount || 0) > 0 && (
                     <div className="flex justify-between">
                       <div>Coupon ({order.appliedCoupon.name})</div>
                       <div>-{formatPrice(order.appliedCoupon.discountAmount)}</div>
@@ -908,7 +902,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                       )}
                       {order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 && (
                         <>
-                          {order.appliedCoupon.dishCoupons.map((dishCoupon, index) => (
+                          {order.appliedCoupon.dishCoupons.map((dishCoupon: any, index) => (
                             <div key={index} className="flex justify-between">
                               <div>Dish Coupon ({dishCoupon.couponCode})</div>
                               <div>-{formatPrice(dishCoupon.discountAmount)}</div>
@@ -928,7 +922,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                       )}
                       {order.appliedCoupons.dishCoupons && order.appliedCoupons.dishCoupons.length > 0 && (
                         <>
-                          {order.appliedCoupons.dishCoupons.map((dishCoupon, index) => (
+                          {order.appliedCoupons.dishCoupons.map((dishCoupon: any, index) => (
                             <div key={index} className="flex justify-between">
                               <div>Dish Coupon ({dishCoupon.couponCode})</div>
                               <div>-{formatPrice(dishCoupon.discountAmount)}</div>
@@ -944,15 +938,15 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                   </div>
                 </div>
               </div>
-              
+
               <div className="text-center mb-4">
                 <div className="font-bold text-sm">Paid by: {(actualPaymentMethod || 'Cash').toUpperCase()}</div>
               </div>
-              
+
               <div className="text-center mb-4 italic text-xs font-bold">
                 <div>Thank you for dining with us!</div>
               </div>
-              
+
               <div className="text-center font-bold text-xs">
                 <div>Powered by FORKFLOW POS</div>
               </div>
@@ -972,7 +966,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
                 Edit Payment Method
               </Button>
             )}
-            
+
             {/* Center - Print Receipt */}
             <Button
               onClick={handlePrint}
@@ -981,7 +975,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
               <Printer size={16} className="mr-2" />
               Print Receipt
             </Button>
-            
+
             {/* Right side spacer for balance */}
             <div className="w-32"></div>
           </div>

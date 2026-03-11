@@ -1,16 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
-  getDocs, 
-  addDoc, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  getDocsFromCache,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
   serverTimestamp,
   getDoc,
+  getDocFromCache,
   writeBatch,
   arrayUnion
 } from 'firebase/firestore';
@@ -55,13 +57,15 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
   const refreshLocations = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      console.log('=== LOCATIONS CONTEXT FETCH ===');
-      console.log('Current user:', currentUser?.email, 'role:', currentUser?.role);
+      if (currentUser) {
+        console.log('=== LOCATIONS CONTEXT FETCH ===');
+        console.log('Current user:', currentUser?.email, 'role:', currentUser?.role);
+      }
 
       let querySnapshot;
-      
+
       if (currentUser?.role === 'superadmin') {
         // Superadmin sees all locations
         console.log('Querying all locations (superadmin)');
@@ -69,7 +73,16 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
           collection(db, 'locations'),
           orderBy('createdAt', 'desc')
         );
-        querySnapshot = await getDocs(locationsQuery);
+        try {
+          if (!navigator.onLine) {
+            querySnapshot = await getDocsFromCache(locationsQuery);
+          } else {
+            querySnapshot = await getDocs(locationsQuery);
+          }
+        } catch (error) {
+          console.warn('Network fetch failed for locations, trying cache:', error);
+          querySnapshot = await getDocsFromCache(locationsQuery);
+        }
       } else if (currentUser?.role === 'admin' || currentUser?.role === 'owner') {
         // Admin/Owner sees all locations in their franchise
         console.log('Querying locations for franchise:', currentUser.franchiseId);
@@ -78,13 +91,23 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
           collection(db, 'locations'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(allLocationsQuery);
-        
+        let allSnapshot;
+        try {
+          if (!navigator.onLine) {
+            allSnapshot = await getDocsFromCache(allLocationsQuery);
+          } else {
+            allSnapshot = await getDocs(allLocationsQuery);
+          }
+        } catch (error) {
+          console.warn('Network fetch failed for all locations, trying cache:', error);
+          allSnapshot = await getDocsFromCache(allLocationsQuery);
+        }
+
         // Then filter client-side by franchiseId to avoid composite index
-        const filteredDocs = allSnapshot.docs.filter(doc => 
+        const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.data().franchiseId === currentUser.franchiseId
         );
-        
+
         // Create a mock querySnapshot with filtered docs
         querySnapshot = { docs: filteredDocs };
       } else if (currentUser?.role === 'manager' || currentUser?.role === 'staff') {
@@ -96,11 +119,16 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
           setLoading(false);
           return;
         }
-        
+
         // For manager/staff, we need to fetch the specific location document
-        // since querying by document ID doesn't work with where clause
         try {
-          const locationDoc = await getDoc(doc(db, 'locations', currentUser.locationId));
+          const locationRef = doc(db, 'locations', currentUser.locationId);
+          let locationDoc;
+          try {
+            locationDoc = await getDocFromCache(locationRef);
+          } catch (cacheError) {
+            locationDoc = await getDoc(locationRef);
+          }
           if (locationDoc.exists()) {
             const locationData = {
               id: locationDoc.id,
@@ -123,7 +151,9 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         return;
       } else {
         // No user or unknown role
-        console.log('No user or unknown role, returning empty locations');
+        if (currentUser) {
+          console.log('Unknown role for user, returning empty locations');
+        }
         setLocations([]);
         setLoading(false);
         return;
@@ -164,14 +194,14 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   const addLocation = async (locationData: Omit<Location, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);
-    
+
     try {
       // Only superadmin can add locations
       if (currentUser?.role !== 'superadmin') {
         throw new Error('Only superadmin can add locations');
       }
 
-      const cleanedLocationData = {
+      const cleanedLocationData: any = {
         name: locationData.name || 'Unknown Location',
         storeName: locationData.storeName || locationData.name,
         address: locationData.address || '',
@@ -194,14 +224,15 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         id: docRef.id,
         ...cleanedLocationData,
         createdAt: new Date(),
-        updatedAt: new Date()
-      };
+        updatedAt: new Date(),
+        approvedAt: locationData.isApproved ? new Date() : undefined
+      } as any as Location;
 
       // Update franchise with new location
       if (locationData.franchiseId) {
         const franchiseRef = doc(db, 'franchises', locationData.franchiseId);
         const franchiseDoc = await getDoc(franchiseRef);
-        
+
         if (franchiseDoc.exists()) {
           const franchiseData = franchiseDoc.data();
           const currentLocations = franchiseData.locations || [];
@@ -214,40 +245,46 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         // Auto-update Admin/Owner users with the new location
         try {
           console.log(`Auto-updating Admin/Owner users for franchise ${locationData.franchiseId} with new location ${docRef.id}`);
-          
+
           // Find all Admin/Owner users in this franchise
           const usersQuery = query(
             collection(db, 'users'),
             where('franchiseId', '==', locationData.franchiseId)
           );
-          const usersSnapshot = await getDocs(usersQuery);
-          
+          let usersSnapshot;
+          try {
+            usersSnapshot = await getDocs(usersQuery);
+          } catch (error) {
+            console.warn('Network fetch failed for franchise users, trying cache:', error);
+            usersSnapshot = await getDocsFromCache(usersQuery);
+          }
+
           // Client-side filtering for role to avoid index requirement
-          const filteredDocs = usersSnapshot.docs.filter(doc => 
+          const filteredDocs = usersSnapshot.docs.filter(doc =>
             ['admin', 'owner'].includes(doc.data().role)
           );
-          
+
           // Update each Admin/Owner user to include the new location
           const updatePromises = filteredDocs.map(async (userDoc) => {
             const userRef = doc(db, 'users', userDoc.id);
             const userData = userDoc.data();
-            
+
             // Get current locationIds array or initialize empty array
             const currentLocationIds = userData.locationIds || [];
-            
+
             // Add the new location if not already present
             if (!currentLocationIds.includes(docRef.id)) {
               const updatedLocationIds = [...currentLocationIds, docRef.id];
-              
+
               await updateDoc(userRef, {
                 locationIds: updatedLocationIds,
                 updatedAt: serverTimestamp()
               });
-              
+
               console.log(`Updated user ${userDoc.id} (${userData.email}) with new location ${docRef.id}`);
             }
           });
-          
+
           await Promise.all(updatePromises);
           console.log(`Successfully updated ${usersSnapshot.size} Admin/Owner users with new location`);
         } catch (updateError) {
@@ -267,10 +304,10 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   const updateLocation = async (id: string, updates: Partial<Location>) => {
     setError(null);
-    
+
     try {
       const locationRef = doc(db, 'locations', id);
-      
+
       const cleanedUpdates = {
         ...updates,
         updatedAt: serverTimestamp()
@@ -278,8 +315,8 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
       // Remove undefined values
       Object.keys(cleanedUpdates).forEach(key => {
-        if (cleanedUpdates[key] === undefined) {
-          delete cleanedUpdates[key];
+        if ((cleanedUpdates as any)[key] === undefined) {
+          delete (cleanedUpdates as any)[key];
         }
       });
 
@@ -294,7 +331,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
   const deleteLocation = async (id: string) => {
     setError(null);
-    
+
     try {
       // Only superadmin can delete locations
       if (currentUser?.role !== 'superadmin') {
@@ -308,29 +345,29 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
       // Get location to find franchise
       console.log('Fetching location document...');
       const locationDoc = await getDoc(doc(db, 'locations', locationId));
-      
+
       if (locationDoc.exists()) {
         const locationData = locationDoc.data();
         console.log('Location data:', locationData);
-        
+
         // Remove location from franchise
         if (locationData.franchiseId) {
           console.log('Location has franchiseId:', locationData.franchiseId, 'Type:', typeof locationData.franchiseId);
-          
+
           try {
             const franchiseId = String(locationData.franchiseId);
             console.log('Creating franchise reference with ID:', franchiseId);
             const franchiseRef = doc(db, 'franchises', franchiseId);
             const franchiseDoc = await getDoc(franchiseRef);
-            
+
             if (franchiseDoc.exists()) {
               const franchiseData = franchiseDoc.data();
               const currentLocations = franchiseData.locations || [];
               console.log('Current locations in franchise:', currentLocations);
               console.log('Filtering out location ID:', locationId);
-              
+
               await updateDoc(franchiseRef, {
-                locations: currentLocations.filter((locId: any) => String(locId) !== locationId),
+                locations: currentLocations.filter((locId: string) => String(locId) !== locationId),
                 updatedAt: serverTimestamp()
               });
             } else {
@@ -344,40 +381,46 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
           // Remove location from Admin/Owner users
           try {
             console.log(`Removing location ${locationId} from Admin/Owner users in franchise ${locationData.franchiseId}`);
-            
+
             // Find all Admin/Owner users in this franchise
             const usersQuery = query(
               collection(db, 'users'),
               where('franchiseId', '==', locationData.franchiseId)
             );
-            const usersSnapshot = await getDocs(usersQuery);
-            
+            let usersSnapshot;
+            try {
+              usersSnapshot = await getDocs(usersQuery);
+            } catch (error) {
+              console.warn('Network fetch failed for franchise users, trying cache:', error);
+              usersSnapshot = await getDocsFromCache(usersQuery);
+            }
+
             // Client-side filtering for role to avoid index requirement
-            const filteredDocs = usersSnapshot.docs.filter(doc => 
+            const filteredDocs = usersSnapshot.docs.filter(doc =>
               ['admin', 'owner'].includes(doc.data().role)
             );
-            
+
             // Update each Admin/Owner user to remove the deleted location
             const updatePromises = filteredDocs.map(async (userDoc) => {
               const userRef = doc(db, 'users', userDoc.id);
               const userData = userDoc.data();
-              
+
               // Get current locationIds array
               const currentLocationIds = userData.locationIds || [];
-              
+
               // Remove the deleted location if present
               if (currentLocationIds.includes(locationId)) {
                 const updatedLocationIds = currentLocationIds.filter(locId => locId !== locationId);
-                
+
                 await updateDoc(userRef, {
                   locationIds: updatedLocationIds,
                   updatedAt: serverTimestamp()
                 });
-                
+
                 console.log(`Removed location ${locationId} from user ${userDoc.id} (${userData.email})`);
               }
             });
-            
+
             await Promise.all(updatePromises);
             console.log(`Successfully removed location ${locationId} from ${usersSnapshot.size} Admin/Owner users`);
           } catch (updateError) {
@@ -393,12 +436,12 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
       console.log('Deleting location document...');
       await deleteDoc(doc(db, 'locations', locationId));
-      
+
       // Clear current location if it was deleted
       if (currentLocation?.id === locationId) {
         setCurrentLocation(null);
       }
-      
+
       await refreshLocations();
       console.log('Location deleted successfully');
     } catch (err: any) {
@@ -424,5 +467,5 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     <LocationContext.Provider value={value}>
       {children}
     </LocationContext.Provider>
-  );
+  ) as any;
 };

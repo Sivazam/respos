@@ -15,7 +15,7 @@ export const getFranchiseByLocationId = async (locationId: string): Promise<Fran
 
     // First get the location to find the franchiseId
     const locationDoc = await getDoc(doc(db, 'locations', locationId));
-    
+
     if (!locationDoc.exists()) {
       console.warn('Location not found:', locationId);
       return null;
@@ -31,14 +31,14 @@ export const getFranchiseByLocationId = async (locationId: string): Promise<Fran
 
     // Now get the franchise data
     const franchiseDoc = await getDoc(doc(db, 'franchises', franchiseId));
-    
+
     if (!franchiseDoc.exists()) {
       console.warn('Franchise not found:', franchiseId);
       return null;
     }
 
     const franchiseData = franchiseDoc.data();
-    
+
     return {
       id: franchiseDoc.id,
       ...franchiseData,
@@ -64,14 +64,14 @@ export const getFranchiseById = async (franchiseId: string): Promise<Franchise |
     }
 
     const franchiseDoc = await getDoc(doc(db, 'franchises', franchiseId));
-    
+
     if (!franchiseDoc.exists()) {
       console.warn('Franchise not found:', franchiseId);
       return null;
     }
 
     const franchiseData = franchiseDoc.data();
-    
+
     return {
       id: franchiseDoc.id,
       ...franchiseData,
@@ -99,23 +99,23 @@ export const getFranchiseReceiptData = async (locationId: string): Promise<{
   gstNumber: string | null;
 }> => {
   const franchise = await getFranchiseByLocationId(locationId);
-  
+
   if (franchise) {
     return {
-      name: franchise.name || 'Restaurant',
-      address: franchise.address || 'Restaurant Address',
-      phone: franchise.phone || 'Contact Number',
+      name: franchise.name || '',
+      address: franchise.address || '',
+      phone: franchise.phone || '',
       email: franchise.email || '',
       logoUrl: franchise.logoUrl || null,
       gstNumber: franchise.gstNumber || null
     };
   }
-  
+
   // Default fallback values
   return {
-    name: 'FORKFLOW POS',
-    address: 'Restaurant Address',
-    phone: 'Contact Number',
+    name: '',
+    address: '',
+    phone: '',
     email: '',
     logoUrl: null,
     gstNumber: null

@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  addDoc, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  serverTimestamp 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  getDocsFromCache,
+  addDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Category } from '../types';
@@ -50,7 +51,7 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
   const refreshCategories = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Check if user has location assigned
       if (hasNoLocationAssigned(currentUser)) {
@@ -62,7 +63,7 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
 
       // Build simple query to avoid composite indexes
       let q;
-      
+
       if (currentUser?.role === 'superadmin') {
         // Superadmin sees all categories - simple query
         q = query(collection(db, 'categories'));
@@ -74,21 +75,27 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
         q = query(collection(db, 'categories'), where('locationId', '==', currentUser?.locationId));
       }
 
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (error) {
+        console.warn('Network fetch failed for categories, trying cache:', error);
+        querySnapshot = await getDocsFromCache(q);
+      }
 
       const categoriesData = querySnapshot.docs.map(doc => {
-        const data = doc.data();
+        const data = doc.data() as any;
         return {
           id: doc.id,
           ...data,
-          createdAt: data.createdAt?.toDate(),
-          updatedAt: data.updatedAt?.toDate()
+          createdAt: data.createdAt?.toDate?.() || data.createdAt,
+          updatedAt: data.updatedAt?.toDate?.() || data.updatedAt
         };
       }) as Category[];
 
       // Client-side filtering and sorting
       let filteredCategories = categoriesData;
-      
+
       // Filter by location for admin users - they can see categories from all their franchise locations
       if (currentUser?.role === 'admin' && currentUser?.franchiseId) {
         // Get all locations for this admin's franchise
@@ -96,29 +103,35 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
           collection(db, 'locations'),
           where('franchiseId', '==', currentUser.franchiseId)
         );
-        const locationsSnapshot = await getDocs(locationsQuery);
+        let locationsSnapshot;
+        try {
+          locationsSnapshot = await getDocs(locationsQuery);
+        } catch (error) {
+          console.warn('Network fetch failed for locations (categories), trying cache:', error);
+          locationsSnapshot = await getDocsFromCache(locationsQuery);
+        }
         const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
-        
+
         // Filter categories by franchise location IDs
-        filteredCategories = filteredCategories.filter(cat => 
-          franchiseLocationIds.includes(cat.locationId)
+        filteredCategories = filteredCategories.filter(cat =>
+          cat.locationId && franchiseLocationIds.includes(cat.locationId)
         );
       }
-      
+
       // Sort categories: Starters first, then by displayOrder, then by name
       filteredCategories.sort((a, b) => {
         // First, put "Starters" category first (case-insensitive)
         const aIsStarters = a.name.toLowerCase() === 'starters';
         const bIsStarters = b.name.toLowerCase() === 'starters';
-        
+
         if (aIsStarters && !bIsStarters) return -1;
         if (!aIsStarters && bIsStarters) return 1;
-        
+
         // Then sort by displayOrder (ascending)
         const aOrder = a.displayOrder || 0;
         const bOrder = b.displayOrder || 0;
         if (aOrder !== bOrder) return aOrder - bOrder;
-        
+
         // Finally sort by name (alphabetically)
         return a.name.localeCompare(b.name);
       });
@@ -137,7 +150,7 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
 
   const addCategory = async (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => {
     setError(null);
-    
+
     try {
       // Check if user has location assigned
       if (hasNoLocationAssigned(currentUser)) {
@@ -171,6 +184,7 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
         description: categoryData.description?.trim() || '',
         locationId,
         franchiseId,
+        restaurantId: (categoryData as any).restaurantId || franchiseId, // Fallback to franchiseId
         displayOrder: Number(categoryData.displayOrder) || 0,
         isActive: categoryData.isActive !== false,
         imageUrl: categoryData.imageUrl || ''
@@ -200,10 +214,10 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
 
   const updateCategory = async (id: string, updates: Partial<Category>) => {
     setError(null);
-    
+
     try {
       const categoryRef = doc(db, 'categories', id);
-      
+
       const cleanedUpdates = {
         ...updates,
         updatedAt: serverTimestamp()
@@ -211,8 +225,8 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
 
       // Remove undefined values
       Object.keys(cleanedUpdates).forEach(key => {
-        if (cleanedUpdates[key] === undefined) {
-          delete cleanedUpdates[key];
+        if ((cleanedUpdates as any)[key] === undefined) {
+          delete (cleanedUpdates as any)[key];
         }
       });
 
@@ -227,7 +241,7 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
 
   const deleteCategory = async (id: string) => {
     setError(null);
-    
+
     try {
       await deleteDoc(doc(db, 'categories', id));
       await refreshCategories();
@@ -252,5 +266,5 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
     <CategoryContext.Provider value={value}>
       {children}
     </CategoryContext.Provider>
-  );
+  ) as any;
 };

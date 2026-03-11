@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useLocations } from '../../contexts/LocationContext';
 import { useFranchises } from '../../contexts/FranchiseContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { Location, LocationFormData } from '../../types';
 import InitialSetupWizard from '../../components/InitialSetupWizard';
-import { 
-  Store, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Search, 
+import {
+  Store,
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
   Filter,
   MapPin,
   Phone,
@@ -23,19 +24,19 @@ import {
 } from 'lucide-react';
 
 const LocationsPage: React.FC = () => {
-  const { 
-    locations, 
-    loading, 
-    error, 
-    addLocation, 
-    updateLocation, 
-    deleteLocation, 
-    refreshLocations,
-    getLocationsByFranchise 
+  const {
+    locations,
+    loading,
+    error,
+    addLocation,
+    updateLocation,
+    deleteLocation,
+    refreshLocations
   } = useLocations();
-  
+
   const { franchises } = useFranchises();
-  
+  const { currentUser } = useAuth();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFranchise, setSelectedFranchise] = useState<string>('all');
   const [showInactive, setShowInactive] = useState(false);
@@ -55,16 +56,16 @@ const LocationsPage: React.FC = () => {
 
   // Filter locations based on search and filters
   const filteredLocations = locations.filter(location => {
-    const matchesSearch = 
+    const matchesSearch =
       location.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       location.storeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       location.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       location.phone?.includes(searchTerm) ||
       location.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesFranchise = selectedFranchise === 'all' || location.franchiseId === selectedFranchise;
     const matchesStatus = showInactive || location.isActive;
-    
+
     return matchesSearch && matchesFranchise && matchesStatus;
   });
 
@@ -96,7 +97,9 @@ const LocationsPage: React.FC = () => {
         // Create location data with franchiseId
         const locationDataWithFranchise = {
           ...formData,
-          franchiseId: selectedFranchise
+          franchiseId: selectedFranchise,
+          isActive: true,
+          isApproved: true
         };
         newLocation = await addLocation(locationDataWithFranchise);
         // Store the new location ID and show setup wizard
@@ -105,7 +108,7 @@ const LocationsPage: React.FC = () => {
           setShowSetupWizard(true);
         }
       }
-      
+
       // Reset form
       setFormData({
         name: '',
@@ -144,11 +147,11 @@ const LocationsPage: React.FC = () => {
   const handleDelete = async (location: Location) => {
     console.log('handleDelete called with location:', location);
     console.log('location.id:', location.id, 'Type:', typeof location.id);
-    
+
     if (!confirm(`Are you sure you want to delete "${location.storeName}"? This action cannot be undone.`)) {
       return;
     }
-    
+
     try {
       await deleteLocation(location.id);
     } catch (error: any) {
@@ -160,7 +163,7 @@ const LocationsPage: React.FC = () => {
   // Toggle location status
   const toggleStatus = async (location: Location) => {
     try {
-      await updateLocation(location.id, { 
+      await updateLocation(location.id, {
         isActive: !location.isActive
       });
       await refreshLocations();
@@ -394,11 +397,10 @@ const LocationsPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          location.isActive 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${location.isActive
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                          }`}>
                           {location.isActive ? (
                             <>
                               <CheckCircle className="w-3 h-3 mr-1" />
@@ -423,9 +425,8 @@ const LocationsPage: React.FC = () => {
                           </button>
                           <button
                             onClick={() => toggleStatus(location)}
-                            className={`${
-                              location.isActive ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900'
-                            }`}
+                            className={`${location.isActive ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900'
+                              }`}
                             title={location.isActive ? 'Deactivate' : 'Activate'}
                           >
                             {location.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -512,7 +513,7 @@ const LocationsPage: React.FC = () => {
                           value={formData.storeName}
                           onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                          placeholder="e.g., Na Potta Na Istam - Main Store"
+                          placeholder="e.g., Main Store Branch"
                           required
                         />
                       </div>
@@ -604,6 +605,7 @@ const LocationsPage: React.FC = () => {
         isOpen={showSetupWizard}
         onComplete={handleSetupComplete}
         locationId={createdLocationId}
+        userId={currentUser?.uid || ''}
       />
     </DashboardLayout>
   );

@@ -1,16 +1,18 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  getDocsFromCache,
   getDoc,
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot 
+  getDocFromCache,
+  query,
+  where,
+  orderBy,
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Restaurant, RestaurantFormData, User } from '../types';
@@ -56,7 +58,17 @@ export const RestaurantProvider: React.FC<RestaurantProviderProps> = ({ children
     setError(null);
     try {
       const q = query(collection(db, 'restaurants'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        if (!navigator.onLine) {
+          querySnapshot = await getDocsFromCache(q);
+        } else {
+          querySnapshot = await getDocs(q);
+        }
+      } catch (error) {
+        console.warn('Network fetch failed for restaurants, trying cache:', error);
+        querySnapshot = await getDocsFromCache(q);
+      }
       const restaurantList: Restaurant[] = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -140,10 +152,10 @@ export const RestaurantProvider: React.FC<RestaurantProviderProps> = ({ children
         ...restaurantData,
         updatedAt: new Date(),
       });
-      
-      setRestaurants(prev => 
-        prev.map(restaurant => 
-          restaurant.id === id 
+
+      setRestaurants(prev =>
+        prev.map(restaurant =>
+          restaurant.id === id
             ? { ...restaurant, ...restaurantData, updatedAt: new Date() }
             : restaurant
         )
@@ -178,17 +190,17 @@ export const RestaurantProvider: React.FC<RestaurantProviderProps> = ({ children
         approvedAt: new Date(),
         updatedAt: new Date(),
       });
-      
-      setRestaurants(prev => 
-        prev.map(restaurant => 
-          restaurant.id === id 
-            ? { 
-                ...restaurant, 
-                isApproved: true, 
-                isActive: true, 
-                approvedAt: new Date(),
-                updatedAt: new Date() 
-              }
+
+      setRestaurants(prev =>
+        prev.map(restaurant =>
+          restaurant.id === id
+            ? {
+              ...restaurant,
+              isApproved: true,
+              isActive: true,
+              approvedAt: new Date(),
+              updatedAt: new Date()
+            }
             : restaurant
         )
       );
@@ -206,10 +218,10 @@ export const RestaurantProvider: React.FC<RestaurantProviderProps> = ({ children
         isActive: false,
         updatedAt: new Date(),
       });
-      
-      setRestaurants(prev => 
-        prev.map(restaurant => 
-          restaurant.id === id 
+
+      setRestaurants(prev =>
+        prev.map(restaurant =>
+          restaurant.id === id
             ? { ...restaurant, isActive: false, updatedAt: new Date() }
             : restaurant
         )
@@ -224,8 +236,13 @@ export const RestaurantProvider: React.FC<RestaurantProviderProps> = ({ children
   const getRestaurantById = async (id: string): Promise<Restaurant | null> => {
     try {
       const docRef = doc(db, 'restaurants', id);
-      const docSnap = await getDoc(docRef);
-      
+      let docSnap;
+      try {
+        docSnap = await getDocFromCache(docRef);
+      } catch (cacheError) {
+        docSnap = await getDoc(docRef);
+      }
+
       if (docSnap.exists()) {
         const data = docSnap.data();
         return {
@@ -246,11 +263,17 @@ export const RestaurantProvider: React.FC<RestaurantProviderProps> = ({ children
   const getRestaurantsByOwner = async (ownerId: string): Promise<Restaurant[]> => {
     try {
       const q = query(
-        collection(db, 'restaurants'), 
+        collection(db, 'restaurants'),
         where('ownerId', '==', ownerId),
         orderBy('createdAt', 'desc')
       );
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        querySnapshot = await getDocs(q);
+      } catch (error) {
+        console.warn('Network fetch failed for owner restaurants, trying cache:', error);
+        querySnapshot = await getDocsFromCache(q);
+      }
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -288,5 +311,5 @@ export const RestaurantProvider: React.FC<RestaurantProviderProps> = ({ children
     <RestaurantContext.Provider value={value}>
       {children}
     </RestaurantContext.Provider>
-  );
+  ) as any;
 };

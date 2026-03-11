@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { orderService } from '../../services/orderService';
 import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
-import { useAuth } from '../../contexts/AuthContext';
-import { OrderCoupons, couponService } from '../../services/couponService';
+import { couponService } from '../../services/couponService';
 
 const PrintReceiptPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const { currentUser } = useAuth();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +41,7 @@ const PrintReceiptPage: React.FC = () => {
     const fetchOrderData = async () => {
       // Get order ID from query parameter
       const orderId = searchParams.get('id');
-      
+
       if (!orderId) {
         setError('Order ID is required');
         setLoading(false);
@@ -52,7 +50,7 @@ const PrintReceiptPage: React.FC = () => {
 
       try {
         setLoading(true);
-        
+
         // Fetch order details
         const orderData = await orderService.getOrderById(orderId);
         if (!orderData) {
@@ -107,7 +105,7 @@ const PrintReceiptPage: React.FC = () => {
 
     try {
       let dateObj: Date;
-      
+
       if (dateInput?.toDate) {
         dateObj = dateInput.toDate();
       } else if (dateInput?.seconds) {
@@ -119,7 +117,7 @@ const PrintReceiptPage: React.FC = () => {
       } else {
         dateObj = new Date();
       }
-      
+
       return {
         date: dateObj.toLocaleDateString('en-IN'),
         time: dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -136,7 +134,7 @@ const PrintReceiptPage: React.FC = () => {
     if (tableNames && tableNames.length > 0) {
       return tableNames.join(', ');
     }
-    
+
     if (tableIds && tableIds.length > 0) {
       const tableNumbers = tableIds.map(id => {
         const tableMatch = id.match(/table-(\d+)/i);
@@ -154,7 +152,7 @@ const PrintReceiptPage: React.FC = () => {
       });
       return tableNumbers.join(', ');
     }
-    
+
     return 'N/A';
   };
 
@@ -180,7 +178,7 @@ const PrintReceiptPage: React.FC = () => {
   const calculateGrandTotal = () => {
     if (order?.totalAmount) return order.totalAmount;
     if (order?.total) return order.total;
-    
+
     const subtotal = calculateSubtotal();
     const cgst = calculateCGST();
     const sgst = calculateSGST();
@@ -188,7 +186,7 @@ const PrintReceiptPage: React.FC = () => {
     const deliveryCharge = order?.deliveryCharge || 0;
     const packagingCharge = order?.packagingCharge || 0;
     const discount = order?.discount || 0;
-    
+
     // Handle both old single coupon and new multiple coupons
     let couponAmount = 0;
     if (order?.appliedCoupon) {
@@ -196,13 +194,13 @@ const PrintReceiptPage: React.FC = () => {
     } else if (order?.appliedCoupons) {
       // Calculate total discount from multiple coupons
       const { totalDiscount } = couponService.calculateTotalDiscount(
-        order.appliedCoupons, 
-        subtotal, 
+        order.appliedCoupons,
+        subtotal,
         order.items
       );
       couponAmount = totalDiscount;
     }
-    
+
     return subtotal + cgst + sgst + serviceCharge + deliveryCharge + packagingCharge - discount - couponAmount;
   };
 
@@ -212,16 +210,16 @@ const PrintReceiptPage: React.FC = () => {
 
     const { date: receiptDate, time: receiptTime } = formatReceiptDate(order.completedAt || order.createdAt);
     const tableDisplay = getTableDisplay(order.tableNames, order.tableIds);
-    const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
-    
+    const logoUrl = franchiseData?.logoUrl;
+
     const subtotal = calculateSubtotal();
     const cgst = calculateCGST();
     const sgst = calculateSGST();
     const grandTotal = calculateGrandTotal();
-    
+
     // Get payment method
     const paymentMethod = order.paymentData?.paymentMethod || order.paymentMethod || order.pendingPaymentMethod || 'cash';
-    
+
     return `
 <!DOCTYPE html>
 <html>
@@ -256,9 +254,10 @@ const PrintReceiptPage: React.FC = () => {
         }
         
         .logo img {
-            width: 160px;
-            height: auto;
-            max-height: auto;
+            width: 150px;
+            height: 150px;
+            max-width: 150px;
+            max-height: 150px;
             object-fit: contain;
         }
         
@@ -426,14 +425,16 @@ const PrintReceiptPage: React.FC = () => {
 </head>
 <body>
     <div class="receipt">
+        ${logoUrl ? `
         <div class="logo">
             <img src="${logoUrl}" alt="Restaurant Logo" />
         </div>
+        ` : ''}
         
         <div class="header">
             <div class="header-line">${franchiseData?.name || 'FORKFLOW POS'}</div>
-            <div class="header-subtitle">${franchiseData?.address || '123 Main Street, City'}</div>
-            <div class="header-subtitle">Phone: ${franchiseData?.phone || '+91 98765 43210'}</div>
+            ${franchiseData?.address ? `<div class="header-subtitle">${franchiseData.address}</div>` : ''}
+            ${franchiseData?.phone ? `<div class="header-subtitle">Phone: ${franchiseData.phone}</div>` : ''}
             ${franchiseData?.gstNumber ? `<div class="header-subtitle">GSTIN: ${franchiseData.gstNumber}</div>` : ''}
         </div>
         
@@ -441,11 +442,11 @@ const PrintReceiptPage: React.FC = () => {
         
         <div class="order-info">
             <div>Date: ${receiptDate}    Time: ${receiptTime}</div>
-            ${tableDisplay && tableDisplay !== 'N/A' ? 
-              `<div>Table: ${tableDisplay}</div>
-               <div>Order: #${order.orderNumber}</div>` : 
-              `<div>Order: #${order.orderNumber}</div>`
-            }
+            ${tableDisplay && tableDisplay !== 'N/A' ?
+        `<div>Table: ${tableDisplay}</div>
+               <div>Order: #${order.orderNumber}</div>` :
+        `<div>Order: #${order.orderNumber}</div>`
+      }
         </div>
         
         <div class="divider"></div>
@@ -458,26 +459,26 @@ const PrintReceiptPage: React.FC = () => {
                 <div class="item-total">Total</div>
             </div>
             
-            ${order.items?.map(item => {
-              const itemName = item.name || 'Unknown Item';
-              const quantity = item.quantity || 1;
-              const price = item.price || 0;
-              const itemTotal = price * quantity;
-              const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
-              
-              return `
+            ${order.items?.map((item: any) => {
+        const itemName = item.name || 'Unknown Item';
+        const quantity = item.quantity || 1;
+        const price = item.price || 0;
+        const itemTotal = price * quantity;
+        const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
+
+        return `
                 <div class="item">
                     <div class="item-name">${itemName}${portionTag}</div>
                     <div class="item-qty">${quantity}</div>
                     <div class="item-price">${formatPrice(price)}</div>
                     <div class="item-total">${formatPrice(itemTotal)}</div>
-                    ${item.modifications && item.modifications.length > 0 ? 
-                      `<div class="modifications">${item.modifications.join(', ')}</div>` : 
-                      ''
-                    }
+                    ${item.modifications && item.modifications.length > 0 ?
+            `<div class="modifications">${item.modifications.join(', ')}</div>` :
+            ''
+          }
                 </div>
               `;
-            }).join('') || ''}
+      }).join('') || ''}
         </div>
         
         <div class="divider"></div>
@@ -537,7 +538,7 @@ const PrintReceiptPage: React.FC = () => {
                 </div>
               ` : ''}
               ${order.appliedCoupon.dishCoupons && order.appliedCoupon.dishCoupons.length > 0 ? `
-                ${order.appliedCoupon.dishCoupons.map(dishCoupon => `
+                ${order.appliedCoupon.dishCoupons.map((dishCoupon: any) => `
                   <div class="total-row">
                       <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
                       <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
@@ -553,7 +554,7 @@ const PrintReceiptPage: React.FC = () => {
                 </div>
               ` : ''}
               ${order.appliedCoupons.dishCoupons && order.appliedCoupons.dishCoupons.length > 0 ? `
-                ${order.appliedCoupons.dishCoupons.map(dishCoupon => `
+                ${order.appliedCoupons.dishCoupons.map((dishCoupon: any) => `
                   <div class="total-row">
                       <div class="total-label">Dish Coupon (${dishCoupon.couponCode})</div>
                       <div class="total-value">-${formatPrice(dishCoupon.discountAmount)}</div>
@@ -590,10 +591,10 @@ const PrintReceiptPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
         fontFamily: 'Arial, sans-serif',
         fontSize: '16px'
@@ -605,10 +606,10 @@ const PrintReceiptPage: React.FC = () => {
 
   if (error || !order) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
         fontFamily: 'Arial, sans-serif',
         fontSize: '16px',

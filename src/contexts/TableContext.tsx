@@ -5,6 +5,9 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
+  getDocs,
+  getDocsFromCache,
   query,
   where,
   onSnapshot,
@@ -246,8 +249,37 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
 
         setTables(tablesData);
         setLoading(false);
-      }, (error) => {
+      }, async (error) => {
         console.error('Error fetching tables:', error);
+
+        // Attempt to load from cache if listener fails
+        try {
+          const cacheSnapshot = await getDocsFromCache(tablesQuery);
+          if (cacheSnapshot.docs.length > 0) {
+            const tablesData: Table[] = cacheSnapshot.docs.map(doc => {
+              const data = doc.data() as any;
+              return {
+                id: doc.id,
+                name: data.name,
+                locationId: data.locationId,
+                capacity: data.capacity,
+                status: data.status,
+                occupiedAt: data.occupiedAt?.toDate?.() || data.occupiedAt,
+                reservedBy: data.reservedBy,
+                reservedAt: data.reservedAt?.toDate?.() || data.reservedAt,
+                reservationExpiryAt: data.reservationExpiryAt?.toDate?.() || data.reservationExpiryAt,
+                reservationDetails: data.reservationDetails,
+                currentOrderId: data.currentOrderId,
+                mergedWith: data.mergedWith || [],
+                createdAt: data.createdAt?.toDate?.() || data.createdAt,
+                updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+              } as Table;
+            });
+            setTables(tablesData);
+          }
+        } catch (cacheErr) {
+          console.error('Cache fetch also failed for tables:', cacheErr);
+        }
 
         // Check if it's an index error and provide helpful information
         if (isIndexError(error)) {
@@ -329,8 +361,8 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       } else {
         // Add to offline actions
         const offlineAction: OfflineTableAction = {
-          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          tableId: `temp_${Date.now()}`,
+          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
+          tableId: `temp_${Date.now()} `,
           action: 'create',
           data: newTable,
           staffId: currentUser.uid,
@@ -362,7 +394,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       } else {
         // Add to offline actions
         const offlineAction: OfflineTableAction = {
-          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
           tableId,
           action: 'update',
           data: updateData,
@@ -390,7 +422,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       } else {
         // Add to offline actions
         const offlineAction: OfflineTableAction = {
-          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
           tableId,
           action: 'delete',
           data: {},
@@ -426,7 +458,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       } else {
         // Add to offline actions
         const offlineAction: OfflineTableAction = {
-          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
           tableId,
           action: 'reserve',
           data: { ...reserveData, orderId: null },
@@ -460,7 +492,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       } else {
         // Add to offline actions
         const offlineAction: OfflineTableAction = {
-          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
           tableId,
           action: 'occupy',
           data: occupyData,
@@ -499,7 +531,7 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
       } else {
         // Add to offline actions
         const offlineAction: OfflineTableAction = {
-          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: `table_${Date.now()}_${Math.random().toString(36).substr(2, 9)} `,
           tableId,
           action: 'release',
           data: {},
@@ -680,5 +712,5 @@ export const TableProvider: React.FC<TableProviderProps> = ({ children }) => {
     <TableContext.Provider value={value}>
       {children}
     </TableContext.Provider>
-  );
+  ) as any;
 };

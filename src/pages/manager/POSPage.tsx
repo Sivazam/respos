@@ -37,13 +37,13 @@ const ManagerPOSPage: React.FC = () => {
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showPortionModal, setShowPortionModal] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'menu' | 'cart'>('menu');
-  
+
   // Check if this is a table-based order
   const isTableBasedOrder = location.state?.orderType && location.state?.tableIds;
-  
+
   // Get menu items for current location
   const locationMenuItems = useMemo(() => {
-    return menuItems.filter(item => 
+    return menuItems.filter(item =>
       item.locationId === currentUser?.locationId && item.isAvailable
     );
   }, [menuItems, currentUser?.locationId]);
@@ -101,7 +101,7 @@ const ManagerPOSPage: React.FC = () => {
     try {
       // Get the current location - try multiple sources
       const locationId = currentUser.locationId;
-      
+
       // If no locationId in currentUser, try to get it from other sources
       if (!locationId) {
         // For now, we'll use a default or get it from localStorage/auth context
@@ -126,7 +126,7 @@ const ManagerPOSPage: React.FC = () => {
         sgst: Number(sgst) || 0,
         total: Number(total) || 0,
         paymentMethod,
-        createdBy: currentUser.uid || currentUser.id || 'unknown',
+        createdBy: currentUser.uid || (currentUser as any).id || 'unknown',
         locationId: locationId || 'default_location'
       };
 
@@ -135,11 +135,11 @@ const ManagerPOSPage: React.FC = () => {
 
       const receipt: Receipt = {
         sale: newSale,
-        businessName: 'ForkFlow',
-        businessAddress: '123 Food Street, Bangalore, Karnataka 560001',
-        gstNumber: 'GSTIN29ABCDE1234F1Z5',
-        contactNumber: '+91 80 1234 5678',
-        email: 'contact@millethomefoods.com'
+        businessName: '',
+        businessAddress: '',
+        gstNumber: '',
+        contactNumber: '',
+        email: ''
       };
 
       setCurrentReceipt(receipt);
@@ -218,11 +218,10 @@ const ManagerPOSPage: React.FC = () => {
         <div className="flex lg:hidden bg-white border-b border-gray-200 rounded-t-lg mb-0">
           <button
             onClick={() => setActiveMobileTab('menu')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              activeMobileTab === 'menu'
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${activeMobileTab === 'menu'
+              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Menu
             {filteredProducts.length > 0 && (
@@ -233,11 +232,10 @@ const ManagerPOSPage: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveMobileTab('cart')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${
-              activeMobileTab === 'cart'
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors relative ${activeMobileTab === 'cart'
+              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+              : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             Current Order
             {items.length ? (
@@ -253,10 +251,10 @@ const ManagerPOSPage: React.FC = () => {
           {/* Menu Section - Desktop */}
           <div className={`flex flex-col min-h-0 ${hasCartItems ? 'flex-1' : 'w-full'}`}>
             {error && <ErrorAlert message={error} />}
-            
+
             <div className="bg-white shadow rounded-lg p-4 overflow-hidden flex flex-col h-full">
               <h2 className="text-lg font-semibold mb-4 flex-shrink-0">Menu Items</h2>
-              
+
               {/* Search and Filters - Desktop */}
               <div className="mb-4 space-y-3 flex-shrink-0">
                 <Input
@@ -265,7 +263,7 @@ const ManagerPOSPage: React.FC = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   icon={<Search size={18} className="text-gray-500" />}
                 />
-                
+
                 <div className="flex flex-wrap gap-4 items-center">
                   {/* Categories */}
                   <div className="flex gap-2 overflow-x-auto flex-1">
@@ -422,7 +420,7 @@ const ManagerPOSPage: React.FC = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   icon={<Search size={18} className="text-gray-500" />}
                 />
-                
+
                 <div className="flex flex-col gap-3">
                   {/* Mobile Categories */}
                   <div className="flex gap-2 overflow-x-auto pb-2">
@@ -554,7 +552,7 @@ const ManagerPOSPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              
+
               {/* Mobile Cart Preview */}
               {items.length > 0 && (
                 <div className="border-t border-gray-200 p-4 bg-gray-50">
@@ -585,7 +583,7 @@ const ManagerPOSPage: React.FC = () => {
                       {items.length} items
                     </span>
                   </div>
-                  
+
                   <div className="flex-1 overflow-y-auto mb-4">
                     <Cart onCheckout={handleCheckout} />
                   </div>
@@ -657,7 +655,7 @@ const ManagerPOSPage: React.FC = () => {
         <ReceiptModal
           receipt={currentReceipt}
           onClose={() => setShowReceipt(false)}
-          onPrint={() => {}} // Print function is now handled internally
+          locationId={currentUser?.locationId}
         />
       )}
 

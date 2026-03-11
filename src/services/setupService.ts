@@ -1,9 +1,10 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocFromCache,
+  updateDoc,
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -154,17 +155,17 @@ export class SetupService {
           enableCustomization: true
         },
         enabledRoles: settings.enabledRoles ?? { admin: true, manager: true, employee: true },
-        enabledFeatures: settings.enabledFeatures ?? { 
-          inventory: true, 
-          reports: true, 
-          analytics: true, 
-          onlineOrders: false, 
-          reservations: false 
+        enabledFeatures: settings.enabledFeatures ?? {
+          inventory: true,
+          reports: true,
+          analytics: true,
+          onlineOrders: false,
+          reservations: false
         }
       };
 
       console.log('🧹 Sanitized settings for creation:', sanitizedSettings);
-      
+
       // Use locationId as the document ID for consistency
       const locationSettingsRef = doc(db, 'locationSettings', sanitizedSettings.locationId);
       await setDoc(locationSettingsRef, {
@@ -192,7 +193,7 @@ export class SetupService {
   static async markSetupComplete(userId: string) {
     try {
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { 
+      await updateDoc(userRef, {
         hasCompletedSetup: true,
         setupCompletedAt: serverTimestamp()
       });
@@ -214,7 +215,14 @@ export class SetupService {
   // Check if user has completed setup
   static async checkUserSetupStatus(userId: string) {
     try {
-      const userDoc = await getDoc(doc(db, 'users', userId));
+      const userRef = doc(db, 'users', userId);
+      let userDoc;
+
+      try {
+        userDoc = await getDocFromCache(userRef);
+      } catch (cacheError) {
+        userDoc = await getDoc(userRef);
+      }
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
@@ -244,7 +252,7 @@ export class SetupService {
     try {
       console.log('🔧 Updating location settings for:', locationId);
       console.log('📝 Settings to update:', settings);
-      
+
       // Sanitize settings to remove any undefined values
       const sanitizedSettings = {
         orderTypes: {
@@ -289,23 +297,23 @@ export class SetupService {
           enableCustomization: true
         },
         enabledRoles: settings.enabledRoles ?? { admin: true, manager: true, employee: true },
-        enabledFeatures: settings.enabledFeatures ?? { 
-          inventory: true, 
-          reports: true, 
-          analytics: true, 
-          onlineOrders: false, 
-          reservations: false 
+        enabledFeatures: settings.enabledFeatures ?? {
+          inventory: true,
+          reports: true,
+          analytics: true,
+          onlineOrders: false,
+          reservations: false
         }
       };
-      
+
       console.log('🧹 Sanitized settings:', sanitizedSettings);
-      
+
       // Use locationId as the document ID for consistency
       const docRef = doc(db, 'locationSettings', locationId);
       const docSnap = await getDoc(docRef);
-      
+
       console.log('📄 Document exists:', docSnap.exists());
-      
+
       if (!docSnap.exists()) {
         // No existing settings, create new ones
         console.log('➕ Creating new settings document');
@@ -314,7 +322,7 @@ export class SetupService {
           ...sanitizedSettings
         });
       }
-      
+
       // Update existing settings
       console.log('🔄 Updating existing document');
       await updateDoc(docRef, {
@@ -342,13 +350,20 @@ export class SetupService {
   static async getLocationSettings(locationId: string) {
     try {
       console.log('🔍 Getting location settings for:', locationId);
-      
+
       // Use locationId as the document ID for consistency
       const docRef = doc(db, 'locationSettings', locationId);
-      const docSnap = await getDoc(docRef);
-      
+      let docSnap;
+
+      try {
+        // Try cache first for offline support
+        docSnap = await getDocFromCache(docRef);
+      } catch (cacheError) {
+        docSnap = await getDoc(docRef);
+      }
+
       console.log('📄 Document exists:', docSnap.exists());
-      
+
       if (!docSnap.exists()) {
         console.log('⚠️ No settings document found');
         return {

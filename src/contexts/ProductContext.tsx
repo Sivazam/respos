@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, getDocsFromCache, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, where, getDoc, getDocFromCache } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Product, ProductFormData } from '../types';
 import { useLocations } from './LocationContext';
@@ -41,7 +41,7 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
     setError(null);
     try {
       let q;
-      
+
       if (currentLocation) {
         // If a location is selected, get products for that location
         q = query(
@@ -65,31 +65,43 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
         if (currentUser?.franchiseId) {
           // Get all products first, then filter by franchise locations
           q = query(collection(db, 'products'));
-          const allSnapshot = await getDocs(q);
-          
+          let allSnapshot;
+          try {
+            allSnapshot = await getDocs(q);
+          } catch (error) {
+            console.warn('Network fetch failed for products (admin), trying cache:', error);
+            allSnapshot = await getDocsFromCache(q);
+          }
+
           // Get all locations for this admin's franchise
           const locationsQuery = query(
             collection(db, 'locations'),
             where('franchiseId', '==', currentUser.franchiseId)
           );
-          const locationsSnapshot = await getDocs(locationsQuery);
+          let locationsSnapshot;
+          try {
+            locationsSnapshot = await getDocs(locationsQuery);
+          } catch (error) {
+            console.warn('Network fetch failed for locations (products admin), trying cache:', error);
+            locationsSnapshot = await getDocsFromCache(locationsQuery);
+          }
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
-          
+
           // Filter products by franchise location IDs
-          const filteredDocs = allSnapshot.docs.filter(doc => 
+          const filteredDocs = allSnapshot.docs.filter(doc =>
             franchiseLocationIds.includes(doc.data().locationId)
           );
-          
+
           const productsData = filteredDocs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             createdAt: doc.data().createdAt?.toDate(),
             updatedAt: doc.data().updatedAt?.toDate()
           })) as Product[];
-          
+
           // Sort products by name on the client side
           productsData.sort((a, b) => a.name.localeCompare(b.name));
-          
+
           setProducts(productsData);
           setLoading(false);
           return;
@@ -103,19 +115,29 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
         // For superadmin or admin without location selected, get all products
         q = query(collection(db, 'products'));
       }
-      
-      const querySnapshot = await getDocs(q);
-      
+
+      let querySnapshot;
+      try {
+        if (!navigator.onLine) {
+          querySnapshot = await getDocsFromCache(q);
+        } else {
+          querySnapshot = await getDocs(q);
+        }
+      } catch (error) {
+        console.warn('Network fetch failed for products, trying cache:', error);
+        querySnapshot = await getDocsFromCache(q);
+      }
+
       const productsData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate(),
         updatedAt: doc.data().updatedAt?.toDate()
       })) as Product[];
-      
+
       // Sort products by name on the client side instead of in the query
       productsData.sort((a, b) => a.name.localeCompare(b.name));
-      
+
       setProducts(productsData);
     } catch (err: any) {
       console.error('Error fetching products:', err);
@@ -135,7 +157,7 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
       // Determine the locationId and franchiseId to use
       let locationId = null;
       let franchiseId = null;
-      
+
       if (currentLocation) {
         locationId = currentLocation.id;
         franchiseId = currentLocation.franchiseId || currentUser?.franchiseId;
@@ -143,11 +165,11 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
         locationId = currentUser.locationId;
         franchiseId = currentUser.franchiseId;
       }
-      
+
       if (!locationId && (currentUser?.role !== 'superadmin')) {
         throw new Error('No location available. Please select a location or contact an administrator.');
       }
-      
+
       const docRef = await addDoc(collection(db, 'products'), {
         ...data,
         quantity: 0, // New products start with 0 quantity
@@ -156,7 +178,7 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-      
+
       await refreshProducts();
     } catch (err: any) {
       console.error('Error adding product:', err);
@@ -173,7 +195,7 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
         ...data,
         updatedAt: serverTimestamp()
       });
-      
+
       await refreshProducts();
     } catch (err: any) {
       console.error('Error updating product:', err);
@@ -208,5 +230,5 @@ export const ProductProvider: React.FC<ProductProviderProps> = ({ children }) =>
     <ProductContext.Provider value={value}>
       {children}
     </ProductContext.Provider>
-  );
+  ) as any;
 };

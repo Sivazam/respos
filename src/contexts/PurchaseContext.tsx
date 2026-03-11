@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, query, where, orderBy, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, getDocsFromCache, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { Purchase, PurchaseFormData } from '../types';
 import { useProducts } from './ProductContext';
@@ -48,9 +48,14 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
           collection(db, 'purchases'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let allSnapshot;
+        try {
+          allSnapshot = await getDocs(q);
+        } catch (err) {
+          allSnapshot = await getDocsFromCache(q);
+        }
         querySnapshot = {
-          docs: allSnapshot.docs.filter(doc => doc.data().locationId === currentLocation.id)
+          docs: allSnapshot.docs.filter(doc => (doc.data() as any).locationId === currentLocation.id)
         };
       } else if (currentUser?.role === 'staff' && currentUser?.locationId) {
         // Staff can only see purchases from their location
@@ -79,14 +84,24 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
             collection(db, 'purchases'),
             orderBy('createdAt', 'desc')
           );
-          const allSnapshot = await getDocs(q);
+          let allSnapshot;
+          try {
+            allSnapshot = await getDocs(q);
+          } catch (err) {
+            allSnapshot = await getDocsFromCache(q);
+          }
 
           // Get all locations for this admin's franchise
           const locationsQuery = query(
             collection(db, 'locations'),
             where('franchiseId', '==', currentUser.franchiseId)
           );
-          const locationsSnapshot = await getDocs(locationsQuery);
+          let locationsSnapshot;
+          try {
+            locationsSnapshot = await getDocs(locationsQuery);
+          } catch (err) {
+            locationsSnapshot = await getDocsFromCache(locationsQuery);
+          }
           const franchiseLocationIds = locationsSnapshot.docs.map(doc => doc.id);
 
           // Filter purchases by franchise location IDs
@@ -105,14 +120,25 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
           collection(db, 'purchases'),
           orderBy('createdAt', 'desc')
         );
-        querySnapshot = await getDocs(q);
+        try {
+          if (!navigator.onLine) {
+            querySnapshot = await getDocsFromCache(q);
+          } else {
+            querySnapshot = await getDocs(q);
+          }
+        } catch (error) {
+          querySnapshot = await getDocsFromCache(q);
+        }
       }
 
-      const purchasesData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate()
-      })) as Purchase[];
+      const purchasesData = querySnapshot.docs.map(doc => {
+        const data = doc.data() as any;
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate?.() || data.createdAt
+        };
+      }) as Purchase[];
 
       setPurchases(purchasesData);
     } catch (err: any) {
@@ -185,5 +211,5 @@ export const PurchaseProvider: React.FC<PurchaseProviderProps> = ({ children }) 
     <PurchaseContext.Provider value={value}>
       {children}
     </PurchaseContext.Provider>
-  );
+  ) as any;
 };

@@ -2,12 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useAuth } from '../../contexts/AuthContext';
-import { useLocations } from '../../contexts/LocationContext';
 import { format } from 'date-fns';
-import { 
-  Search, 
-  Clock, 
-  AlertCircle, 
+import {
+  Search,
+  Clock,
+  AlertCircle,
   Eye,
   Edit,
   Printer,
@@ -19,7 +18,6 @@ import {
 } from 'lucide-react';
 import Input from '../../components/ui/Input';
 import FinalReceiptModal from '../../components/order/FinalReceiptModal';
-import CouponSelectionModal from '../../components/order/CouponSelectionModal';
 import EnhancedCouponSelectionModal from '../../components/order/EnhancedCouponSelectionModal';
 import CustomerInfoAndPaymentModal from '../../components/CustomerInfoAndPaymentModal';
 import PaymentReceivedModal from '../../components/order/PaymentReceivedModal';
@@ -31,17 +29,17 @@ import toast from 'react-hot-toast';
 // Helper function to calculate total discount from OrderCoupons
 const calculateTotalDiscount = (order: any): number => {
   if (!order.appliedCoupon) return 0;
-  
+
   // Handle new OrderCoupons format
   if (order.appliedCoupon.dishCoupons || order.appliedCoupon.regularCoupon) {
     const { totalDiscount } = couponService.calculateTotalDiscount(
-      order.appliedCoupon, 
+      order.appliedCoupon,
       order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0,
       order.items || []
     );
     return totalDiscount;
   }
-  
+
   // Handle old single coupon format (backward compatibility)
   return order.appliedCoupon.discountAmount || 0;
 };
@@ -49,78 +47,78 @@ const calculateTotalDiscount = (order: any): number => {
 // Helper function to format coupon display text
 const formatCouponDisplay = (order: any): { text: string; details: string[]; type: 'regular' | 'dish' | 'mixed'; color: string } => {
   console.log('🔍🔍🔍 formatCouponDisplay CALLED - order.appliedCoupon:', order.appliedCoupon);
-  
+
   if (!order.appliedCoupon) return { text: '', details: [], type: 'regular', color: 'text-green-600' };
-  
+
   // Handle new OrderCoupons format
   if (order.appliedCoupon.dishCoupons || order.appliedCoupon.regularCoupon) {
     const regularCoupon = order.appliedCoupon.regularCoupon;
     const dishCoupons = order.appliedCoupon.dishCoupons || [];
     const details: string[] = [];
-    
+
     // Add regular coupon details
     if (regularCoupon) {
       details.push(`${regularCoupon.name}: -₹${regularCoupon.discountAmount.toFixed(2)}`);
     }
-    
+
     // Add dish coupon details
-    dishCoupons.forEach(dishCoupon => {
+    dishCoupons.forEach((dishCoupon: any) => {
       details.push(`${dishCoupon.dishName}: -₹${dishCoupon.discountAmount.toFixed(2)}`);
     });
-    
+
     console.log('🔍🔍🔍 formatCouponDisplay - dishCoupons:', dishCoupons);
     console.log('🔍🔍🔍 formatCouponDisplay - details:', details);
-    
+
     if (regularCoupon && dishCoupons.length > 0) {
       const couponCount = 1 + dishCoupons.length;
-      const result = { 
-        text: `${couponCount} Coupons Applied`, 
+      const result = {
+        text: `${couponCount} Coupons Applied`,
         details,
-        type: 'mixed', 
-        color: 'text-green-600' 
+        type: 'mixed' as any,
+        color: 'text-green-600'
       };
       console.log('🔍🔍🔍 formatCouponDisplay - mixed result:', result);
       return result;
     } else if (regularCoupon) {
-      return { 
-        text: `Coupon: ${regularCoupon.name}`, 
+      return {
+        text: `Coupon: ${regularCoupon.name}`,
         details: [`${regularCoupon.name}: -₹${regularCoupon.discountAmount.toFixed(2)}`],
-        type: 'regular', 
-        color: 'text-green-600' 
+        type: 'regular',
+        color: 'text-green-600'
       };
     } else if (dishCoupons.length > 0) {
       const details: string[] = [];
-      
+
       // Add individual dish coupon details
-      dishCoupons.forEach(dishCoupon => {
+      dishCoupons.forEach((dishCoupon: any) => {
         details.push(`${dishCoupon.couponCode}: -₹${dishCoupon.discountAmount.toFixed(2)}`);
       });
-      
-      const result = { 
-        text: `${dishCoupons.length} Dish Coupons Applied`, 
+
+      const result = {
+        text: `${dishCoupons.length} Dish Coupons Applied`,
         details,
-        type: 'dish', 
-        color: 'text-orange-600' 
+        type: 'dish' as any,
+        color: 'text-orange-600'
       };
       console.log('🔍🔍🔍 formatCouponDisplay - dish result:', result);
       return result;
     }
   }
-  
+
   // Handle old single coupon format (backward compatibility)
   if (order.appliedCoupon.isDishCoupon) {
-    return { 
-      text: `Dish Coupon: ${order.appliedCoupon.name}`, 
+    return {
+      text: `Dish Coupon: ${order.appliedCoupon.name}`,
       details: [`${order.appliedCoupon.name}: -₹${order.appliedCoupon.discountAmount.toFixed(2)}`],
-      type: 'dish', 
-      color: 'text-orange-600' 
+      type: 'dish' as any,
+      color: 'text-orange-600'
     };
   } else {
-    return { 
-      text: `Coupon: ${order.appliedCoupon.name}`, 
+    return {
+      text: `Coupon: ${order.appliedCoupon.name}`,
       details: [`${order.appliedCoupon.name}: -₹${order.appliedCoupon.discountAmount.toFixed(2)}`],
-      type: 'regular', 
-      color: 'text-green-600' 
+      type: 'regular' as any,
+      color: 'text-green-600'
     };
   }
 };
@@ -128,7 +126,6 @@ const formatCouponDisplay = (order: any): { text: string; details: string[]; typ
 const ManagerPendingOrdersPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { currentLocation } = useLocations();
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -171,14 +168,14 @@ const ManagerPendingOrdersPage: React.FC = () => {
   useEffect(() => {
     const calculateTotals = async () => {
       const totals: { [key: string]: number } = {};
-      
+
       for (const pendingOrder of pendingOrders) {
         const order = pendingOrder.order || pendingOrder;
         if (!totals[order.id]) {
           totals[order.id] = await calculateOrderTotal(order);
         }
       }
-      
+
       setOrderTotals(totals);
     };
 
@@ -191,10 +188,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
   useEffect(() => {
     const fetchOrderDetails = async () => {
       const creators: { [key: string]: { email: string; role: string; displayName?: string } } = {};
-      
+
       for (const pendingOrder of pendingOrders) {
         const order = pendingOrder.order || pendingOrder;
-        
+
         // Fetch creator details if not already cached
         if (order.staffId && !creators[order.staffId]) {
           const creatorDetails = await orderService.getUserDetails(order.staffId);
@@ -202,7 +199,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
             creators[order.staffId] = creatorDetails;
           }
         }
-        
+
         // Fetch transferred by details if available and not already cached
         if (order.transferredBy && !creators[order.transferredBy]) {
           const transferDetails = await orderService.getUserDetails(order.transferredBy);
@@ -211,7 +208,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
           }
         }
       }
-      
+
       setOrderCreators(creators);
     };
 
@@ -225,7 +222,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
     const filtered = pendingOrders.filter(order => {
       const searchLower = searchTerm.toLowerCase();
       const orderData = order.order || order;
-      
+
       // Search filter
       const matchesSearch = (
         orderData.orderNumber?.toLowerCase().includes(searchLower) ||
@@ -233,7 +230,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         orderData.tableNames?.some((table: string) => table.toLowerCase().includes(searchLower)) ||
         orderData.items?.some((item: any) => item.name.toLowerCase().includes(searchLower))
       );
-      
+
       // Created by filter
       let matchesCreatedBy = true;
       if (createdByFilter === 'me') {
@@ -241,21 +238,21 @@ const ManagerPendingOrdersPage: React.FC = () => {
       } else if (createdByFilter === 'staff') {
         matchesCreatedBy = orderCreators[orderData.staffId]?.role === 'staff';
       }
-      
+
       return matchesSearch && matchesCreatedBy;
     });
-    
+
     // Ensure most recent orders are on top (sort by transferredAt or createdAt)
     return filtered.sort((a, b) => {
       const orderA = a.order || a;
       const orderB = b.order || b;
-      
+
       // Prefer transferredAt for manager orders, fallback to createdAt
-      const timeA = orderA.transferredAt ? new Date(orderA.transferredAt).getTime() : 
-                   orderA.createdAt ? new Date(orderA.createdAt).getTime() : 0;
-      const timeB = orderB.transferredAt ? new Date(orderB.transferredAt).getTime() : 
-                   orderB.createdAt ? new Date(orderB.createdAt).getTime() : 0;
-      
+      const timeA = orderA.transferredAt ? new Date(orderA.transferredAt).getTime() :
+        orderA.createdAt ? new Date(orderA.createdAt).getTime() : 0;
+      const timeB = orderB.transferredAt ? new Date(orderB.transferredAt).getTime() :
+        orderB.createdAt ? new Date(orderB.createdAt).getTime() : 0;
+
       return timeB - timeA; // descending (newest first)
     });
   }, [pendingOrders, searchTerm, createdByFilter, currentUser?.uid, orderCreators]);
@@ -263,14 +260,14 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle direct settlement when payment method is already available
   const handleDirectSettlement = async (order: any, paymentMethod: string) => {
     if (!order || !currentUser) return;
-    
+
     setIsProcessing(true);
-    
+
     try {
       console.log('🚀 Direct settlement started for order:', order.id, 'with payment method:', paymentMethod);
-      
+
       const total = orderTotals[order.id] || await calculateOrderTotal(order);
-      
+
       // Settle the order using orderService
       await orderService.settleOrder(order.id, {
         paymentMethod: paymentMethod,
@@ -278,26 +275,26 @@ const ManagerPendingOrdersPage: React.FC = () => {
         settledAt: new Date(),
         settledBy: currentUser.uid
       });
-      
+
       console.log('✅ Order settled directly without modal');
-      
+
       // Show success message
       toast.success(`Order #${order.orderNumber} settled successfully via ${paymentMethod.toUpperCase()}!`);
-      
+
       // Update local state to remove the settled order
-      setPendingOrders(prevOrders => 
+      setPendingOrders(prevOrders =>
         prevOrders.filter(pendingOrder => {
           const pendingOrderData = pendingOrder.order || pendingOrder;
           return pendingOrderData.id !== order.id;
         })
       );
-      
+
       // Clear selected order
       setSelectedOrder(null);
       setExistingCustomerData(null);
       setDataSource(undefined);
       setPendingAction(null);
-      
+
     } catch (error: any) {
       console.error('❌ Error in direct settlement:', error);
       toast.error(error.message || 'Failed to settle order. Please try again.');
@@ -309,41 +306,41 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle settle bill
   const handleSettleBill = async (order: any) => {
     const orderData = order.order || order;
-    
+
     // Find the latest order data from pendingOrders state
     const latestPendingOrder = pendingOrders.find(pendingOrder => {
       const pendingOrderData = pendingOrder.order || pendingOrder;
       return pendingOrderData.id === orderData.id;
     });
-    
+
     const latestOrderData = latestPendingOrder?.order || latestPendingOrder || orderData;
-    
+
     console.log('💰 Settle bill - latest data from pendingOrders:', {
       orderId: latestOrderData.id,
       paymentMethod: latestOrderData.paymentMethod,
       pendingPaymentMethod: latestOrderData.pendingPaymentMethod,
       customerInfo: latestOrderData.customerInfo
     });
-    
+
     setSelectedOrder(latestOrderData);
     setPendingAction('settle');
-    
+
     // Check if customer data and payment method are already collected
     try {
       // First check if data exists in order document
-      const hasOrderCustomerData = latestOrderData.customerInfo && 
+      const hasOrderCustomerData = latestOrderData.customerInfo &&
         (latestOrderData.customerInfo.name || latestOrderData.customerInfo.phone || latestOrderData.customerInfo.city);
       const hasOrderPaymentMethod = latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod;
-      
+
       let customerData = null;
       let paymentMethod = hasOrderPaymentMethod ? (latestOrderData.paymentMethod || latestOrderData.pendingPaymentMethod) : null;
       let firestoreCustomerData = null; // Declare variable in proper scope for handleSettleBill
-      
+
       // If not in order, check Firestore customer_data collection
       if (!hasOrderCustomerData || !hasOrderPaymentMethod) {
         const { fetchCustomerDataByOrderId } = await import('../../contexts/CustomerDataService');
         firestoreCustomerData = await fetchCustomerDataByOrderId(latestOrderData.id);
-        
+
         if (firestoreCustomerData) {
           customerData = {
             name: firestoreCustomerData.name,
@@ -359,18 +356,18 @@ const ManagerPendingOrdersPage: React.FC = () => {
         // Use data from order document
         customerData = latestOrderData.customerInfo;
       }
-      
+
       // Combine data for the modal
       const combinedCustomerData = customerData || {};
       // Don't default to 'cash' - use the actual payment method or let it be undefined
       const finalPaymentMethod = paymentMethod;
-      
+
       // Store existing customer data to pass to modal if needed
       setExistingCustomerData({
         ...combinedCustomerData,
         paymentMethod: finalPaymentMethod
       });
-      
+
       // Determine data source for UI badge
       let dataSourceValue: 'staff' | 'manager' | undefined;
       if (firestoreCustomerData) {
@@ -378,12 +375,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
       } else if (hasOrderPaymentMethod || hasOrderCustomerData) {
         dataSourceValue = 'manager'; // If data is in order document, it's from manager
       }
-      
+
       setDataSource(dataSourceValue);
-      
+
       const hasCustomerData = combinedCustomerData && (combinedCustomerData.name || combinedCustomerData.phone || combinedCustomerData.city);
       const hasPaymentMethod = finalPaymentMethod && finalPaymentMethod !== 'cash';
-      
+
       console.log('🧾 Settle bill - existing data:', {
         customerData: combinedCustomerData,
         paymentMethod: finalPaymentMethod,
@@ -393,7 +390,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         orderPaymentMethod: latestOrderData.paymentMethod,
         orderPendingPaymentMethod: latestOrderData.pendingPaymentMethod
       });
-      
+
       // SIMPLIFIED FLOW: If payment method is already provided, directly settle without any modal
       if (finalPaymentMethod) {
         console.log('✅ Payment method already available, settling directly:', finalPaymentMethod);
@@ -420,7 +417,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle edit order
   const handleEditOrder = (order: any) => {
     const orderData = order.order || order;
-    
+
     // Navigate to ManagerPOSPage with order data
     navigate('/manager/pos', {
       state: {
@@ -438,20 +435,20 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle print order
   const handlePrintOrder = async (order: any) => {
     const orderData = order.order || order;
-    
+
     // Find the latest order data from pendingOrders state
     const latestPendingOrder = pendingOrders.find(pendingOrder => {
       const pendingOrderData = pendingOrder.order || pendingOrder;
       return pendingOrderData.id === orderData.id;
     });
-    
+
     const latestOrderData = latestPendingOrder?.order || latestPendingOrder || orderData;
-    
+
     console.log('🖨️ Print order - printing directly without customer data collection:', {
       orderId: latestOrderData.id,
       customerInfo: latestOrderData.customerInfo
     });
-    
+
     // DIRECT PRINT FLOW: Always print directly without collecting customer data or payment method
     // Use handleSilentPrint to print the order without any modal
     handleSilentPrint(latestOrderData.id);
@@ -461,7 +458,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle silent print - direct printing without opening new window
   const handleSilentPrint = async (orderId: string) => {
     console.log('🖨️ Initiating silent print for order:', orderId);
-    
+
     try {
       // First, try to get the latest order data from local state
       let orderData = null;
@@ -469,7 +466,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         const pendingOrderData = pendingOrder.order || pendingOrder;
         return pendingOrderData.id === orderId;
       });
-      
+
       if (latestPendingOrder) {
         orderData = latestPendingOrder.order || latestPendingOrder;
         console.log('📄 Using latest order data from local state:', {
@@ -486,12 +483,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
           couponDiscount: orderData.appliedCoupon?.discountAmount
         });
       }
-      
+
       if (!orderData) {
         toast.error('Order not found');
         return;
       }
-      
+
       // Get franchise data for receipt formatting
       let franchiseData = null;
       if (orderData.locationId) {
@@ -502,10 +499,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
           console.warn('Could not fetch franchise data:', error);
         }
       }
-      
+
       // Generate HTML receipt content using the same format as FinalReceiptModal
       const receiptHTML = generateReceiptHTML(orderData, franchiseData, false);
-      
+
       // Try silent printing with your HTML format
       try {
         // Create a hidden iframe for silent printing
@@ -517,29 +514,26 @@ const ManagerPendingOrdersPage: React.FC = () => {
         iframe.style.height = '0';
         iframe.style.border = 'none';
         iframe.style.visibility = 'hidden';
-        
+
         document.body.appendChild(iframe);
-        
+
         const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
         if (iframeDoc) {
           iframeDoc.open();
           iframeDoc.write(receiptHTML);
           iframeDoc.close();
-          
+
           // Wait for content to load, then print silently
           iframe.onload = () => {
             setTimeout(() => {
               try {
-                iframe.contentWindow?.print({
-                  silent: true,
-                  printBackground: false
-                });
-                
+                (iframe.contentWindow as any)?.print();
+
                 // Remove iframe after printing
                 setTimeout(() => {
                   document.body.removeChild(iframe);
                 }, 1000);
-                
+
                 console.log('✅ Receipt printed successfully in background');
                 toast.success(`Receipt printed for Order #${orderData.orderNumber}`);
               } catch (printError) {
@@ -553,13 +547,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
         } else {
           throw new Error('Could not access iframe document');
         }
-        
+
         return; // Success path
-        
+
       } catch (silentPrintError) {
         console.warn('Silent printing not supported, using fallback:', silentPrintError);
       }
-      
+
       // Fallback function
       const fallbackPrintWindow = (orderId: string) => {
         const printUrl = `/print-receipt?id=${orderId}`;
@@ -570,14 +564,14 @@ const ManagerPendingOrdersPage: React.FC = () => {
           toast.error("Please allow pop-ups to enable printing.");
         }
       };
-      
+
       // Use fallback if silent printing failed
       fallbackPrintWindow(orderId);
-      
+
     } catch (error) {
       console.error('❌ Silent printing failed:', error);
       toast.error('Failed to print receipt. Please try again.');
-      
+
       // Fallback to opening print preview
       const printUrl = `/print-receipt?id=${orderId}`;
       const printWindow = window.open(printUrl, "_blank", "width=600,height=800");
@@ -603,7 +597,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
 
       try {
         let dateObj: Date;
-        
+
         if (dateInput?.toDate) {
           dateObj = dateInput.toDate();
         } else if (dateInput?.seconds) {
@@ -615,7 +609,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         } else {
           dateObj = new Date();
         }
-        
+
         return {
           date: dateObj.toLocaleDateString('en-IN'),
           time: dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
@@ -632,7 +626,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
       if (tableNames && tableNames.length > 0) {
         return tableNames.join(', ');
       }
-      
+
       if (tableIds && tableIds.length > 0) {
         const tableNumbers = tableIds.map(id => {
           const tableMatch = id.match(/table-(\d+)/i);
@@ -650,24 +644,24 @@ const ManagerPendingOrdersPage: React.FC = () => {
         });
         return tableNumbers.join(', ');
       }
-      
+
       return 'N/A';
     };
 
     const { date: receiptDate, time: receiptTime } = formatReceiptDate(order.completedAt || order.createdAt);
     const tableDisplay = getTableDisplay(order.tableNames, order.tableIds);
-    const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
-    
+    const logoUrl = franchiseData?.logoUrl;
+
     const subtotal = order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0;
     const cgst = order.cgstAmount || order.cgst || 0;
     const sgst = order.sgstAmount || order.sgst || 0;
     const discount = order.discount || 0;
     const couponAmount = calculateTotalDiscount(order);
     const grandTotal = Math.max(0, subtotal + cgst + sgst - discount - couponAmount);
-    
+
     // Get payment method
     const paymentMethod = order.paymentData?.paymentMethod || order.paymentMethod || order.pendingPaymentMethod || 'cash';
-    
+
     return `
 <!DOCTYPE html>
 <html>
@@ -702,9 +696,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
         }
         
         .logo img {
-            width: 160px;
-            height: auto;
-            max-height: auto;
+            width: 150px;
+            height: 150px;
+            max-width: 150px;
+            max-height: 150px;
             object-fit: contain;
         }
         
@@ -852,14 +847,16 @@ const ManagerPendingOrdersPage: React.FC = () => {
 </head>
 <body>
     <div class="receipt">
+        ${logoUrl ? `
         <div class="logo">
             <img src="${logoUrl}" alt="Restaurant Logo" />
         </div>
+        ` : ''}
         
         <div class="header">
             <div class="header-line">${franchiseData?.name || 'FORKFLOW POS'}</div>
-            <div class="header-subtitle">${franchiseData?.address || '123 Main Street, City'}</div>
-            <div class="header-subtitle">Phone: ${franchiseData?.phone || '+91 98765 43210'}</div>
+            ${franchiseData?.address ? `<div class="header-subtitle">${franchiseData.address}</div>` : ''}
+            ${franchiseData?.phone ? `<div class="header-subtitle">Phone: ${franchiseData.phone}</div>` : ''}
             ${franchiseData?.gstNumber ? `<div class="header-subtitle">GSTIN: ${franchiseData.gstNumber}</div>` : ''}
         </div>
         
@@ -867,11 +864,11 @@ const ManagerPendingOrdersPage: React.FC = () => {
         
         <div class="order-info">
             <div>Date: ${receiptDate}    Time: ${receiptTime}</div>
-            ${tableDisplay && tableDisplay !== 'N/A' ? 
-              `<div>Table: ${tableDisplay}</div>
-               <div>Order: #${order.orderNumber}</div>` : 
-              `<div>Order: #${order.orderNumber}</div>`
-            }
+            ${tableDisplay && tableDisplay !== 'N/A' ?
+        `<div>Table: ${tableDisplay}</div>
+               <div>Order: #${order.orderNumber}</div>` :
+        `<div>Order: #${order.orderNumber}</div>`
+      }
         </div>
         
         <div class="divider"></div>
@@ -884,26 +881,26 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 <div class="item-total">Total</div>
             </div>
             
-            ${order.items?.map(item => {
-              const itemName = item.name || 'Unknown Item';
-              const quantity = item.quantity || 1;
-              const price = item.price || 0;
-              const itemTotal = price * quantity;
-              const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
-              
-              return `
+            ${order.items?.map((item: any) => {
+        const itemName = item.name || 'Unknown Item';
+        const quantity = item.quantity || 1;
+        const price = item.price || 0;
+        const itemTotal = price * quantity;
+        const portionTag = item.portionSize === 'half' ? ' (Half)' : '';
+
+        return `
                 <div class="item">
                     <div class="item-name">${itemName}${portionTag}</div>
                     <div class="item-qty">${quantity}</div>
                     <div class="item-price">${formatPrice(price)}</div>
                     <div class="item-total">${formatPrice(itemTotal)}</div>
-                    ${item.modifications && item.modifications.length > 0 ? 
-                      `<div class="modifications">${item.modifications.join(', ')}</div>` : 
-                      ''
-                    }
+                    ${item.modifications && item.modifications.length > 0 ?
+            `<div class="modifications">${item.modifications.join(', ')}</div>` :
+            ''
+          }
                 </div>
               `;
-            }).join('') || ''}
+      }).join('') || ''}
         </div>
         
         <div class="divider"></div>
@@ -932,42 +929,42 @@ const ManagerPendingOrdersPage: React.FC = () => {
               </div>
             ` : ''}
             ${(() => {
-              const couponDisplay = formatCouponDisplay(order);
-              const couponAmount = calculateTotalDiscount(order);
-              
-              if (couponAmount > 0) {
-                console.log('🔍 Receipt generation - couponDisplay.text:', couponDisplay.text);
-                console.log('🔍 Receipt generation - couponDisplay.details:', couponDisplay.details);
-                console.log('🔍 Receipt generation - timestamp:', new Date().toISOString());
-                
-                // Show individual dish coupons from details
-                let couponHTML = '';
-                
-                if (couponDisplay.type === 'dish' || couponDisplay.type === 'mixed') {
-                  // For dish coupons, show each one individually
-                  couponDisplay.details.forEach(detail => {
-                    const [couponCode, amount] = detail.split(': -₹');
-                    couponHTML += `
+        const couponDisplay = formatCouponDisplay(order);
+        const couponAmount = calculateTotalDiscount(order);
+
+        if (couponAmount > 0) {
+          console.log('🔍 Receipt generation - couponDisplay.text:', couponDisplay.text);
+          console.log('🔍 Receipt generation - couponDisplay.details:', couponDisplay.details);
+          console.log('🔍 Receipt generation - timestamp:', new Date().toISOString());
+
+          // Show individual dish coupons from details
+          let couponHTML = '';
+
+          if (couponDisplay.type === 'dish' || couponDisplay.type === 'mixed') {
+            // For dish coupons, show each one individually
+            couponDisplay.details.forEach(detail => {
+              const [couponCode, amount] = detail.split(': -₹');
+              couponHTML += `
                       <div class="total-row">
                           <div class="total-label">Dish Coupon (${couponCode.trim()})</div>
                           <div class="total-value">-${amount.trim()}</div>
                       </div>
                     `;
-                  });
-                } else {
-                  // For regular coupons, show single line
-                  couponHTML = `
+            });
+          } else {
+            // For regular coupons, show single line
+            couponHTML = `
                     <div class="total-row">
                         <div class="total-label">${couponDisplay.text}</div>
                         <div class="total-value">-${formatPrice(couponAmount)}</div>
                     </div>
                   `;
-                }
-                
-                return couponHTML;
-              }
-              return '';
-            })()}
+          }
+
+          return couponHTML;
+        }
+        return '';
+      })()}
             <div class="total-row grand-total">
                 <div class="total-label">Grand Total</div>
                 <div class="total-value">${formatPrice(grandTotal)}</div>
@@ -1016,13 +1013,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle unified modal confirmation
   const handleUnifiedModalConfirm = async (customerData: { name?: string; phone?: string; city?: string }, paymentMethod: string) => {
     if (!selectedOrder || !currentUser) return;
-    
+
     setIsProcessing(true);
-    
+
     try {
       // Save customer data and payment method to Firestore
       const { upsertCustomerData } = await import('../../contexts/CustomerDataService');
-      
+
       console.log('🔍 Debug - ManagerPendingOrdersPage saving data with:', {
         orderId: selectedOrder.id,
         customerData: {
@@ -1032,28 +1029,28 @@ const ManagerPendingOrdersPage: React.FC = () => {
         userId: currentUser?.uid,
         locationId: selectedOrder.locationId
       });
-      
+
       await upsertCustomerData(
-        selectedOrder.id, 
+        selectedOrder.id,
         {
           ...customerData,
           paymentMethod: paymentMethod as 'cash' | 'card' | 'upi'
-        }, 
-        'manager', 
+        },
+        'manager',
         Date.now(),
         currentUser?.uid || 'unknown',
         selectedOrder.locationId || 'unknown',
         currentUser?.franchiseId
       );
       console.log('✅ Customer data and payment method saved by manager');
-      
+
       // Update order document with customer info and payment method
       await orderService.updateOrder(selectedOrder.id, {
         customerInfo: customerData,
         paymentMethod: paymentMethod
       }, currentUser.uid);
       console.log('✅ Order document updated with customer info and payment method');
-      
+
       // Update local state
       const updatedOrder = {
         ...selectedOrder,
@@ -1062,7 +1059,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         pendingPaymentMethod: paymentMethod
       };
       setSelectedOrder(updatedOrder);
-      
+
       // Update the pendingOrders state to reflect the changes
       setPendingOrders(prevOrders => {
         const updatedOrders = prevOrders.map(pendingOrder => {
@@ -1088,18 +1085,18 @@ const ManagerPendingOrdersPage: React.FC = () => {
           }
           return pendingOrder;
         });
-        
+
         console.log('📋 Updated pendingOrders state:', updatedOrders.map(o => ({
           id: (o.order || o).id,
           paymentMethod: (o.order || o).paymentMethod,
           pendingPaymentMethod: (o.order || o).pendingPaymentMethod
         })));
-        
+
         return updatedOrders;
       });
-      
+
       setShowUnifiedModal(false);
-      
+
       // Handle based on which flow we're in
       if (pendingAction === 'settle') {
         // Settle flow - directly settle the order after collecting payment method
@@ -1107,10 +1104,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
           orderId: updatedOrder.id,
           paymentMethod: paymentMethod
         });
-        
+
         // Use the handleDirectSettlement function to settle the order
         await handleDirectSettlement(updatedOrder, paymentMethod);
-        
+
         // Clear existing customer data after settlement
         setExistingCustomerData(null);
         setDataSource(undefined);
@@ -1121,12 +1118,12 @@ const ManagerPendingOrdersPage: React.FC = () => {
           orderId: updatedOrder.id,
           paymentMethod: paymentMethod
         });
-        
+
         // Use the handleSilentPrint function to print the order
         handleSilentPrint(updatedOrder.id);
-        
+
         toast.success('Payment method selected! Printing receipt...');
-        
+
         // Clear pending action and existing customer data
         setPendingAction(null);
         setExistingCustomerData(null);
@@ -1138,7 +1135,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         setExistingCustomerData(null);
         setDataSource(undefined);
       }
-      
+
     } catch (error: any) {
       console.error('Error processing unified modal:', error);
       toast.error(error.message || 'Failed to process request');
@@ -1150,19 +1147,19 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle settlement confirmation
   const handleSettlementConfirmation = async () => {
     if (!selectedOrder || !currentUser) return;
-    
+
     setIsProcessing(true);
     try {
       const total = orderTotals[selectedOrder.id] || await calculateOrderTotal(selectedOrder);
       const paymentMethod = selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || 'cash';
-      
+
       await orderService.settleOrder(selectedOrder.id, {
         paymentMethod: paymentMethod,
         amount: total,
         settledAt: new Date(),
         settledBy: currentUser.uid
       });
-      
+
       toast.success('Payment received and order settled!');
       setShowSettlementConfirmationModal(false);
       setSelectedOrder(null);
@@ -1180,21 +1177,21 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Handle payment received confirmation
   const handlePaymentReceivedConfirm = async () => {
     if (!selectedOrder || !currentUser) return;
-    
+
     setIsProcessing(true);
     try {
       const total = orderTotals[selectedOrder.id] || await calculateOrderTotal(selectedOrder);
-      
+
       // Use pendingPaymentMethod from the selected order
       const paymentMethodToUse = selectedOrder.pendingPaymentMethod;
-      
+
       if (!paymentMethodToUse) {
         toast.error('No payment method selected. Please select a payment method first.');
         setShowPaymentReceivedModal(false);
         setShowUnifiedModal(true);
         return;
       }
-      
+
       // Settle the existing order using orderService (this will update it to completed status)
       await orderService.settleOrder(selectedOrder.id, {
         paymentMethod: paymentMethodToUse,
@@ -1202,7 +1199,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         settledAt: new Date(),
         settledBy: currentUser.uid
       });
-      
+
       toast.success('Payment received and order settled!');
       setShowPaymentReceivedModal(false);
       setSelectedOrder(null);
@@ -1226,7 +1223,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
     if (tableNames && tableNames.length > 0) {
       return tableNames.join(', ');
     }
-    
+
     if (tableIds && tableIds.length > 0) {
       const tableNumbers = tableIds.map(id => {
         const tableMatch = id.match(/table-(\d+)/i);
@@ -1244,7 +1241,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
       });
       return tableNumbers.join(', ');
     }
-    
+
     return 'N/A';
   };
 
@@ -1252,7 +1249,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
   // Calculate order total
   const calculateOrderTotal = async (order: any) => {
     const subtotal = order.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0;
-    
+
     // Use the order's existing tax calculations if available
     if (order.gstAmount !== undefined) {
       const total = subtotal + order.gstAmount;
@@ -1260,7 +1257,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
       const couponAmount = calculateTotalDiscount(order);
       return Math.max(0, total - couponAmount);
     }
-    
+
     // Otherwise, calculate using location GST settings
     if (order.locationId) {
       try {
@@ -1278,7 +1275,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
         return Math.max(0, total - couponAmount);
       }
     }
-    
+
     // Fallback to subtotal only (0% GST)
     const total = subtotal;
     const couponAmount = calculateTotalDiscount(order);
@@ -1313,13 +1310,14 @@ const ManagerPendingOrdersPage: React.FC = () => {
         appliedCoupon: totalDiscount > 0 ? cleanOrderCoupons : null
       };
 
-      // Update the order in Firestore
-      await orderService.updateOrder(selectedOrderForCoupon.id, {
-        appliedCoupon: updatedOrder.appliedCoupon
-      }, currentUser.uid);
+      if (currentUser) {
+        await orderService.updateOrder(selectedOrderForCoupon.id, {
+          appliedCoupon: updatedOrder.appliedCoupon
+        }, currentUser.uid);
+      }
 
       // Update local state
-      setPendingOrders(prevOrders => 
+      setPendingOrders(prevOrders =>
         prevOrders.map(pendingOrder => {
           const orderData = pendingOrder.order || pendingOrder;
           if (orderData.id === selectedOrderForCoupon.id) {
@@ -1358,7 +1356,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
     const now = new Date().getTime();
     const created = new Date(orderCreatedAt).getTime();
     const minutes = Math.floor((now - created) / (1000 * 60));
-    
+
     if (minutes < 5) return { text: `${minutes}m`, color: 'text-green-600' };
     if (minutes < 15) return { text: `${minutes}m`, color: 'text-yellow-600' };
     return { text: `${minutes}m`, color: 'text-red-600' };
@@ -1383,38 +1381,35 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 {loading ? 'Loading...' : `${filteredOrders.length} orders found`}
               </div>
             </div>
-            
+
             {/* Created By Filter - Mobile Responsive */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               <span className="text-sm font-medium text-gray-700">Created By:</span>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setCreatedByFilter('all')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${
-                    createdByFilter === 'all'
-                      ? 'bg-gray-800 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${createdByFilter === 'all'
+                    ? 'bg-gray-800 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                 >
                   All
                 </button>
                 <button
                   onClick={() => setCreatedByFilter('staff')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${
-                    createdByFilter === 'staff'
-                      ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${createdByFilter === 'staff'
+                    ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                 >
                   Staff
                 </button>
                 <button
                   onClick={() => setCreatedByFilter('me')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${
-                    createdByFilter === 'me'
-                      ? 'bg-green-100 text-green-800 border border-green-200'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 transform active:scale-95 ${createdByFilter === 'me'
+                    ? 'bg-green-100 text-green-800 border border-green-200'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                 >
                   Me
                 </button>
@@ -1440,8 +1435,8 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 <div>
                   <h3 className="text-lg sm:text-xl font-medium text-gray-900 mb-2">No pending orders</h3>
                   <p className="text-sm sm:text-base text-gray-500">
-                    {searchTerm || createdByFilter !== 'all' 
-                      ? 'No orders match your filters' 
+                    {searchTerm || createdByFilter !== 'all'
+                      ? 'No orders match your filters'
                       : 'No pending orders at the moment'
                     }
                   </p>
@@ -1457,7 +1452,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                 const order = pendingOrder.order || pendingOrder;
                 const waitTime = getOrderWaitTime(order.createdAt || order.transferredAt);
                 const total = orderTotals[order.id] || 0;
-                
+
                 return (
                   <div key={pendingOrder.id || order.id} className="bg-white shadow rounded-lg overflow-hidden hover:shadow-md transition-shadow duration-200">
                     {/* Mobile Card Header */}
@@ -1467,11 +1462,10 @@ const ManagerPendingOrdersPage: React.FC = () => {
                           <div>
                             <h3 className="text-lg font-bold text-gray-900">#{order.orderNumber}</h3>
                             <div className="flex items-center space-x-2 text-sm text-gray-600">
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                order.orderType === 'dinein' 
-                                  ? 'bg-blue-100 text-blue-800' 
-                                  : 'bg-green-100 text-green-800'
-                              }`}>
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${order.orderType === 'dinein'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                                }`}>
                                 {order.orderType === 'dinein' ? 'Dine-in' : 'Delivery'}
                               </span>
                               {order.tableIds && (
@@ -1544,14 +1538,13 @@ const ManagerPendingOrdersPage: React.FC = () => {
                     {(() => {
                       const couponDisplay = formatCouponDisplay(order);
                       const couponAmount = calculateTotalDiscount(order);
-                      
+
                       if (couponAmount > 0) {
                         return (
-                          <div className={`px-4 py-2 sm:px-6 border-b ${
-                            couponDisplay.type === 'dish' || couponDisplay.type === 'mixed'
-                              ? 'bg-orange-50 border-orange-100' 
-                              : 'bg-green-50 border-green-100'
-                          }`}>
+                          <div className={`px-4 py-2 sm:px-6 border-b ${couponDisplay.type === 'dish' || couponDisplay.type === 'mixed'
+                            ? 'bg-orange-50 border-orange-100'
+                            : 'bg-green-50 border-green-100'
+                            }`}>
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center space-x-2">
                                 {couponDisplay.type === 'dish' || couponDisplay.type === 'mixed' ? (
@@ -1570,9 +1563,8 @@ const ManagerPendingOrdersPage: React.FC = () => {
                                   </>
                                 )}
                               </div>
-                              <span className={`text-sm font-semibold ${
-                                couponDisplay.type === 'dish' || couponDisplay.type === 'mixed' ? 'text-orange-600' : 'text-green-600'
-                              }`}>
+                              <span className={`text-sm font-semibold ${couponDisplay.type === 'dish' || couponDisplay.type === 'mixed' ? 'text-orange-600' : 'text-green-600'
+                                }`}>
                                 -₹{couponAmount.toFixed(2)}
                               </span>
                             </div>
@@ -1610,7 +1602,7 @@ const ManagerPendingOrdersPage: React.FC = () => {
                             <span>Print</span>
                           </button>
                         </div>
-                        
+
                         {/* Secondary Actions */}
                         <div className="flex gap-2">
                           <button
@@ -1650,339 +1642,339 @@ const ManagerPendingOrdersPage: React.FC = () => {
             </div>
           )}
 
-      {/* View Order Modal */}
-      {showViewOrderModal && selectedOrder && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
+          {/* View Order Modal */}
+          {showViewOrderModal && selectedOrder && (
+            <div className="fixed inset-0 z-50 overflow-y-auto">
+              <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                  <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                </div>
 
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                      Order #{selectedOrder.orderNumber}
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="font-semibold text-gray-700">Customer Information</h4>
-                        <p className="text-sm text-gray-600">{selectedOrder.customerName || 'Guest'}</p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-semibold text-gray-700">Items</h4>
-                        <div className="space-y-2">
-                          {selectedOrder.items?.map((item: any, index: number) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span>{item.quantity}x {item.name}</span>
-                              <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="w-full">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                          Order #{selectedOrder.orderNumber}
+                        </h3>
+
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="font-semibold text-gray-700">Customer Information</h4>
+                            <p className="text-sm text-gray-600">{selectedOrder.customerName || 'Guest'}</p>
+                          </div>
+
+                          <div>
+                            <h4 className="font-semibold text-gray-700">Items</h4>
+                            <div className="space-y-2">
+                              {selectedOrder.items?.map((item: any, index: number) => (
+                                <div key={index} className="flex justify-between text-sm">
+                                  <span>{item.quantity}x {item.name}</span>
+                                  <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="border-t pt-4">
-                        <div className="flex justify-between font-semibold">
-                          <span>Total:</span>
-                          <span>₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</span>
+                          </div>
+
+                          <div className="border-t pt-4">
+                            <div className="flex justify-between font-semibold">
+                              <span>Total:</span>
+                              <span>₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="button"
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      onClick={() => {
+                        setShowViewOrderModal(false);
+                        setSelectedOrder(null);
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => {
-                    setShowViewOrderModal(false);
-                    setSelectedOrder(null);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Unified Customer Info and Payment Modal */}
-      {showUnifiedModal && selectedOrder && (
-        <CustomerInfoAndPaymentModal
-          isOpen={showUnifiedModal}
-          onClose={() => {
-            setShowUnifiedModal(false);
-            setSelectedOrder(null);
-            setPendingAction(null);
-            setExistingCustomerData(null);
-            setDataSource(undefined);
-          }}
-          onConfirm={handleUnifiedModalConfirm}
-          order={{
-            orderId: selectedOrder.orderNumber,
-            tableNumber: getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames),
-            totalAmount: orderTotals[selectedOrder.id] || 0
-          }}
-          initialCustomerInfo={existingCustomerData ? {
-        name: existingCustomerData.name,
-        phone: existingCustomerData.phone,
-        city: existingCustomerData.city
-      } : undefined}
-          initialPaymentMethod={existingCustomerData?.paymentMethod || selectedOrder.pendingPaymentMethod || selectedOrder.paymentMethod}
-          isStaffOrder={!!selectedOrder.staffId && selectedOrder.staffId !== currentUser?.uid}
-          pendingAction={pendingAction || undefined}
-          dataSource={dataSource}
-        />
-      )}
+          {/* Unified Customer Info and Payment Modal */}
+          {showUnifiedModal && selectedOrder && (
+            <CustomerInfoAndPaymentModal
+              isOpen={showUnifiedModal}
+              onClose={() => {
+                setShowUnifiedModal(false);
+                setSelectedOrder(null);
+                setPendingAction(null);
+                setExistingCustomerData(null);
+                setDataSource(undefined);
+              }}
+              onConfirm={handleUnifiedModalConfirm}
+              order={{
+                orderId: selectedOrder.orderNumber,
+                tableNumber: getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames),
+                totalAmount: orderTotals[selectedOrder.id] || 0
+              }}
+              initialCustomerInfo={existingCustomerData ? {
+                name: existingCustomerData.name || '',
+                phone: existingCustomerData.phone || '',
+                city: existingCustomerData.city || ''
+              } as any : undefined}
+              initialPaymentMethod={existingCustomerData?.paymentMethod || selectedOrder.pendingPaymentMethod || selectedOrder.paymentMethod}
+              isStaffOrder={!!selectedOrder.staffId && selectedOrder.staffId !== currentUser?.uid}
+              pendingAction={pendingAction || undefined}
+              dataSource={dataSource}
+            />
+          )}
 
-      {/* Final Receipt Modal */}
-      {showReceiptModal && selectedOrder && (
-        <FinalReceiptModal
-          isOpen={showReceiptModal}
-          onClose={() => {
-            setShowReceiptModal(false);
-            setSelectedOrder(null);
-          }}
-          order={{
-            ...selectedOrder,
-            paymentData: selectedOrder.paymentData || {
-              paymentMethod: selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod,
-              amount: orderTotals[selectedOrder.id] || 0,
-              settledAt: new Date()
-            }
-          }}
-          paymentMethod={selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || 'cash'}
-          isReadOnly={false}
-          onEditPaymentMethod={handleEditPaymentMethod}
-        />
-      )}
+          {/* Final Receipt Modal */}
+          {showReceiptModal && selectedOrder && (
+            <FinalReceiptModal
+              isOpen={showReceiptModal}
+              onClose={() => {
+                setShowReceiptModal(false);
+                setSelectedOrder(null);
+              }}
+              order={{
+                ...selectedOrder,
+                paymentData: selectedOrder.paymentData || {
+                  paymentMethod: selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod,
+                  amount: orderTotals[selectedOrder.id] || 0,
+                  settledAt: new Date()
+                }
+              }}
+              paymentMethod={selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || 'cash'}
+              isReadOnly={false}
+              onEditPaymentMethod={handleEditPaymentMethod}
+            />
+          )}
 
-      {/* Coupon Modal */}
-      {showCouponModal && selectedOrderForCoupon && (
-        <EnhancedCouponSelectionModal
-          isOpen={showCouponModal}
-          onClose={() => {
-            setShowCouponModal(false);
-            setSelectedOrderForCoupon(null);
-          }}
-          onApplyCoupons={handleCouponSubmit}
-          orderSubtotal={selectedOrderForCoupon.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0}
-          orderItems={selectedOrderForCoupon.items || []}
-          existingCoupons={selectedOrderForCoupon.appliedCoupon}
-        />
-      )}
+          {/* Coupon Modal */}
+          {showCouponModal && selectedOrderForCoupon && (
+            <EnhancedCouponSelectionModal
+              isOpen={showCouponModal}
+              onClose={() => {
+                setShowCouponModal(false);
+                setSelectedOrderForCoupon(null);
+              }}
+              onApplyCoupons={handleCouponSubmit}
+              orderSubtotal={selectedOrderForCoupon.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0}
+              orderItems={selectedOrderForCoupon.items || []}
+              existingCoupons={selectedOrderForCoupon.appliedCoupon}
+            />
+          )}
 
-      {/* Payment Received Modal */}
-      <PaymentReceivedModal
-        isOpen={showPaymentReceivedModal}
-        onClose={() => {
-          setShowPaymentReceivedModal(false);
-          setSelectedOrder(null);
-        }}
-        onConfirm={handlePaymentReceivedConfirm}
-        isProcessing={isProcessing}
-      />
+          {/* Payment Received Modal */}
+          <PaymentReceivedModal
+            isOpen={showPaymentReceivedModal}
+            onClose={() => {
+              setShowPaymentReceivedModal(false);
+              setSelectedOrder(null);
+            }}
+            onConfirm={handlePaymentReceivedConfirm}
+            isProcessing={isProcessing}
+          />
 
-      {/* Settlement Confirmation Modal */}
-      {showSettlementConfirmationModal && selectedOrder && (
-        <SettlementConfirmationModal
-          isOpen={showSettlementConfirmationModal}
-          onClose={() => {
-            setShowSettlementConfirmationModal(false);
-            setSelectedOrder(null);
-            setExistingCustomerData(null);
-            setDataSource(undefined);
-            setPendingAction(null);
-          }}
-          onConfirm={handleSettlementConfirmation}
-          order={{
-            orderNumber: selectedOrder.orderNumber,
-            tableNumber: getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames),
-            totalAmount: orderTotals[selectedOrder.id] || 0
-          }}
-          customerInfo={selectedOrder.customerInfo || existingCustomerData}
-          paymentMethod={selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || existingCustomerData?.paymentMethod}
-          isProcessing={isProcessing}
-        />
-      )}
+          {/* Settlement Confirmation Modal */}
+          {showSettlementConfirmationModal && selectedOrder && (
+            <SettlementConfirmationModal
+              isOpen={showSettlementConfirmationModal}
+              onClose={() => {
+                setShowSettlementConfirmationModal(false);
+                setSelectedOrder(null);
+                setExistingCustomerData(null);
+                setDataSource(undefined);
+                setPendingAction(null);
+              }}
+              onConfirm={handleSettlementConfirmation}
+              order={{
+                orderNumber: selectedOrder.orderNumber,
+                tableNumber: getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames),
+                totalAmount: orderTotals[selectedOrder.id] || 0
+              }}
+              customerInfo={selectedOrder.customerInfo || existingCustomerData}
+              paymentMethod={selectedOrder.paymentMethod || selectedOrder.pendingPaymentMethod || existingCustomerData?.paymentMethod}
+              isProcessing={isProcessing}
+            />
+          )}
 
-      {/* View Order Modal */}
-      {showViewOrderModal && selectedOrder && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
+          {/* View Order Modal */}
+          {showViewOrderModal && selectedOrder && (
+            <div className="fixed inset-0 z-50 overflow-y-auto">
+              <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                  <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                </div>
 
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                      Order Details - #{selectedOrder.orderNumber}
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="font-semibold text-gray-700">Customer Information</h4>
-                        <p className="text-sm text-gray-600">Name: {selectedOrder.customerName || 'Guest'}</p>
-                        <p className="text-sm text-gray-600">Type: {selectedOrder.orderType === 'dinein' ? 'Dine-in' : 'Delivery'}</p>
-                        <p className="text-sm text-gray-600">Table: {getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames)}</p>
-                        <p className="text-sm text-gray-600">Date: {format(new Date(selectedOrder.createdAt), 'dd MMM yyyy, HH:mm')}</p>
-                      </div>
+                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="w-full">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                          Order Details - #{selectedOrder.orderNumber}
+                        </h3>
 
-                      <div>
-                        <h4 className="font-semibold text-gray-700">Order Items</h4>
-                        <div className="mt-2 space-y-2">
-                          {selectedOrder.items?.map((item: any, index: number) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span>{item.quantity}x {item.name}</span>
-                              <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="font-semibold text-gray-700">Customer Information</h4>
+                            <p className="text-sm text-gray-600">Name: {selectedOrder.customerName || 'Guest'}</p>
+                            <p className="text-sm text-gray-600">Type: {selectedOrder.orderType === 'dinein' ? 'Dine-in' : 'Delivery'}</p>
+                            <p className="text-sm text-gray-600">Table: {getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames)}</p>
+                            <p className="text-sm text-gray-600">Date: {format(new Date(selectedOrder.createdAt), 'dd MMM yyyy, HH:mm')}</p>
+                          </div>
+
+                          <div>
+                            <h4 className="font-semibold text-gray-700">Order Items</h4>
+                            <div className="mt-2 space-y-2">
+                              {selectedOrder.items?.map((item: any, index: number) => (
+                                <div key={index} className="flex justify-between text-sm">
+                                  <span>{item.quantity}x {item.name}</span>
+                                  <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                          </div>
 
-                      <div className="border-t pt-4">
-                        <div className="flex justify-between text-sm">
-                          <span>Subtotal:</span>
-                          <span>₹{selectedOrder.subtotal?.toFixed(2) || '0.00'}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>CGST:</span>
-                          <span>₹{((selectedOrder.cgstAmount || 0)).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>SGST:</span>
-                          <span>₹{((selectedOrder.sgstAmount || 0)).toFixed(2)}</span>
-                        </div>
-                        {(() => {
-                      const couponDisplay = formatCouponDisplay(selectedOrder);
-                      const couponAmount = calculateTotalDiscount(selectedOrder);
-                      
-                      if (couponAmount > 0) {
-                        return (
-                          <>
-                            <div className={`flex justify-between text-sm ${couponDisplay.color}`}>
-                              <span>{couponDisplay.text}:</span>
-                              <span>-₹{couponAmount.toFixed(2)}</span>
+                          <div className="border-t pt-4">
+                            <div className="flex justify-between text-sm">
+                              <span>Subtotal:</span>
+                              <span>₹{selectedOrder.subtotal?.toFixed(2) || '0.00'}</span>
                             </div>
-                            {/* Individual Coupon Details */}
-                            {couponDisplay.details.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {couponDisplay.details.map((detail, index) => (
-                                  <div key={index} className="text-xs text-gray-600 ml-4">
-                                    • {detail}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        );
-                      }
-                      return null;
-                    })()}
-                        <div className="flex justify-between font-semibold">
-                          <span>Total:</span>
-                          <span>₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</span>
+                            <div className="flex justify-between text-sm">
+                              <span>CGST:</span>
+                              <span>₹{((selectedOrder.cgstAmount || 0)).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>SGST:</span>
+                              <span>₹{((selectedOrder.sgstAmount || 0)).toFixed(2)}</span>
+                            </div>
+                            {(() => {
+                              const couponDisplay = formatCouponDisplay(selectedOrder);
+                              const couponAmount = calculateTotalDiscount(selectedOrder);
+
+                              if (couponAmount > 0) {
+                                return (
+                                  <>
+                                    <div className={`flex justify-between text-sm ${couponDisplay.color}`}>
+                                      <span>{couponDisplay.text}:</span>
+                                      <span>-₹{couponAmount.toFixed(2)}</span>
+                                    </div>
+                                    {/* Individual Coupon Details */}
+                                    {couponDisplay.details.length > 0 && (
+                                      <div className="mt-2 space-y-1">
+                                        {couponDisplay.details.map((detail, index) => (
+                                          <div key={index} className="text-xs text-gray-600 ml-4">
+                                            • {detail}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              }
+                              return null;
+                            })()}
+                            <div className="flex justify-between font-semibold">
+                              <span>Total:</span>
+                              <span>₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => {
-                    setShowViewOrderModal(false);
-                    setSelectedOrder(null);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Order Modal */}
-      {showEditOrderModal && selectedOrder && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
-
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                      Edit Order - #{selectedOrder.orderNumber}
-                    </h3>
-                    
-                    <div className="space-y-4">
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                        <p className="text-sm text-yellow-800">
-                          <strong>Note:</strong> To edit this order, you'll be redirected to the Manager POS page where you can modify the items.
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-semibold text-gray-700">Current Order Information</h4>
-                        <p className="text-sm text-gray-600">Customer: {selectedOrder.customerName || 'Guest'}</p>
-                        <p className="text-sm text-gray-600">Table: {getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames)}</p>
-                        <p className="text-sm text-gray-600">Items: {selectedOrder.items?.length || 0}</p>
-                        <p className="text-sm text-gray-600">Total: ₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</p>
-                      </div>
-                    </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="button"
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      onClick={() => {
+                        setShowViewOrderModal(false);
+                        setSelectedOrder(null);
+                      }}
+                    >
+                      Close
+                    </button>
                   </div>
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => {
-                    // Navigate to POS with order data for editing
-                    navigate('/pos', {
-                      state: {
-                        orderType: selectedOrder.orderType || 'dinein',
-                        tableIds: selectedOrder.tableIds || [],
-                        isOngoing: true,
-                        fromLocation: '/manager/pending-orders',
-                        orderId: selectedOrder.id
-                      }
-                    });
-                    setShowEditOrderModal(false);
-                    setSelectedOrder(null);
-                  }}
-                >
-                  Edit in POS
-                </button>
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => {
-                    setShowEditOrderModal(false);
-                    setSelectedOrder(null);
-                  }}
-                >
-                  Cancel
-                </button>
+            </div>
+          )}
+
+          {/* Edit Order Modal */}
+          {showEditOrderModal && selectedOrder && (
+            <div className="fixed inset-0 z-50 overflow-y-auto">
+              <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                  <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                </div>
+
+                <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                  <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="w-full">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                          Edit Order - #{selectedOrder.orderNumber}
+                        </h3>
+
+                        <div className="space-y-4">
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                            <p className="text-sm text-yellow-800">
+                              <strong>Note:</strong> To edit this order, you'll be redirected to the Manager POS page where you can modify the items.
+                            </p>
+                          </div>
+
+                          <div>
+                            <h4 className="font-semibold text-gray-700">Current Order Information</h4>
+                            <p className="text-sm text-gray-600">Customer: {selectedOrder.customerName || 'Guest'}</p>
+                            <p className="text-sm text-gray-600">Table: {getTableDisplayName(selectedOrder.tableIds, selectedOrder.tableNames)}</p>
+                            <p className="text-sm text-gray-600">Items: {selectedOrder.items?.length || 0}</p>
+                            <p className="text-sm text-gray-600">Total: ₹{(orderTotals[selectedOrder.id] || 0).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="button"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+                      onClick={() => {
+                        // Navigate to POS with order data for editing
+                        navigate('/pos', {
+                          state: {
+                            orderType: selectedOrder.orderType || 'dinein',
+                            tableIds: selectedOrder.tableIds || [],
+                            isOngoing: true,
+                            fromLocation: '/manager/pending-orders',
+                            orderId: selectedOrder.id
+                          }
+                        });
+                        setShowEditOrderModal(false);
+                        setSelectedOrder(null);
+                      }}
+                    >
+                      Edit in POS
+                    </button>
+                    <button
+                      type="button"
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      onClick={() => {
+                        setShowEditOrderModal(false);
+                        setSelectedOrder(null);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
         </div>
       </DashboardLayout>
     </>

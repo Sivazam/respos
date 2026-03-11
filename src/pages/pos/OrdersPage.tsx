@@ -56,11 +56,11 @@ const OrdersPage: React.FC = () => {
     if (sale) {
       const receipt: Receipt = {
         sale,
-        businessName: 'ForkFlow',
-        businessAddress: '123 Food Street, Bangalore, Karnataka 560001',
-        gstNumber: 'GSTIN29ABCDE1234F1Z5',
-        contactNumber: '+91 80 1234 5678',
-        email: 'contact@millethomefoods.com'
+        businessName: '',
+        businessAddress: '',
+        gstNumber: '',
+        contactNumber: '',
+        email: ''
       };
       setSelectedReceipt(receipt);
       setShowReceipt(true);
@@ -85,14 +85,13 @@ const OrdersPage: React.FC = () => {
               icon={<Search size={18} className="text-gray-500" />}
             />
           </div>
-          
+
           <button
             onClick={() => setUseOptimizedView(!useOptimizedView)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              useOptimizedView
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${useOptimizedView
                 ? 'bg-blue-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
+              }`}
           >
             {useOptimizedView ? 'Optimized View' : 'Table View'}
           </button>
@@ -158,13 +157,12 @@ const OrdersPage: React.FC = () => {
                           ))}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            order.paymentMethod === 'cash'
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${order.paymentMethod === 'cash'
                               ? 'bg-green-100 text-green-800'
                               : order.paymentMethod === 'card'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-purple-100 text-purple-800'
-                          }`}>
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
                             {order.paymentMethod.toUpperCase()}
                           </span>
                         </td>
@@ -196,7 +194,7 @@ const OrdersPage: React.FC = () => {
             setShowReceipt(false);
             setSelectedReceipt(null);
           }}
-          onPrint={() => {}} // Print function is now handled internally
+          locationId={currentUser?.locationId}
         />
       )}
 

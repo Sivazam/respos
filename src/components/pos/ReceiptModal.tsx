@@ -33,7 +33,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
 
     fetchFranchiseData();
   }, [locationId]);
-  
+
   // Calculate GST percentages from sale data
   const cgstPercentage = sale.subtotal > 0 ? (sale.cgst / sale.subtotal) * 100 : 0;
   const sgstPercentage = sale.subtotal > 0 ? (sale.sgst / sale.subtotal) * 100 : 0;
@@ -45,27 +45,31 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
       const padding = Math.floor((48 - text.length) / 2);
       return ' '.repeat(Math.max(0, padding)) + text;
     };
-    
+
     const formatPrice = (price: number | undefined | null) => {
       if (price === undefined || price === null || isNaN(price)) {
         return '0';
       }
       return Math.round(price).toString();
     };
-    
+
     let content = '';
-    
+
     // Logo (centered)
     content += centerText('🍽️') + '\n';
     content += '\n';
-    
+
     // Restaurant Header (centered)
     content += centerText(franchiseData?.name || businessName) + '\n';
     content += centerText(franchiseData?.address || businessAddress) + '\n';
-    content += centerText(`Phone: ${franchiseData?.phone || contactNumber || '+91 98765 43210'}`) + '\n';
-    content += centerText(`GSTIN: ${franchiseData?.gstNumber || gstNumber}`) + '\n';
+    if (franchiseData?.phone || contactNumber) {
+      content += centerText(`Phone: ${franchiseData?.phone || contactNumber}`) + '\n';
+    }
+    if (franchiseData?.gstNumber || gstNumber) {
+      content += centerText(`GSTIN: ${franchiseData?.gstNumber || gstNumber}`) + '\n';
+    }
     content += '-'.repeat(48) + '\n';
-    
+
     // Order Info
     const now = new Date();
     content += `Date: ${now.toLocaleDateString()}  Time: ${now.toLocaleTimeString()}` + '\n';
@@ -75,11 +79,11 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
       content += `${isReturn ? 'Return' : 'Order'}: #${sale.id}` + '\n';
     }
     content += '-'.repeat(48) + '\n';
-    
+
     // Items Header
     content += 'Item'.padEnd(18) + 'Qty'.padStart(6) + 'Rate'.padStart(8) + 'Total'.padStart(8) + '\n';
     content += '-'.repeat(48) + '\n';
-    
+
     // Items
     const items = sale.items || [];
     items.forEach((item: any) => {
@@ -88,16 +92,16 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
       const price = item.price || 0;
       const itemTotal = price * quantity;
       const portionSize = item.portionSize ? ` (${item.portionSize === 'half' ? 'Half' : 'Full'})` : '';
-      
+
       // Truncate item name if too long (accounting for portion size)
       const displayName = itemName + portionSize;
       const truncatedName = displayName.length > 18 ? displayName.substring(0, 15) + '...' : displayName;
-      
-      content += truncatedName.padEnd(18) + 
-                  quantity.toString().padStart(6) + 
-                  formatPrice(price).padStart(8) + 
-                  formatPrice(itemTotal).padStart(8) + '\n';
-                  
+
+      content += truncatedName.padEnd(18) +
+        quantity.toString().padStart(6) +
+        formatPrice(price).padStart(8) +
+        formatPrice(itemTotal).padStart(8) + '\n';
+
       // Show modifications if any
       if (item.modifications && item.modifications.length > 0) {
         const mods = item.modifications.join(', ');
@@ -105,12 +109,12 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
         content += '  ' + modText + '\n';
       }
     });
-    
+
     content += '-'.repeat(48) + '\n';
-    
+
     // Totals
     content += 'Subtotal'.padEnd(30) + formatPrice(sale.subtotal).padStart(10) + '\n';
-    
+
     if (sale.cgst > 0) {
       content += `CGST (${cgstPercentage.toFixed(1)}%)`.padEnd(30) + formatPrice(sale.cgst).padStart(10) + '\n';
     }
@@ -121,25 +125,25 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
       const totalGstPercentage = cgstPercentage + sgstPercentage;
       content += `GST (${totalGstPercentage.toFixed(1)}%)`.padEnd(30) + formatPrice(sale.gst).padStart(10) + '\n';
     }
-    
+
     if (sale.discount > 0) {
       content += 'Discount'.padEnd(30) + '-' + formatPrice(sale.discount).padStart(9) + '\n';
     }
-    
+
     content += '-'.repeat(48) + '\n';
     content += 'Grand Total'.padEnd(30) + formatPrice(sale.total).padStart(10) + '\n';
     content += '-'.repeat(48) + '\n';
-    
+
     // Payment Info
     content += `Paid by: ${(sale.paymentMethod || 'Cash').toUpperCase()}` + '\n';
     content += '\n';
-    
+
     // Footer
     content += centerText('Thank you for dining with us!') + '\n';
     content += '\n';
     content += centerText('Powered by FORKFLOW POS') + '\n';
     content += '\n\n\n'; // Extra space for cutting
-    
+
     return content;
   };
 
@@ -147,11 +151,11 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
     try {
       // Create receipt content as plain text for thermal printer
       const receiptContent = createReceiptTextContent();
-      
+
       // Calculate dynamic height based on content
       const lineCount = receiptContent.split('\n').length;
       const estimatedHeight = Math.max(120, Math.min(300, lineCount * 6 + 40)); // 6mm per line + margins
-      
+
       // Try silent printing first with correct paper size
       const success = await browserPrintService.printSilent(receiptContent, {
         paperSize: '79.5mm 200mm',
@@ -159,7 +163,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
         dynamicHeight: true,
         calculatedHeight: estimatedHeight
       });
-      
+
       if (!success) {
         // Fallback to direct printing (no extra tab)
         const directSuccess = await browserPrintService.printDirect(receiptContent, {
@@ -168,7 +172,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
           dynamicHeight: true,
           calculatedHeight: estimatedHeight
         });
-        
+
         if (!directSuccess) {
           // Final fallback - use iframe print without opening new tab
           await browserPrintService.printWithIframe(receiptContent, {
@@ -183,7 +187,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
       const receiptContent = createReceiptTextContent();
       const lineCount = receiptContent.split('\n').length;
       const estimatedHeight = Math.max(120, Math.min(300, lineCount * 6 + 40));
-      
+
       await browserPrintService.printWithIframe(receiptContent, {
         dynamicHeight: true,
         calculatedHeight: estimatedHeight
@@ -196,36 +200,37 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose, isReturn 
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6" id="receipt-content">
           {/* Receipt content styled for 80mm thermal printer */}
-          <div style={{ 
+          <div style={{
             width: '302px', /* 80mm ≈ 302px at 96 DPI */
-            margin: '0 auto', 
+            margin: '0 auto',
             fontFamily: 'monospace',
             fontSize: '12px',
             lineHeight: '1.2',
             color: '#000',
             fontWeight: '800'
           }}>
-            {/* Logo */}
-            <div className="flex justify-center mb-2">
-              <img 
-                src={franchiseData?.logoUrl || "https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd"} 
-                alt="Restaurant Logo" 
-                style={{ width: '160px', height: 'auto', maxHeight: 'auto', objectFit: 'contain' }}
-              />
-            </div>
+            {franchiseData?.logoUrl && (
+              <div className="flex justify-center mb-2">
+                <img
+                  src={franchiseData.logoUrl}
+                  alt="Restaurant Logo"
+                  style={{ width: '150px', height: '150px', maxWidth: '150px', maxHeight: '150px', objectFit: 'contain' }}
+                />
+              </div>
+            )}
 
             {/* Header */}
             <div className="text-center" style={{ fontSize: '20px', fontWeight: '900', marginBottom: '8px' }}>
               {franchiseData?.name || businessName}
             </div>
-            
+
             <div className="text-center mb-4" style={{ fontWeight: '700' }}>
               {(franchiseData?.address || businessAddress).split(',').map((line, i) => (
                 <div key={i}>{line.trim()}</div>
               ))}
-              <div>GST No: {franchiseData?.gstNumber || gstNumber}</div>
-              <div>Tel: {franchiseData?.phone || contactNumber}</div>
-              <div>{franchiseData?.email || email}</div>
+              {(franchiseData?.gstNumber || gstNumber) && <div>GST No: {franchiseData?.gstNumber || gstNumber}</div>}
+              {(franchiseData?.phone || contactNumber) && <div>Tel: {franchiseData?.phone || contactNumber}</div>}
+              {(franchiseData?.email || email) && <div>{franchiseData?.email || email}</div>}
             </div>
 
             {/* Solid line after GSTIN */}

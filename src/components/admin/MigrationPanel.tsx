@@ -11,7 +11,7 @@ const MigrationPanel: React.FC = () => {
 
   const handleRunMigration = () => {
     setMigrationStatus('running');
-    
+
     // Simulate migration process
     setTimeout(() => {
       setMigrationStatus('completed');
@@ -21,27 +21,27 @@ const MigrationPanel: React.FC = () => {
   const handleResetDatabase = async () => {
     if (resetStatus === 'confirming') {
       setResetStatus('running');
-      
+
       try {
         // Delete all existing data
         const collections = ['users', 'locations', 'franchises', 'products', 'categories', 'sales', 'purchases', 'returns', 'stockUpdates'];
-        
+
         for (const collectionName of collections) {
           const querySnapshot = await getDocs(collection(db, collectionName));
           const batch = writeBatch(db);
-          
+
           querySnapshot.docs.forEach((doc) => {
             batch.delete(doc.ref);
           });
-          
+
           if (!querySnapshot.empty) {
             await batch.commit();
           }
         }
-        
+
         // Create sample franchises
         const franchise1Data = {
-          name: 'Na Potta Na Istam',
+          name: 'Sample Franchise A',
           email: 'napotta@restaurant.com',
           phone: '+919876543210',
           address: 'Hyderabad, Telangana',
@@ -53,10 +53,10 @@ const MigrationPanel: React.FC = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
-        
+
         const franchise2Data = {
-          name: 'Bawarchi Restaurant',
-          email: 'bawarchi@restaurant.com', 
+          name: 'Sample Franchise B',
+          email: 'sample_b@restaurant.com',
           phone: '+919876543211',
           address: 'Hyderabad, Telangana',
           subscriptionPlan: 'basic' as const,
@@ -67,13 +67,13 @@ const MigrationPanel: React.FC = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
-        
+
         const franchise1Ref = await addDoc(collection(db, 'franchises'), franchise1Data);
         const franchise2Ref = await addDoc(collection(db, 'franchises'), franchise2Data);
-        
+
         // Create locations for franchise 1
         const location1Data = {
-          name: 'Na Potta Na Istam - Main Store',
+          name: 'Sample Franchise A - Main Branch',
           address: 'Main Road, Hyderabad',
           phone: '+919876543210',
           franchiseId: franchise1Ref.id,
@@ -81,9 +81,9 @@ const MigrationPanel: React.FC = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
-        
+
         const location2Data = {
-          name: 'Na Potta Na Istam - Ramachandrapuram',
+          name: 'Sample Franchise A - Secondary Branch',
           address: 'Ramachandrapuram, Hyderabad',
           phone: '+919876543211',
           franchiseId: franchise1Ref.id,
@@ -91,17 +91,17 @@ const MigrationPanel: React.FC = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
-        
+
         const location1Ref = await addDoc(collection(db, 'locations'), location1Data);
         const location2Ref = await addDoc(collection(db, 'locations'), location2Data);
-        
+
         // Update location documents with their IDs
         await updateDoc(location1Ref, { id: location1Ref.id });
         await updateDoc(location2Ref, { id: location2Ref.id });
-        
+
         // Create location for franchise 2
         const location3Data = {
-          name: 'Bawarchi Restaurant - Main Branch',
+          name: 'Sample Franchise B - Main Branch',
           address: 'Banjara Hills, Hyderabad',
           phone: '+919876543212',
           franchiseId: franchise2Ref.id,
@@ -109,16 +109,16 @@ const MigrationPanel: React.FC = () => {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         };
-        
+
         const location3Ref = await addDoc(collection(db, 'locations'), location3Data);
         await updateDoc(location3Ref, { id: location3Ref.id });
-        
+
         setResetStatus('completed');
         setTimeout(() => {
           setResetStatus('idle');
           window.location.reload();
         }, 2000);
-        
+
       } catch (error) {
         console.error('Database reset failed:', error);
         setResetStatus('failed');
@@ -154,7 +154,7 @@ const MigrationPanel: React.FC = () => {
             <div className="mt-2 text-sm text-red-700">
               {resetStatus === 'idle' && (
                 <p>
-                  Reset the entire database and create sample franchise data. This will delete ALL existing data 
+                  Reset the entire database and create sample franchise data. This will delete ALL existing data
                   and create 2 sample franchises with locations for testing the new architecture.
                 </p>
               )}
@@ -162,7 +162,7 @@ const MigrationPanel: React.FC = () => {
                 <div className="bg-red-100 border border-red-300 rounded p-3">
                   <p className="font-semibold text-red-800 mb-2">⚠️ WARNING: This action cannot be undone!</p>
                   <p className="text-red-700">
-                    This will permanently delete all data including users, products, sales, and other records. 
+                    This will permanently delete all data including users, products, sales, and other records.
                     The system will create sample franchises and locations after the reset.
                   </p>
                   <p className="text-red-700 mt-2">Click again to confirm or refresh the page to cancel.</p>
@@ -176,7 +176,7 @@ const MigrationPanel: React.FC = () => {
               )}
               {resetStatus === 'completed' && (
                 <p>
-                  The database has been successfully reset with sample franchise data. 
+                  The database has been successfully reset with sample franchise data.
                   The page will refresh automatically to load the new data.
                 </p>
               )}
@@ -186,7 +186,7 @@ const MigrationPanel: React.FC = () => {
                 </p>
               )}
             </div>
-            {(resetStatus === 'idle' || resetStatus === 'confirming') && (
+            {(resetStatus === 'idle' || resetStatus === 'confirming' || resetStatus === 'running') && (
               <div className="mt-4">
                 <Button
                   variant={resetStatus === 'confirming' ? 'destructive' : 'primary'}

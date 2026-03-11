@@ -28,9 +28,9 @@ const POSPage: React.FC = () => {
   const { items, subtotal, cgst, sgst, total, clearCart, addItem, cgstRate, sgstRate } = useCart();
   const { currentUser } = useAuth();
   const { addSale } = useSales();
-  
+
   console.log('🔍 POSPage rendering - User role:', currentUser?.role, 'User:', currentUser);
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showOutOfStock, setShowOutOfStock] = useState(false);
@@ -40,20 +40,20 @@ const POSPage: React.FC = () => {
   const [useOptimizedView, setUseOptimizedView] = useState(false);
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
   const [showPortionModal, setShowPortionModal] = useState(false);
-  
+
   // Check if this is a table-based order
   const isTableBasedOrder = location.state?.orderType && location.state?.tableIds;
-  
+
   // Check if current user is a manager and this is a table-based order
   const isManagerTableOrder = isTableBasedOrder && currentUser?.role === 'manager';
-  
+
   // Get menu items for current location
   const locationMenuItems = useMemo(() => {
-    return menuItems.filter(item => 
+    return menuItems.filter(item =>
       item.locationId === currentUser?.locationId && item.isAvailable
     );
   }, [menuItems, currentUser?.locationId]);
-  
+
   const filteredProducts = useMemo(() => {
     return locationMenuItems.filter(item => {
       const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -126,7 +126,7 @@ const POSPage: React.FC = () => {
     try {
       // Get the current location - try multiple sources
       const locationId = currentUser.locationId;
-      
+
       // If no locationId in currentUser, try to get it from other sources
       if (!locationId) {
         // For now, we'll use a default or get it from localStorage/auth context
@@ -160,11 +160,11 @@ const POSPage: React.FC = () => {
 
       const receipt: Receipt = {
         sale: newSale,
-        businessName: 'ForkFlow',
-        businessAddress: '123 Food Street, Bangalore, Karnataka 560001',
-        gstNumber: 'GSTIN29ABCDE1234F1Z5',
-        contactNumber: '+91 80 1234 5678',
-        email: 'contact@millethomefoods.com'
+        businessName: '',
+        businessAddress: '',
+        gstNumber: '',
+        contactNumber: '',
+        email: ''
       };
 
       setCurrentReceipt(receipt);
@@ -199,7 +199,7 @@ const POSPage: React.FC = () => {
         {/* Products Section */}
         <div className={`flex flex-col min-h-0 ${hasCartItems ? 'flex-1' : 'w-full'}`}>
           {error && <ErrorAlert message={error} />}
-          
+
           <div className="mb-4 lg:mb-6 space-y-4">
             <Input
               placeholder="Search products..."
@@ -207,7 +207,7 @@ const POSPage: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               icon={<Search size={18} className="text-gray-500" />}
             />
-            
+
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 sm:items-center">
               {/* Categories */}
               <div className="flex gap-2 overflow-x-auto pb-2 flex-1">
@@ -378,7 +378,8 @@ const POSPage: React.FC = () => {
         <ReceiptModal
           receipt={currentReceipt}
           onClose={() => setShowReceipt(false)}
-          onPrint={() => {}} // Print function is now handled internally
+          locationId={currentUser?.locationId}
+          onPrint={() => { }} // Print function is now handled internally
         />
       )}
 

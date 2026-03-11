@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Receipt, 
-  X, 
-  DollarSign, 
-  CreditCard, 
-  Smartphone, 
-  CheckCircle 
+import {
+  Receipt,
+  X,
+  DollarSign,
+  CreditCard,
+  Smartphone,
+  CheckCircle
 } from 'lucide-react';
 import Button from '../ui/Button';
 import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
@@ -105,7 +105,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
     if (tableNames && tableNames.length > 0) {
       return tableNames.join(', ');
     }
-    
+
     // If we have table IDs but no names, convert IDs to table numbers
     if (tableIds && tableIds.length > 0) {
       const tableNumbers = tableIds.map(id => {
@@ -128,7 +128,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
       });
       return tableNumbers.join(', ');
     }
-    
+
     return 'N/A';
   };
 
@@ -137,13 +137,13 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
   };
 
   // Use franchise logo if available, otherwise use default
-  const logoUrl = franchiseData?.logoUrl || 'https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/WhatsApp%20Image%202025-10-12%20at%2006.01.10_f3bd32d3.jpg?alt=media&token=d3f11b5d-c210-4c1d-98a2-5521ff2e07fd';
+  const logoUrl = franchiseData?.logoUrl;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         {/* Backdrop */}
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={onClose}
         />
@@ -245,34 +245,35 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
               {/* Right Column - Receipt Preview */}
               <div>
                 <h3 className="font-medium mb-3">Receipt Preview</h3>
-                <div className="bg-white border border-gray-200 rounded-lg p-4" style={{ 
-                    fontFamily: 'Courier New, monospace', 
-                    fontSize: '11px', 
-                    lineHeight: '1.3',
-                    width: '100%', 
-                    maxWidth: '300px', 
-                    margin: '0 auto'
-                  }}>
-                  {/* Logo */}
-                  <div className="text-center mb-3">
-                    <img 
-                      src={logoUrl} 
-                      alt="Restaurant Logo" 
-                      className="mx-auto"
-                      style={{ width: '160px', height: 'auto', maxHeight: 'auto', objectFit: 'contain' }}
-                    />
-                  </div>
-                  
+                <div className="bg-white border border-gray-200 rounded-lg p-4" style={{
+                  fontFamily: 'Courier New, monospace',
+                  fontSize: '11px',
+                  lineHeight: '1.3',
+                  width: '100%',
+                  maxWidth: '300px',
+                  margin: '0 auto'
+                }}>
+                  {logoUrl && (
+                    <div className="text-center mb-3">
+                      <img
+                        src={logoUrl}
+                        alt="Restaurant Logo"
+                        className="mx-auto"
+                        style={{ width: '120px', height: '120px', maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                      />
+                    </div>
+                  )}
+
                   {/* Header */}
                   <div className="text-center mb-3 font-bold">
                     <div className="text-sm">{franchiseData?.name || 'FORKFLOW POS'}</div>
-                    <div className="text-xs">{franchiseData?.address || '123 Main Street, City'}</div>
-                    <div className="text-xs">Phone: {franchiseData?.phone || '+91 98765 43210'}</div>
+                    {franchiseData?.address && <div className="text-xs">{franchiseData.address}</div>}
+                    {franchiseData?.phone && <div className="text-xs">Phone: {franchiseData.phone}</div>}
                     {franchiseData?.gstNumber && (
                       <div className="text-xs">GSTIN: {franchiseData.gstNumber}</div>
                     )}
                   </div>
-                  
+
                   <div className="border-t border-b border-dashed border-gray-400 py-2 my-2">
                     <div className="text-center text-xs">
                       <div>Date: {new Date(order.createdAt).toLocaleDateString('en-IN')}    Time: {new Date(order.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
@@ -282,7 +283,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Items Grid */}
                   <div className="mb-3">
                     <div className="grid grid-cols-[2fr_30px_40px_40px] gap-1 mb-1 font-bold text-xs border-b border-gray-400 pb-1">
@@ -291,7 +292,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       <div className="text-right">Rate</div>
                       <div className="text-right">Total</div>
                     </div>
-                    
+
                     {order.items.map((item, index) => {
                       const itemTotal = item.price * item.quantity;
                       return (
@@ -312,7 +313,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       );
                     })}
                   </div>
-                  
+
                   <div className="border-t border-b border-dashed border-gray-400 py-2 my-2">
                     {/* Totals */}
                     <div className="space-y-1 text-xs">
@@ -334,15 +335,15 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="text-center mb-3 font-bold text-xs">
                     <div>Payment Method: {selectedPaymentMethod.toUpperCase()}</div>
                   </div>
-                  
+
                   <div className="text-center mb-3 italic text-xs">
                     <div>Thank you for dining with us!</div>
                   </div>
-                  
+
                   <div className="text-center font-bold text-xs">
                     <div>Powered by FORKFLOW POS</div>
                   </div>
@@ -382,11 +383,10 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
                   <button
                     key={method.value}
                     onClick={() => setSelectedPaymentMethod(method.value)}
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      selectedPaymentMethod === method.value
+                    className={`p-3 rounded-lg border-2 transition-all ${selectedPaymentMethod === method.value
                         ? 'border-green-500 bg-green-50 text-green-700'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                      }`}
                   >
                     <div className="flex flex-col items-center space-y-2">
                       {method.icon}
@@ -407,7 +407,7 @@ const ReceiptModal: React.FC<ReceiptModalProps> = ({
             >
               Cancel
             </Button>
-            
+
             <Button
               onClick={handleSettle}
               disabled={isProcessing}

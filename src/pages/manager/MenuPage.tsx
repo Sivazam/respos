@@ -3,19 +3,21 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { useMenuItems } from '../../contexts/MenuItemContext';
 import { useCategories } from '../../contexts/CategoryContext';
 import { MenuItem } from '../../types';
-import { Search, Eye, EyeOff, Leaf, Drumstick, Clock, IndianRupee, Plus, Edit, Trash2 } from 'lucide-react';
+import { Search, Eye, EyeOff, Leaf, Drumstick, Clock, IndianRupee, Plus, Edit, Trash2, Upload } from 'lucide-react';
 import Input from '../../components/ui/Input';
 import ErrorAlert from '../../components/ui/ErrorAlert';
 import MenuItemForm from '../../components/menu/MenuItemForm';
+import MenuImport from '../../components/menu/MenuImport';
 import toast from 'react-hot-toast';
 
 const ManagerMenuPage: React.FC = () => {
-  const { menuItems, loading, error, updateMenuItem, addMenuItem, deleteMenuItem } = useMenuItems();
+  const { menuItems, loading, error, updateMenuItem, addMenuItem, deleteMenuItem, refreshMenuItems } = useMenuItems();
   const { categories } = useCategories();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
 
   const filteredItems = menuItems.filter(item => {
@@ -112,13 +114,22 @@ const ManagerMenuPage: React.FC = () => {
               </select>
             </div>
           </div>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
-          >
-            <Plus size={18} />
-            Add Menu Item
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Upload size={18} />
+              Import CSV
+            </button>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+            >
+              <Plus size={18} />
+              Add Menu Item
+            </button>
+          </div>
         </div>
 
         {/* Add/Edit Form */}
@@ -136,6 +147,20 @@ const ManagerMenuPage: React.FC = () => {
               }}
             />
           </div>
+        )}
+
+        {/* CSV Import */}
+        {showImport && (
+          <MenuImport
+            onSuccess={() => {
+              setShowImport(false);
+            }}
+            onCancel={() => setShowImport(false)}
+            onRefresh={() => {
+              // Refresh menu items list
+              refreshMenuItems();
+            }}
+          />
         )}
 
         {/* Menu Items Grid */}

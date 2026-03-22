@@ -33,10 +33,73 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const { currentUser, logout } = useAuth();
   const { features } = useFeatures();
   const { currentLocation, locations, loading } = useLocations();
   const navigate = useNavigate();
+
+  // Load sidebar preference from localStorage on mount
+  useEffect(() => {
+    const savedPreference = localStorage.getItem('sidebarCollapsed');
+    if (savedPreference !== null) {
+      setSidebarCollapsed(savedPreference === 'true');
+    }
+    // Default: expanded (sidebarCollapsed = false)
+  }, []);
+
+  // Save sidebar preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  // Auto-hide sidebar after 5 seconds of inactivity
+  useEffect(() => {
+    let autoHideTimer: NodeJS.Timeout;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Check if mouse is in hover zone (left 100px)
+      const isInHoverZone = e.clientX < 100;
+      
+      if (isInHoverZone) {
+        setSidebarHovered(true);
+      } else {
+        setSidebarHovered(false);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      setSidebarHovered(false);
+    };
+
+    // Auto-collapse timer
+    const startAutoHideTimer = () => {
+      autoHideTimer = setTimeout(() => {
+        if (!sidebarHovered && !sidebarOpen) {
+          setSidebarCollapsed(true);
+        }
+      }, 5000); // 5 seconds timeout
+    };
+
+    // Reset timer on activity
+    const resetTimer = () => {
+      if (autoHideTimer) clearTimeout(autoHideTimer);
+      startAutoHideTimer();
+    };
+
+    // Only auto-hide on desktop
+    if (window.innerWidth >= 768) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseleave', handleMouseLeave);
+      resetTimer();
+    }
+
+    return () => {
+      if (autoHideTimer) clearTimeout(autoHideTimer);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [sidebarHovered, sidebarOpen]);
   
   // Close sidebar with animation
   const closeSidebar = useCallback(() => {
@@ -328,8 +391,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       </div>
 
       {/* Desktop sidebar */}
-      <div className={`hidden md:flex md:flex-shrink-0 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
-        <div className="flex flex-col w-full">
+      <div
+        className={`hidden md:flex md:flex-shrink-0 transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? 'w-16' : 'w-64'
+        } ${sidebarHovered ? 'shadow-xl z-50' : 'z-30'}`}
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+      >
+        <div
+          className="flex flex-col w-full transition-all duration-300 ease-in-out"
+          style={{ width: sidebarHovered ? '256px' : sidebarCollapsed ? '64px' : '256px' }}
+        >
           <div className="flex flex-col h-0 flex-1 border-r border-gray-200 bg-white">
             <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
               <div className="flex-shrink-0 flex items-center px-4">
@@ -375,7 +447,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       {/* Desktop toggle button */}
       <div className="hidden md:block fixed bottom-24 left-4 z-50">
         <button
-          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onClick={() => {
+            setSidebarCollapsed(!sidebarCollapsed);
+            setSidebarHovered(false); // Reset hover when manually toggled
+          }}
           className="bg-white rounded-lg p-2 hover:bg-gray-100 shadow-md transition-colors duration-200"
         >
           {sidebarCollapsed ? (
@@ -386,15 +461,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
         </button>
       </div>
       
-      {/* Content area */}
-      <div className="flex flex-col w-0 flex-1 overflow-hidden">
+      {/* Content area - Expands to use full width when sidebar collapses */}
+      <div className="flex flex-col flex-1 overflow-hidden transition-all duration-300 ease-in-out">
         {/* Header */}
         <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm">
           {/* Mobile menu button */}
           <button
             className={`p-2 rounded-md transition-colors duration-200 md:hidden ${
-              isAnimating 
-                ? 'text-gray-300 cursor-not-allowed' 
+              isAnimating
+                ? 'text-gray-300 cursor-not-allowed'
                 : 'text-gray-400 hover:text-gray-500 hover:bg-gray-100'
             }`}
             onClick={toggleSidebar}
@@ -402,12 +477,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
           >
             <Menu className="h-6 w-6" />
           </button>
-          
+
           {/* Title */}
           <h1 className="text-lg md:text-2xl font-semibold text-gray-900 truncate flex-1 md:flex-none animate-fadeIn">
             {title}
           </h1>
-          
+
           {/* Location display for non-superadmin users */}
           {!showFranchiseSelector && (
             <div className="flex items-center space-x-4">
@@ -419,7 +494,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
               )}
             </div>
           )}
-          
+
           {/* Franchise Selector - Only show for superadmin */}
           {showFranchiseSelector && (
             <div className="flex items-center space-x-4">
@@ -427,10 +502,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
             </div>
           )}
         </div>
-        
+
         <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
           <div className="py-4 md:py-6 animate-fadeIn">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+            <div className={`${sidebarCollapsed ? 'max-w-full' : 'max-w-7xl'} mx-auto px-4 sm:px-6 md:px-8 transition-all duration-300`}>
               {children}
             </div>
           </div>

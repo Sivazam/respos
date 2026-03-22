@@ -6,6 +6,7 @@ import Input from '../ui/Input';
 import Button from '../ui/Button';
 import ErrorAlert from '../ui/ErrorAlert';
 import { Image, Upload, Leaf, Drumstick } from 'lucide-react';
+import { compressImageToTargetSize, formatFileSize } from '../../utils/imageCompression';
 
 interface MenuItemFormProps {
   onSubmit: (data: MenuItemFormData) => Promise<void>;
@@ -36,7 +37,8 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
   
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [compressionInfo, setCompressionInfo] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,26 +129,37 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
     try {
       setLoading(true);
       setError('');
+      setUploadProgress({ current: 0, total: 100 });
+
+      // Compress image before upload
+      const compressed = await compressImageToTargetSize(file, 300); // Target 300KB
       
+      const compressionMsg = `${formatFileSize(file.size)} → ${formatFileSize(compressed.compressedSize)} (${compressed.compressionRatio.toFixed(1)}% reduction)`;
+      setCompressionInfo(compressionMsg);
+
       const storage = getStorage();
-      const storageRef = ref(storage, `menu-items/${Date.now()}_${file.name}`);
-      
-      // Upload file
-      await uploadBytes(storageRef, file);
-      
+      // Change extension to .webp for compressed images
+      const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      const storageRef = ref(storage, `menu-items/${Date.now()}_${originalName}.webp`);
+
+      // Upload compressed file
+      await uploadBytes(storageRef, compressed.blob);
+
       // Get download URL
       const downloadUrl = await getDownloadURL(storageRef);
-      
+
       setFormData(prev => ({
         ...prev,
         imageUrl: downloadUrl
       }));
+      
+      setUploadProgress({ current: 100, total: 100 });
     } catch (err: any) {
       console.error('Error uploading image:', err);
       setError(err.message || 'Failed to upload image');
     } finally {
       setLoading(false);
-      setUploadProgress(null);
+      setTimeout(() => setUploadProgress(null), 2000);
     }
   };
 
@@ -433,9 +446,17 @@ const MenuItemForm: React.FC<MenuItemFormProps> = ({
             <div className="bg-gray-200 rounded-full h-2">
               <div
                 className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
+                style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
               />
             </div>
+            {compressionInfo && (
+              <p className="text-xs text-green-600 mt-1 flex items-center">
+                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                {compressionInfo}
+              </p>
+            )}
           </div>
         )}
       </div>

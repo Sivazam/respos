@@ -295,7 +295,7 @@ const LoginPage: React.FC = () => {
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: `url('https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/Untitled%20design%20(45).webp?alt=media&token=d8f66182-4c5b-4497-9032-ad3e428b5117')`
+          backgroundImage: `url('https://firebasestorage.googleapis.com/v0/b/restpossys.firebasestorage.app/o/FOrkFlowBg.webp?alt=media&token=3efaa4e0-2254-4874-814c-803964e5fc23')`
         }}
       />
       {/* Dark overlay for better readability */}

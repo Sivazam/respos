@@ -53,24 +53,31 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
     localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // Auto-hide sidebar after 5 seconds of inactivity
+  // Mouse hover detection - register once on mount for desktop
   useEffect(() => {
-    let autoHideTimer: NodeJS.Timeout;
-
+    if (window.innerWidth < 768) return;
+    
     const handleMouseMove = (e: MouseEvent) => {
-      // Check if mouse is in hover zone (left 100px)
       const isInHoverZone = e.clientX < 100;
-      
-      if (isInHoverZone) {
-        setSidebarHovered(true);
-      } else {
-        setSidebarHovered(false);
-      }
+      setSidebarHovered(isInHoverZone);
     };
-
+    
     const handleMouseLeave = () => {
       setSidebarHovered(false);
     };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseleave', handleMouseLeave);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, []);
+
+  // Auto-hide timer - separate concern from hover detection
+  useEffect(() => {
+    let autoHideTimer: NodeJS.Timeout;
 
     // Auto-collapse timer
     const startAutoHideTimer = () => {
@@ -89,15 +96,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
 
     // Only auto-hide on desktop
     if (window.innerWidth >= 768) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseleave', handleMouseLeave);
       resetTimer();
     }
 
     return () => {
       if (autoHideTimer) clearTimeout(autoHideTimer);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, [sidebarHovered, sidebarOpen]);
   

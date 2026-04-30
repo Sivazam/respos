@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import { orderService } from '../../services/orderService';
 import { getFranchiseReceiptData } from '../../utils/franchiseUtils';
 import { couponService } from '../../services/couponService';
@@ -622,8 +623,21 @@ const PrintReceiptPage: React.FC = () => {
     );
   }
 
+  const safeReceiptHtml = DOMPurify.sanitize(getReceiptHTMLContent(), {
+    ALLOWED_TAGS: [
+      'div', 'span', 'br', 'hr', 'p',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'b', 'strong', 'i', 'em', 'u', 'small',
+      'table', 'thead', 'tbody', 'tr', 'td', 'th',
+      'ul', 'ol', 'li',
+      'img', 'style'
+    ],
+    ALLOWED_ATTR: ['style', 'class', 'src', 'alt', 'width', 'height', 'colspan', 'rowspan'],
+    ALLOW_DATA_ATTR: false,
+  });
+
   return (
-    <div dangerouslySetInnerHTML={{ __html: getReceiptHTMLContent() }} />
+    <div dangerouslySetInnerHTML={{ __html: safeReceiptHtml }} />
   );
 };
 

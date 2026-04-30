@@ -36,10 +36,11 @@ interface PendingOrder {
   tableNames: string[];
   items: OrderItem[];
   totalAmount: number;
-  status: 'temporary' | 'ongoing';
+  status: 'temporary' | 'ongoing' | string;
   createdAt: Date;
   updatedAt: Date;
   staffId: string;
+  locationId?: string;
 }
 
 const StaffPendingOrdersPage: React.FC = () => {
@@ -493,19 +494,6 @@ const StaffPendingOrdersPage: React.FC = () => {
             ))}
           </div>
         )}
-      </DashboardLayout>
-
-      {/* View Order Modal */}
-      {selectedOrder && (
-        <ViewOrderModal
-          isOpen={showViewOrder}
-          onClose={handleCloseViewOrder}
-          order={selectedOrder}
-        />
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && orderToDelete && (
 
       {/* Go for Bill Modal */}
       {selectedOrder && (
@@ -592,6 +580,7 @@ const StaffPendingOrdersPage: React.FC = () => {
           onClose={() => setShowLocalStorageDebug(false)}
         />
       )}
+      </div>
     </DashboardLayout>
   );
 };

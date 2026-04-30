@@ -6,6 +6,7 @@ import { OrderItem, TemporaryOrder } from '../types';
 import { orderService } from '../services/orderService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { safeStorage } from '../utils/safeStorage';
 
 interface TemporaryOrderContextType {
   temporaryOrder: TemporaryOrder | null;
@@ -19,7 +20,7 @@ interface TemporaryOrderContextType {
   setTemporaryOrder: (order: TemporaryOrder) => void;
   saveTemporaryOrder: () => void;
   loadTemporaryOrder: (orderId: string) => void;
-  createPartialOrder: () => Promise<void>;
+  createPartialOrder: () => Promise<TemporaryOrder>;
   checkForExistingOrder: (tableIds: string[]) => Promise<TemporaryOrder | null>;
   calculateTotals: () => { subtotal: number; gst: number; total: number; cgstAmount: number; sgstAmount: number };
   getTableNames: () => string[];
@@ -99,33 +100,27 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
 
   // Save temporary order to localStorage
   const saveToLocalStorage = useCallback((order: TemporaryOrder) => {
-    try {
-      localStorage.setItem(TEMP_ORDER_STORAGE_KEY, JSON.stringify({
-        ...order,
-        createdAt: order.createdAt.toISOString(),
-        sessionStartedAt: order.sessionStartedAt.toISOString(),
-      }));
-    } catch (error) {
-      console.error('Error saving temporary order to localStorage:', error);
-    }
+    safeStorage.setJSON(TEMP_ORDER_STORAGE_KEY, {
+      ...order,
+      createdAt: order.createdAt.toISOString(),
+      sessionStartedAt: order.sessionStartedAt.toISOString(),
+    });
   }, []);
 
   // Load temporary order from localStorage
   const loadFromLocalStorage = useCallback((): TemporaryOrder | null => {
+    const parsed = safeStorage.getJSON<any | null>(TEMP_ORDER_STORAGE_KEY, null);
+    if (!parsed) return null;
     try {
-      const stored = localStorage.getItem(TEMP_ORDER_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return {
-          ...parsed,
-          createdAt: new Date(parsed.createdAt),
-          sessionStartedAt: new Date(parsed.sessionStartedAt),
-        };
-      }
+      return {
+        ...parsed,
+        createdAt: new Date(parsed.createdAt),
+        sessionStartedAt: new Date(parsed.sessionStartedAt),
+      };
     } catch (error) {
-      console.error('Error loading temporary order from localStorage:', error);
+      console.error('Error reviving temporary order from storage:', error);
+      return null;
     }
-    return null;
   }, []);
 
   // Auto-save to localStorage when order changes
@@ -196,14 +191,21 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
       id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       locationId: currentLocation.id,
       tableIds,
+      tableNames: [],
       staffId: currentUser.uid,
+      staffName: currentUser.displayName || currentUser.email || 'Staff',
       orderType,
       orderNumber: `TEMP-${Date.now().toString().slice(-6)}`,
       items: [],
       status: 'temporary',
       subtotal: 0,
+      tax: 0,
       gstAmount: 0,
       totalAmount: 0,
+      total: 0,
+      discount: { type: 'fixed', amount: 0 },
+      paymentStatus: 'pending',
+      statusHistory: [],
       isFinalOrder: false,
       sessionStartedAt: now,
       createdAt: now,
@@ -269,7 +271,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
     // Calculate totals
     const totals = calculateOrderTotals(updatedOrder.items);
     updatedOrder.subtotal = totals.subtotal;
-    updatedOrder.gstAmount = totals.gst;
+    updatedOrder.gstAmount = totals.gstAmount;
     updatedOrder.totalAmount = totals.total;
 
     setTemporaryOrder(updatedOrder);
@@ -317,19 +319,19 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
         ...existingOrder,
         items: mergedItems,
         subtotal: totals.subtotal,
-        gstAmount: totals.gst,
+        gstAmount: totals.gstAmount,
         totalAmount: totals.total,
         updatedAt: new Date(),
         status: 'ongoing'
       };
 
       // Save updated order
-      localStorage.setItem(`temp_order_${existingOrderId}`, JSON.stringify({
+      safeStorage.setJSON(`temp_order_${existingOrderId}`, {
         ...updatedOrder,
         createdAt: updatedOrder.createdAt.toISOString(),
         sessionStartedAt: updatedOrder.sessionStartedAt.toISOString(),
         updatedAt: updatedOrder.updatedAt.toISOString(),
-      }));
+      });
 
       // Update current temporary order if it's the same one
       if (temporaryOrder && temporaryOrder.id === existingOrderId) {
@@ -361,7 +363,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
     // Recalculate totals
     const totals = calculateOrderTotals(updatedOrder.items);
     updatedOrder.subtotal = totals.subtotal;
-    updatedOrder.gstAmount = totals.gst;
+    updatedOrder.gstAmount = totals.gstAmount;
     updatedOrder.totalAmount = totals.total;
 
     setTemporaryOrder(updatedOrder);
@@ -387,7 +389,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
     // Recalculate totals
     const totals = calculateOrderTotals(updatedOrder.items);
     updatedOrder.subtotal = totals.subtotal;
-    updatedOrder.gstAmount = totals.gst;
+    updatedOrder.gstAmount = totals.gstAmount;
     updatedOrder.totalAmount = totals.total;
 
     setTemporaryOrder(updatedOrder);
@@ -407,7 +409,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
     }
     
     setTemporaryOrder(null);
-    localStorage.removeItem(TEMP_ORDER_STORAGE_KEY);
+    safeStorage.removeItem(TEMP_ORDER_STORAGE_KEY);
   }, [temporaryOrder, releaseTable]);
 
   // Save temporary order (persist to database)
@@ -445,7 +447,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
       const tableNames = temporaryOrder.tableIds.map(id => {
         const table = tables.find(t => t.id === id);
         if (table) {
-          return table.name || `Table ${table.number}`;
+          return table.name || `Table ${table.id}`;
         }
         
         // Fallback: extract table number from ID
@@ -505,19 +507,19 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
       setTemporaryOrder(updatedOrder);
       
       // Save to localStorage with a specific key for this order
-      localStorage.setItem(`temp_order_${orderId}`, JSON.stringify({
+      safeStorage.setJSON(`temp_order_${orderId}`, {
         ...updatedOrder,
         createdAt: updatedOrder.createdAt.toISOString(),
         sessionStartedAt: updatedOrder.sessionStartedAt.toISOString(),
         updatedAt: updatedOrder.updatedAt.toISOString(),
-      }));
-      
+      });
+
       // Also update the main localStorage to maintain consistency
-      localStorage.setItem(TEMP_ORDER_STORAGE_KEY, JSON.stringify({
+      safeStorage.setJSON(TEMP_ORDER_STORAGE_KEY, {
         ...updatedOrder,
         createdAt: updatedOrder.createdAt.toISOString(),
         sessionStartedAt: updatedOrder.sessionStartedAt.toISOString(),
-      }));
+      });
       
       console.log(`Partial order ${orderId} saved to Firestore and localStorage`);
       
@@ -713,15 +715,16 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
       }
 
       // Use the orderService to properly transfer the order
-      // This will handle updating the order status, creating manager pending record,
-      // and removing from temporary_orders collection
+      // This will atomically update the order status, create manager pending record,
+      // and remove from temporary_orders collection in a single Firestore transaction.
       try {
         console.log('🔄 Using orderService to transfer order to manager');
         await orderService.transferOrderToManager(orderId, staffId, notes);
         console.log('✅ Order successfully transferred to manager via orderService');
       } catch (serviceError) {
         console.error('❌ Error transferring order via orderService:', serviceError);
-        throw new Error(`Failed to transfer order: ${serviceError.message}`);
+        const message = serviceError instanceof Error ? serviceError.message : String(serviceError);
+        throw new Error(`Failed to transfer order: ${message}`);
       }
 
       // Clear the current temporary order if it matches
@@ -845,7 +848,7 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
         tableIds: order.tableIds,
         tableNames: order.tableNames,
         itemsCount: order.items?.length || 0,
-        items: order.items?.map(item => ({ name: item.name, quantity: item.quantity }))
+        items: order.items?.map((item: { name: string; quantity: number }) => ({ name: item.name, quantity: item.quantity }))
       });
 
       // Convert to TemporaryOrder format and set as current order
@@ -860,12 +863,12 @@ export const TemporaryOrderProvider: React.FC<TemporaryOrderProviderProps> = ({ 
       setTemporaryOrder(temporaryOrderData);
       
       // Also save to main localStorage for consistency
-      localStorage.setItem(TEMP_ORDER_STORAGE_KEY, JSON.stringify({
+      safeStorage.setJSON(TEMP_ORDER_STORAGE_KEY, {
         ...temporaryOrderData,
         createdAt: temporaryOrderData.createdAt.toISOString(),
         sessionStartedAt: temporaryOrderData.sessionStartedAt.toISOString(),
         updatedAt: temporaryOrderData.updatedAt.toISOString(),
-      }));
+      });
 
       console.log('✅ Successfully loaded order into cart for editing:', temporaryOrderData);
       return temporaryOrderData;

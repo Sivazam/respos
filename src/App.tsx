@@ -1,6 +1,7 @@
 import React from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { OrderCountProvider } from './contexts/OrderCountContext';
 import { FranchiseProvider } from './contexts/FranchiseContext';
@@ -100,13 +101,25 @@ import UserbasePage from './pages/userbase/UserbasePage';
 // Print Page
 import PrintReceiptPage from './pages/print/PrintReceiptPage';
 
+// Re-mounts the ErrorBoundary on every route change so a single broken page
+// doesn't lock the user out of the rest of the app.
+const RouteErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
+  return (
+    <ErrorBoundary key={location.pathname} name={location.pathname}>
+      {children}
+    </ErrorBoundary>
+  );
+};
+
 function App() {
   return (
-    <ErrorBoundary>
+    <ErrorBoundary name="app-root">
       <AuthProvider>
         <OrderCountProvider>
           <Router>
             <OfflineIndicator />
+            <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
             <Routes>
               {/* Auth Routes - Minimal Providers Only */}
               <Route path="/login" element={<LoginPage />} />
@@ -137,6 +150,7 @@ function App() {
                 <FranchiseProvider>
                   <LocationProvider>
                     <FullAppProviders>
+                      <RouteErrorBoundary>
                       <Routes>
                         {/* Super Admin Routes */}
                         <Route
@@ -654,6 +668,7 @@ function App() {
                         {/* 404 */}
                         <Route path="*" element={<NotFound />} />
                       </Routes>
+                      </RouteErrorBoundary>
                       <SetupTrigger />
                     </FullAppProviders>
                   </LocationProvider>

@@ -14,6 +14,7 @@ import {
   orderBy,
   onSnapshot,
   writeBatch,
+  runTransaction,
   serverTimestamp,
   documentId
 } from 'firebase/firestore';
@@ -176,11 +177,26 @@ export class OrderService {
           const currentCounter = counterDoc.data().counter || 1;
           const newCounter = currentCounter + 1;
 
-          // Attempt but don't block if updateDoc fails (will retry later if Firestore persistence is healthy)
-          updateDoc(counterRef, {
-            counter: newCounter,
-            lastUpdated: serverTimestamp()
-          }).catch(err => console.error('Failed to update counter document (will retry later):', err));
+          // Update counter; if it fails, retry once after a short delay before giving up.
+          // Failure here can cause duplicate order numbers, so it must not be silently dropped.
+          try {
+            await updateDoc(counterRef, {
+              counter: newCounter,
+              lastUpdated: serverTimestamp(),
+            });
+          } catch (firstErr) {
+            console.warn('Order counter update failed, retrying once...', firstErr);
+            try {
+              await updateDoc(counterRef, {
+                counter: newCounter,
+                lastUpdated: serverTimestamp(),
+              });
+            } catch (secondErr) {
+              console.error('Order counter update failed after retry. Duplicate order numbers possible:', secondErr);
+              // Re-throw so callers can decide whether to abort the order creation
+              throw secondErr;
+            }
+          }
 
           return `MGR-${dateStr}-${newCounter.toString().padStart(2, '0')}`;
         } else {
@@ -410,7 +426,8 @@ export class OrderService {
         console.log('👤 Customer data provided:', customerData);
       }
 
-      // First, get the temporary order from temporary_orders collection
+      // First, get the temporary order from temporary_orders collection.
+      // Queries can't run inside a transaction, so we resolve refs first.
       const tempOrdersQuery = query(
         collection(db, 'temporary_orders'),
         where('orderId', '==', orderId)
@@ -423,57 +440,75 @@ export class OrderService {
       }
 
       const tempOrderData = tempSnapshot.docs[0].data();
+      const tempOrderRefs = tempSnapshot.docs.map((d) => d.ref);
       console.log('📋 Found temporary order:', tempOrderData);
 
       // Get staff name from the temporary order
       const staffName = tempOrderData.staffName || 'Unknown Staff';
 
-      // Update the order document with customer info if provided
-      if (customerData) {
-        const orderRef = doc(db, 'orders', orderId);
-        const updateData: any = {
-          paymentMethod: customerData.paymentMethod,
-          pendingPaymentMethod: customerData.paymentMethod,
-          updatedAt: serverTimestamp()
-        };
+      const orderRef = doc(db, 'orders', orderId);
+      // Pre-generate the manager_pending_orders doc ref so we can write it inside the transaction
+      const managerPendingRef = doc(collection(db, 'manager_pending_orders'));
 
-        // Only include customerInfo if there's actual customer data
-        if (customerData.name || customerData.phone || customerData.city) {
-          updateData.customerInfo = {
-            name: customerData.name || null,
-            phone: customerData.phone || null,
-            city: customerData.city || null
+      try {
+        await runTransaction(db, async (tx) => {
+          // Read first (transaction requirement)
+          const orderSnap = await tx.get(orderRef);
+          if (!orderSnap.exists()) {
+            throw new Error('Order document not found');
+          }
+          const existing = orderSnap.data();
+          if (existing.status === 'transferred' || existing.status === 'settled' || existing.status === 'completed' || existing.status === 'cancelled') {
+            throw new Error(`Order cannot be transferred from status "${existing.status}"`);
+          }
+
+          // Build the order update payload
+          const orderUpdate: Record<string, unknown> = {
+            status: 'transferred',
+            transferredBy: staffId,
+            transferredAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
           };
-        }
+          if (customerData) {
+            orderUpdate.paymentMethod = customerData.paymentMethod;
+            orderUpdate.pendingPaymentMethod = customerData.paymentMethod;
+            if (customerData.name || customerData.phone || customerData.city) {
+              orderUpdate.customerInfo = {
+                name: customerData.name || null,
+                phone: customerData.phone || null,
+                city: customerData.city || null,
+              };
+            }
+          }
 
-        await updateDoc(orderRef, updateData);
-        console.log('✅ Updated order document with customer info');
+          tx.update(orderRef, orderUpdate);
+
+          // Insert manager_pending_orders entry
+          tx.set(managerPendingRef, {
+            orderId,
+            createdAt: serverTimestamp(),
+            createdBy: staffId,
+            createdByName: staffName,
+            franchiseId: tempOrderData.franchiseId || '',
+            locationId: tempOrderData.locationId,
+            locationName: tempOrderData.locationName || 'Unknown Location',
+            notes: notes || 'Staff transferred order for billing',
+            priority: 'normal',
+            status: 'pending',
+            updatedAt: serverTimestamp(),
+            transferredBy: staffId,
+            transferredAt: serverTimestamp(),
+          });
+
+          // Remove all matching temporary_orders docs in the same commit
+          tempOrderRefs.forEach((ref) => tx.delete(ref));
+        });
+      } catch (txError) {
+        console.error('❌ Transfer transaction failed, no partial state was written:', txError);
+        throw txError;
       }
 
-      // Create manager pending order entry with the correct structure
-      const managerPendingDoc = {
-        orderId: orderId,
-        createdAt: serverTimestamp(),
-        createdBy: staffId, // Using staffId as createdBy for consistency
-        createdByName: staffName,
-        franchiseId: tempOrderData.franchiseId || '',
-        locationId: tempOrderData.locationId,
-        locationName: tempOrderData.locationName || 'Unknown Location',
-        notes: notes || 'Staff transferred order for billing',
-        priority: 'normal',
-        status: 'pending',
-        updatedAt: serverTimestamp(),
-        transferredBy: staffId,
-        transferredAt: serverTimestamp()
-      };
-
-      console.log('📝 Creating manager pending order:', managerPendingDoc);
-      await addDoc(collection(db, 'manager_pending_orders'), managerPendingDoc);
-
-      // Remove from temporary orders
-      await this.removeTemporaryOrder(orderId);
-
-      // Create order history entry
+      // History entry is best-effort and outside the transaction (audit log)
       await this.createOrderHistoryEntry(orderId, tempOrderData.locationId, 'transferred', staffId, {
         notes,
         hasCustomerData: !!customerData
@@ -691,7 +726,7 @@ export class OrderService {
     }
   }
 
-  async settleOrder(orderId: string, paymentData: any): Promise<void> {
+  async settleOrder(orderId: string, paymentData: any, _userId?: string): Promise<void> {
     try {
       const orderRef = doc(db, 'orders', orderId);
       const orderDoc = await getDoc(orderRef);

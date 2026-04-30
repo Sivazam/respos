@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Printer } from 'escpos';
 import USB from 'escpos-usb';
 

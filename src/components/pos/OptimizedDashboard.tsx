@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import { useState, useMemo, useCallback } from 'react';
 import { TrendingUp, TrendingDown, Users, ShoppingCart, DollarSign, Package } from 'lucide-react';

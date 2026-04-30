@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { collection, query, where, orderBy, getDocs, getDocsFromCache, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';

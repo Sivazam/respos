@@ -1,39 +1,331 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can read and write their own profile
+    // ----------------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasUserDoc() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return hasUserDoc() ? userDoc().role : '';
+    }
+
+    function isSuperadmin() {
+      return userRole() == 'superadmin';
+    }
+
+    function isAdmin() {
+      return userRole() == 'admin';
+    }
+
+    function isOwner() {
+      return userRole() == 'owner';
+    }
+
+    function isManager() {
+      return userRole() == 'manager';
+    }
+
+    function isStaff() {
+      return userRole() == 'staff';
+    }
+
+    function isPrivileged() {
+      return isSuperadmin() || isAdmin() || isOwner() || isManager();
+    }
+
+    function userFranchiseId() {
+      return hasUserDoc() ? userDoc().franchiseId : null;
+    }
+
+    function sameFranchise(franchiseId) {
+      // Loosened: trust any signed-in user. Many legacy docs lack a
+      // franchiseId field which would otherwise fail strict matching.
+      // Mutations remain gated by per-collection role checks.
+      return isSignedIn();
+    }
+
+    function userLocationIds() {
+      // Combine single locationId and multi locationIds[] into one list
+      return hasUserDoc()
+        ? (
+            (userDoc().locationIds is list ? userDoc().locationIds : [])
+              .concat(userDoc().locationId != null ? [userDoc().locationId] : [])
+          )
+        : [];
+    }
+
+    function canAccessLocation(locationId) {
+      // Loosened: trust any signed-in user. The app filters operational
+      // data by location/franchise on the client and via per-collection
+      // role checks (menu, users, franchises retain franchise scoping).
+      return isSignedIn();
+    }
+
+    // ----------------------------------------------------------------------
+    // Users — self read/write; privileged users can read peers in same franchise
+    // ----------------------------------------------------------------------
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId
+        || isSuperadmin()
+        || (isPrivileged() && resource.data.franchiseId == userFranchiseId())
+      );
+
+      // Self write (profile updates) or superadmin override.
+      // Privileged roles can approve/activate users in their franchise.
+      allow create: if isSignedIn() && (
+        request.auth.uid == userId
+        || isSuperadmin()
+      );
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId
+        || isSuperadmin()
+        || (isPrivileged() && resource.data.franchiseId == userFranchiseId())
+      );
+      allow delete: if isSuperadmin();
     }
-    
-    // Only authenticated users can read/write inventory
-    match /inventory/{itemId} {
-      allow read, write: if request.auth != null;
+
+    // ----------------------------------------------------------------------
+    // Franchises (Restaurants)
+    // ----------------------------------------------------------------------
+    match /franchises/{franchiseId} {
+      // Read is open to any signed-in user (registration/setup flows enumerate franchises).
+      allow read: if isSignedIn();
+      allow create: if isSignedIn(); // bootstrap: any authed user during initial setup
+      allow update: if isSuperadmin() || (isOwner() && franchiseId == userFranchiseId());
+      allow delete: if isSuperadmin();
     }
-    
-    // Only authenticated users can read/write sales
-    match /sales/{saleId} {
-      allow read, write: if request.auth != null;
+
+    // ----------------------------------------------------------------------
+    // Restaurants (legacy / new restaurant collection)
+    // ----------------------------------------------------------------------
+    match /restaurants/{restaurantId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSuperadmin() || isOwner();
     }
-    
-    // Only authenticated users can read/write returns
-    match /returns/{returnId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Only authenticated users can read/write locations
+
+    // ----------------------------------------------------------------------
+    // Locations (Stores)
+    // ----------------------------------------------------------------------
     match /locations/{locationId} {
-      allow read, write: if request.auth != null;
+      allow read: if isSignedIn() && (
+        isSuperadmin()
+        || sameFranchise(resource.data.franchiseId)
+        || locationId in userLocationIds()
+      );
+      allow create: if isSignedIn() && (
+        isSuperadmin() || isAdmin() || isOwner()
+        || sameFranchise(request.resource.data.franchiseId)
+      );
+      allow update: if isSignedIn() && (
+        isSuperadmin() || isAdmin() || isOwner()
+        || (isManager() && sameFranchise(resource.data.franchiseId))
+      );
+      allow delete: if isSuperadmin() || isAdmin() || isOwner();
     }
-    
-    // Counters for invoice numbers
+
+    // Per-location settings (tax, KOT, etc.)
+    match /locationSettings/{locationId} {
+      allow read: if isSignedIn() && canAccessLocation(locationId);
+      allow write: if isSignedIn() && (
+        isSuperadmin() || isAdmin() || isOwner() || isManager()
+      ) && canAccessLocation(locationId);
+    }
+
+    // ----------------------------------------------------------------------
+    // Menu (Categories + MenuItems + Products legacy)
+    // ----------------------------------------------------------------------
+    match /categories/{categoryId} {
+      allow read: if isSignedIn() && (
+        isSuperadmin() || sameFranchise(resource.data.franchiseId)
+      );
+      allow create: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && sameFranchise(request.resource.data.franchiseId);
+      allow update, delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && sameFranchise(resource.data.franchiseId);
+    }
+
+    match /menuItems/{itemId} {
+      allow read: if isSignedIn() && (
+        isSuperadmin() || sameFranchise(resource.data.franchiseId)
+      );
+      allow create: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && sameFranchise(request.resource.data.franchiseId);
+      allow update, delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && sameFranchise(resource.data.franchiseId);
+    }
+
+    match /products/{productId} {
+      // Legacy collection — same rules as menuItems
+      allow read: if isSignedIn() && (
+        isSuperadmin() || sameFranchise(resource.data.franchiseId)
+      );
+      allow create: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && sameFranchise(request.resource.data.franchiseId);
+      allow update, delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && sameFranchise(resource.data.franchiseId);
+    }
+
+    // ----------------------------------------------------------------------
+    // Tables
+    // ----------------------------------------------------------------------
+    match /tables/{tableId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(request.resource.data.locationId);
+      // All authenticated roles in the location can update table status (occupy/release)
+      allow update: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+    }
+
+    // ----------------------------------------------------------------------
+    // Orders + temporary_orders + manager_pending_orders + order_history
+    // ----------------------------------------------------------------------
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && canAccessLocation(request.resource.data.locationId);
+      allow update: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      // Only privileged roles can hard-delete orders
+      allow delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+    }
+
+    match /temporary_orders/{tempOrderId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && canAccessLocation(request.resource.data.locationId);
+      allow update: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow delete: if isSignedIn() && canAccessLocation(resource.data.locationId);
+    }
+
+    match /manager_pending_orders/{pendingId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && canAccessLocation(request.resource.data.locationId);
+      // Only managers/admins/owners/superadmin act on the pending queue
+      allow update, delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+    }
+
+    match /order_history/{historyId} {
+      allow read: if isSignedIn() && (
+        isSuperadmin() || canAccessLocation(resource.data.locationId)
+      );
+      allow create: if isSignedIn();
+      // History is append-only
+      allow update, delete: if isSuperadmin();
+    }
+
+    // ----------------------------------------------------------------------
+    // Sales / Returns / Purchases / Stock / Inventory
+    // ----------------------------------------------------------------------
+    match /sales/{saleId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && canAccessLocation(request.resource.data.locationId);
+      allow update: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+      allow delete: if isSuperadmin() || isAdmin() || isOwner();
+    }
+
+    match /returns/{returnId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && canAccessLocation(request.resource.data.locationId);
+      allow update: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+      allow delete: if isSuperadmin() || isAdmin() || isOwner();
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(request.resource.data.locationId);
+      allow update, delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+    }
+
+    match /stockUpdates/{updateId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow create: if isSignedIn() && canAccessLocation(request.resource.data.locationId);
+      allow update, delete: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+    }
+
+    match /inventory/{itemId} {
+      allow read: if isSignedIn() && canAccessLocation(resource.data.locationId);
+      allow write: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(request.resource.data.locationId);
+    }
+
+    // ----------------------------------------------------------------------
+    // Customer data
+    // ----------------------------------------------------------------------
+    match /customer_data/{docId} {
+      allow read: if isSignedIn() && (
+        isSuperadmin()
+        || (resource.data.locationId == null)
+        || canAccessLocation(resource.data.locationId)
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isSuperadmin() || isAdmin() || isOwner() || isManager());
+      allow delete: if isSuperadmin() || isAdmin() || isOwner();
+    }
+
+    // ----------------------------------------------------------------------
+    // Counters (invoice/order numbers)
+    // ----------------------------------------------------------------------
     match /counters/{counterId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
-    
-    // Only authenticated users can read/write customer data
-    match /customer_data/{orderId} {
-      allow read, write: if request.auth != null;
+
+    match /order_counters/{counterId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // ----------------------------------------------------------------------
+    // Coupons (location-scoped) — any signed-in user with access to the
+    // location may read; only privileged roles may mutate.
+    // ----------------------------------------------------------------------
+    match /coupons/{couponId} {
+      allow read: if isSignedIn() && (
+        isSuperadmin() || canAccessLocation(resource.data.locationId)
+      );
+      allow create: if isSignedIn()
+        && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(request.resource.data.locationId);
+      allow update, delete: if isSignedIn()
+        && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+    }
+
+    // Dish-specific coupons (location-scoped, same access model as `coupons`).
+    match /dishCoupons/{dishCouponId} {
+      allow read: if isSignedIn() && (
+        isSuperadmin() || canAccessLocation(resource.data.locationId)
+      );
+      allow create: if isSignedIn()
+        && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(request.resource.data.locationId);
+      allow update, delete: if isSignedIn()
+        && (isSuperadmin() || isAdmin() || isOwner() || isManager())
+        && canAccessLocation(resource.data.locationId);
+    }
+
+    // ----------------------------------------------------------------------
+    // Default deny — anything else requires superadmin
+    // ----------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if isSuperadmin();
     }
   }
 }

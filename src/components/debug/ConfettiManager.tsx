@@ -1,17 +1,6 @@
-'use client';
+// ConfettiManager: stubbed out (debug ProperConfetti component removed during cleanup).
+// The hook is still consumed elsewhere; this component just no longer renders confetti.
 
-import { useOrderMilestoneCelebration } from '../../hooks/useOrderMilestoneCelebration';
-import ProperConfetti from './ProperConfetti';
-
-const ConfettiManager: React.FC = () => {
-  const { shouldShowConfetti, handleConfettiComplete } = useOrderMilestoneCelebration();
-
-  return (
-    <ProperConfetti 
-      isActive={shouldShowConfetti} 
-      onComplete={handleConfettiComplete}
-    />
-  );
-};
+const ConfettiManager: React.FC = () => null;
 
 export default ConfettiManager;

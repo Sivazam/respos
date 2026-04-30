@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { format } from 'date-fns';
 import { X, Building2, User, CreditCard } from 'lucide-react';

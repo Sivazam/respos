@@ -206,41 +206,38 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
   };
 
   // Handle placing partial order
+  const [isPlacingPartial, setIsPlacingPartial] = useState(false);
   const handlePlacePartialOrder = async () => {
-    if (managerOrder && managerOrder.items.length > 0) {
-      try {
-        console.log('Placing partial manager order for:', managerOrder);
-
-        // Show loading toast
-        const loadingToast = toast.loading('Creating partial order...');
-
-        // Create the partial order first
-        const updatedOrder = await createPartialManagerOrder();
-        console.log('Partial manager order created:', updatedOrder);
-
-        // Refresh tables to ensure the latest status is reflected
-        await refreshTables();
-        console.log('Tables refreshed');
-
-        // Clear the current order from state (but keep it in localStorage)
-        clearCurrentManagerOrder();
-        console.log('Current manager order cleared from state');
-
-        // Show success toast
-        toast.success(`Partial order ${updatedOrder.orderNumber} created successfully!`, {
-          id: loadingToast
-        });
-
-        // Navigate to manager pending orders page
-        console.log('Navigating to manager pending orders...');
-        // Always navigate to pending orders for new orders, regardless of fromLocation
-        navigate('/manager/pending-orders');
-      } catch (error) {
-        console.error('Failed to place partial manager order:', error);
-        toast.error('Failed to create partial order. Please try again.');
-      }
-    } else {
+    if (isPlacingPartial) return;
+    if (!managerOrder || managerOrder.items.length === 0) {
       toast.error('No items in order to place');
+      return;
+    }
+    if (!currentUser) {
+      toast.error('You are not signed in. Please log in again.');
+      return;
+    }
+    if (!currentUser.locationId && !(currentUser.locationIds && currentUser.locationIds.length)) {
+      toast.error('No location assigned to your account. Contact admin.');
+      return;
+    }
+
+    setIsPlacingPartial(true);
+    const loadingToast = toast.loading('Creating partial order...');
+    try {
+      const updatedOrder = await createPartialManagerOrder();
+      await refreshTables();
+      clearCurrentManagerOrder();
+      toast.success(`Partial order ${updatedOrder.orderNumber} created successfully!`, {
+        id: loadingToast,
+      });
+      navigate('/manager/pending-orders');
+    } catch (error) {
+      console.error('Failed to place partial manager order:', error);
+      const message = error instanceof Error ? error.message : 'Failed to create partial order. Please try again.';
+      toast.error(message, { id: loadingToast });
+    } finally {
+      setIsPlacingPartial(false);
     }
   };
 
@@ -631,9 +628,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                     <>
                       <button
                         onClick={handlePlacePartialOrder}
-                        className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                        disabled={isPlacingPartial}
+                        className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        Create Partial Order
+                        {isPlacingPartial ? 'Creating...' : 'Create Partial Order'}
                       </button>
                       <button
                         onClick={handleBackToPending}
@@ -873,9 +871,10 @@ const ManagerPOSPage: React.FC<ManagerPOSPageProps> = () => {
                       <>
                         <button
                           onClick={handlePlacePartialOrder}
-                          className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                          disabled={isPlacingPartial}
+                          className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          Create Partial Order
+                          {isPlacingPartial ? 'Creating...' : 'Create Partial Order'}
                         </button>
                         <div className="grid grid-cols-2 gap-3">
                           <button

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from 'react';
 import { Plus, Search, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';

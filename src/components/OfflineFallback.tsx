@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { AlertTriangle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

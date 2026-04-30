@@ -3,6 +3,14 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const extraAllowedHosts = (process.env.VITE_ALLOWED_HOSTS || '')
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean);
+
+const defaultAllowedHosts = ['localhost', '127.0.0.1'];
+const allAllowedHosts = Array.from(new Set([...defaultAllowedHosts, ...extraAllowedHosts]));
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -74,6 +82,29 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'firebase-vendor': [
+            'firebase/app',
+            'firebase/auth',
+            'firebase/firestore',
+            'firebase/storage',
+          ],
+          'charts-vendor': ['chart.js', 'react-chartjs-2'],
+          'ui-vendor': ['lucide-react', 'react-hot-toast', 'dompurify'],
+        },
+      },
+    },
+  },
+  esbuild: {
+    // Strip noisy logs from production bundles. Keep error/warn for triage.
+    drop: process.env.NODE_ENV === 'production' ? ['debugger'] : [],
+    pure: process.env.NODE_ENV === 'production' ? ['console.log', 'console.debug', 'console.info'] : [],
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -84,26 +115,12 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
     cors: true,
-    allowedHosts: [
-      'ws-e-eac-dd-ecf-mzrkuseuys.cn-hongkong-vpc.fcapp.run',
-      'localhost',
-      '127.0.0.1',
-      '.space.z.ai',
-      '*.space.z.ai',
-      '*.cn-hongkong-vpc.fcapp.run'
-    ],
+    allowedHosts: allAllowedHosts,
   },
   preview: {
     host: '0.0.0.0',
     port: 3000,
     cors: true,
-    allowedHosts: [
-      'ws-e-eac-dd-ecf-mzrkuseuys.cn-hongkong-vpc.fcapp.run',
-      'localhost',
-      '127.0.0.1',
-      '.space.z.ai',
-      '*.space.z.ai',
-      '*.cn-hongkong-vpc.fcapp.run'
-    ],
+    allowedHosts: allAllowedHosts,
   },
 });

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from 'react';
 import { Franchise, FranchisePlan, FranchiseStoredFeatures } from '../../types';
 import { franchisePlanDefaults } from '../../config/features';

@@ -3,6 +3,15 @@
  * and provide fallback mechanisms
  */
 
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  Firestore,
+} from 'firebase/firestore';
+
 export interface IndexError {
   code: string;
   message: string;
@@ -29,9 +38,10 @@ export async function createFallbackQuery<T>(
   try {
     return await originalQuery();
   } catch (error: unknown) {
-    if (isIndexError(error as Error)) {
-      console.warn('Index required, falling back to client-side filtering:', error.message);
-      const indexUrl = extractIndexUrl(error as Error);
+    const err = error as Error;
+    if (isIndexError(err)) {
+      console.warn('Index required, falling back to client-side filtering:', err.message);
+      const indexUrl = extractIndexUrl(err);
       if (indexUrl) {
         console.info('Create index here:', indexUrl);
       }
@@ -45,15 +55,11 @@ export async function createFallbackQuery<T>(
  * Tables-specific index helper
  */
 export function getTablesWithFallback(
-  db: any,
+  db: Firestore,
   locationId: string,
   orderByField?: string,
   orderDirection: 'asc' | 'desc' = 'asc'
 ) {
-  // Dynamic import to avoid require statement
-  const firestoreModule = eval('require')('firebase/firestore');
-  const { collection, query, where, orderBy, getDocs } = firestoreModule;
-
   // Try the optimal query first (with index)
   const optimalQuery = async () => {
     const q = query(

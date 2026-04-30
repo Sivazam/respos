@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -58,6 +58,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [needsSetup, setNeedsSetup] = useState<boolean>(false);
+  const currentUserRef = useRef<User | null>(null);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   const clearError = () => setError(null);
 
@@ -176,7 +181,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Don't fail the login process for this
             }
           } else {
-            setCurrentUser(null);
+            // User doc fetch failed after retries. If we already have a logged-in user
+            // (transient Firestore failure), keep the existing session rather than
+            // signing them out and bouncing them to /login.
+            const prior = currentUserRef.current;
+            if (prior && navigator.onLine === false) {
+              console.warn('Auth state: user doc unavailable while offline, keeping session');
+            } else if (prior) {
+              console.warn('Auth state: user doc unavailable; keeping prior session to avoid spurious logout');
+            } else {
+              setCurrentUser(null);
+            }
           }
         } else {
           setCurrentUser(null);
@@ -190,6 +205,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
 
     return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const register = async (

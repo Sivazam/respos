@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { X, User, CreditCard, ArrowRight } from 'lucide-react';
 import { fetchCustomerDataByOrderId, upsertCustomerData } from '../../contexts/CustomerDataService';

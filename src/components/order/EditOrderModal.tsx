@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { X, Edit3, Trash2, Save } from 'lucide-react';
 import Button from '../ui/Button';

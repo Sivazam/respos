@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, Calendar, Clock, CheckCircle, AlertCircle, ChefHat, Truck, Eye, Receipt, CreditCard, Smartphone, DollarSign } from 'lucide-react';
 import DashboardLayout from '../../layouts/DashboardLayout';

@@ -58,7 +58,6 @@ export class BrowserPrintService {
       // Try to use the modern print API if available (Chrome/Edge)
       if ('print' in navigator && 'printerCapabilities' in navigator) {
         try {
-          // @ts-ignore - Experimental API
           const printCapability = await (navigator as any).printerCapabilities;
           if (printCapability && Array.isArray(printCapability) && printCapability.length > 0) {
             // Use the modern print API for silent printing
@@ -352,7 +351,6 @@ export class BrowserPrintService {
   // Try to use modern print API for silent printing
   private async printWithModernAPI(content: string, options: BrowserPrintOptions): Promise<void> {
     try {
-      // @ts-ignore - Experimental API
       const printTicket = {
         size: options.paperSize || '79.5mm 200mm',
         copies: options.copies || 1,
@@ -384,8 +382,7 @@ export class BrowserPrintService {
         </html>
       `], { type: 'text/html' });
 
-      // @ts-ignore - Experimental API
-      await navigator.print({
+      await navigator.print!({
         content: printContent,
         ticket: printTicket
       });
@@ -422,7 +419,6 @@ export class BrowserPrintService {
       // Try modern print API
       if ('print' in navigator && 'printerCapabilities' in navigator) {
         try {
-          // @ts-ignore - Experimental API
           const printCapability = await (navigator as any).printerCapabilities;
           if (printCapability && Array.isArray(printCapability) && printCapability.length > 0) {
             await this.printWithModernAPI(content, finalOptions);

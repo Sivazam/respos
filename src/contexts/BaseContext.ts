@@ -1,24 +1,32 @@
 import { useAuth } from './AuthContext';
+import type { User, Location } from '../types';
 
 /**
  * Base context utilities for role-based data filtering
  */
 
 export interface DataFilter {
-  where?: { field: string; operator: string; value: any }[];
+  where?: { field: string; operator: string; value: unknown }[];
   orderBy?: { field: string; direction: 'asc' | 'desc' };
 }
 
-export function getDataFilter(user: any, currentLocation: any): DataFilter {
+export function getDataFilter(
+  user: User | null | undefined,
+  currentLocation: Location | null | undefined
+): DataFilter {
+  if (!user) {
+    return { orderBy: { field: 'createdAt', direction: 'desc' } };
+  }
+
   // Superadmin - sees all data
-  if (user?.role === 'superadmin') {
+  if (user.role === 'superadmin') {
     return {
       orderBy: { field: 'createdAt', direction: 'desc' }
     };
   }
 
   // Admin/Owner - sees all data in their franchise
-  if (user?.role === 'admin' || user?.role === 'owner') {
+  if (user.role === 'admin' || user.role === 'owner') {
     const filter: DataFilter = {
       where: [
         { field: 'franchiseId', operator: '==', value: user.franchiseId }
@@ -35,7 +43,7 @@ export function getDataFilter(user: any, currentLocation: any): DataFilter {
   }
 
   // Manager - sees data from their assigned locations
-  if (user?.role === 'manager') {
+  if (user.role === 'manager') {
     const filter: DataFilter = {
       where: [
         { field: 'franchiseId', operator: '==', value: user.franchiseId }
@@ -43,7 +51,6 @@ export function getDataFilter(user: any, currentLocation: any): DataFilter {
       orderBy: { field: 'createdAt', direction: 'desc' }
     };
 
-    // Manager can have multiple locations, but typically has one primary location
     if (currentLocation) {
       filter.where?.push({ field: 'locationId', operator: '==', value: currentLocation.id });
     } else if (user.locationId) {
@@ -54,7 +61,7 @@ export function getDataFilter(user: any, currentLocation: any): DataFilter {
   }
 
   // Staff - sees data from their assigned location only
-  if (user?.role === 'staff') {
+  if (user.role === 'staff') {
     const filter: DataFilter = {
       where: [
         { field: 'franchiseId', operator: '==', value: user.franchiseId }
@@ -62,7 +69,6 @@ export function getDataFilter(user: any, currentLocation: any): DataFilter {
       orderBy: { field: 'createdAt', direction: 'desc' }
     };
 
-    // Staff always has exactly one location
     if (user.locationId) {
       filter.where?.push({ field: 'locationId', operator: '==', value: user.locationId });
     }
@@ -70,63 +76,63 @@ export function getDataFilter(user: any, currentLocation: any): DataFilter {
     return filter;
   }
 
-  // Default case - no user or unknown role
+  // Default case - unknown role
   return {
     orderBy: { field: 'createdAt', direction: 'desc' }
   };
 }
 
-export function canUserAccessLocation(user: any, locationId: string): boolean {
-  if (!user) return false;
+export function canUserAccessLocation(
+  user: User | null | undefined,
+  locationId: string | null | undefined
+): boolean {
+  if (!user || !locationId) return false;
 
-  // Superadmin can access all locations
   if (user.role === 'superadmin') return true;
 
-  // Admin/Owner can access any location in their franchise
   if (user.role === 'admin' || user.role === 'owner') {
-    return true; // We'll check franchise membership at query level
+    return true; // franchise membership enforced at query/rules level
   }
 
-  // Manager can access their assigned locations
-  if (user.role === 'manager') {
-    return user.locationId === locationId; // For now, single location
-  }
+  const accessibleIds = [
+    ...(Array.isArray(user.locationIds) ? user.locationIds : []),
+    ...(user.locationId ? [user.locationId] : []),
+  ];
 
-  // Staff can only access their assigned location
-  if (user.role === 'staff') {
-    return user.locationId === locationId;
+  if (user.role === 'manager' || user.role === 'staff') {
+    return accessibleIds.includes(locationId);
   }
 
   return false;
 }
 
-export function getAccessibleLocations(user: any, allLocations: any[]): any[] {
-  if (!user) return [];
+export function getAccessibleLocations(
+  user: User | null | undefined,
+  allLocations: Location[] | null | undefined
+): Location[] {
+  if (!user || !Array.isArray(allLocations)) return [];
 
-  // Superadmin sees all locations
   if (user.role === 'superadmin') {
     return allLocations;
   }
 
-  // Admin/Owner sees all locations in their franchise
   if (user.role === 'admin' || user.role === 'owner') {
     return allLocations.filter(location => location.franchiseId === user.franchiseId);
   }
 
-  // Manager sees their assigned locations
-  if (user.role === 'manager') {
-    return allLocations.filter(location => location.id === user.locationId);
-  }
+  const accessibleIds = [
+    ...(Array.isArray(user.locationIds) ? user.locationIds : []),
+    ...(user.locationId ? [user.locationId] : []),
+  ];
 
-  // Staff sees only their assigned location
-  if (user.role === 'staff') {
-    return allLocations.filter(location => location.id === user.locationId);
+  if (user.role === 'manager' || user.role === 'staff') {
+    return allLocations.filter(location => accessibleIds.includes(location.id));
   }
 
   return [];
 }
 
-export function hasNoLocationAssigned(user: any): boolean {
+export function hasNoLocationAssigned(user: User | null | undefined): boolean {
   if (!user) return true;
   
   // Superadmin doesn't need location assignment

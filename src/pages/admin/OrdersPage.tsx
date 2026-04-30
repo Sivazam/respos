@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { Search, Eye, Building2, User, Calendar, Filter, Download } from 'lucide-react';

@@ -30,12 +30,20 @@ function removeNetworkStatusElements() {
   });
 }
 
-// Remove network status elements immediately and periodically
+// Remove network status elements immediately and periodically.
+// Store the interval id so it can be cleared on page unload.
 removeNetworkStatusElements();
-setInterval(removeNetworkStatusElements, 1000);
+const networkStatusIntervalId: number = window.setInterval(removeNetworkStatusElements, 1000);
+window.addEventListener('beforeunload', () => {
+  window.clearInterval(networkStatusIntervalId);
+});
 
 // Simple error handling for preview environment
 window.addEventListener('error', (event) => {
+  // Log unhandled errors so we can diagnose ErrorBoundary triggers
+  if (event.error) {
+    console.error('[window.error]', event.message, event.error);
+  }
   // Suppress preview environment errors
   if (event.message && event.message.includes('502') && event.filename && event.filename.includes('space.z.ai')) {
     console.warn('🔸 Suppressing preview environment error:', event.message);
@@ -45,6 +53,8 @@ window.addEventListener('error', (event) => {
 });
 
 window.addEventListener('unhandledrejection', (event) => {
+  // Always log so we can trace silent async errors
+  console.error('[unhandledrejection]', event.reason);
   // Suppress network errors from preview environment
   if (event.reason && event.reason.message && event.reason.message.includes('502')) {
     console.warn('🔸 Suppressing preview environment network error:', event.reason.message);

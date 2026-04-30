@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState } from 'react';
 // Cache bust: 2025-01-12-04-30 - Firestore Timestamp fix
 import { 

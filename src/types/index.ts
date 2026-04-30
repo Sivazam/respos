@@ -477,6 +477,16 @@ export interface BillItem {
 
 export type PaymentMethod = 'cash' | 'card' | 'upi' | 'wallet';
 
+/** Payload passed to settle/processPayment APIs. */
+export interface PaymentData {
+  paymentMethod: PaymentMethod | string;
+  amount: number;
+  settledAt?: Date;
+  status?: 'pending' | 'completed' | 'failed';
+  reference?: string;
+  notes?: string;
+}
+
 export interface SplitBill {
   id: string;
   items: BillItem[];

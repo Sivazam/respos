@@ -3,7 +3,10 @@ import { useAuth } from './AuthContext';
 import { useLocations } from './LocationContext';
 import { useTables } from './TableContext';
 import { orderService } from '../services/orderService';
-import { Order, TemporaryOrder, OrderFormData, OrderItem } from '../types';
+import { Order, TemporaryOrder, OrderFormData, OrderItem, PaymentData } from '../types';
+
+/** Shape returned by orderService.subscribeToManagerPendingOrders (loose). */
+type ManagerPendingOrderRow = Record<string, unknown> & { id: string };
 
 interface EnhancedOrderContextType {
   // Staff Order Management
@@ -13,11 +16,11 @@ interface EnhancedOrderContextType {
   transferOrderToManager: (orderId: string, notes?: string) => Promise<void>;
   
   // Manager Order Management
-  managerPendingOrders: any[];
+  managerPendingOrders: ManagerPendingOrderRow[];
   acceptPendingOrder: (pendingOrderId: string) => Promise<void>;
-  settleOrder: (orderId: string, paymentData: any) => Promise<void>;
+  settleOrder: (orderId: string, paymentData: PaymentData) => Promise<void>;
   completeOrder: (orderId: string) => Promise<void>;
-  updateOrder: (orderId: string, updatedOrder: any) => Promise<void>;
+  updateOrder: (orderId: string, updatedOrder: Partial<Order>) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   
   // Shared Order Management
@@ -227,7 +230,7 @@ export const EnhancedOrderProvider: React.FC<EnhancedOrderProviderProps> = ({ ch
   }, [currentUser, clearError]);
 
   // Settle order (Manager)
-  const settleOrder = useCallback(async (orderId: string, paymentData: any): Promise<void> => {
+  const settleOrder = useCallback(async (orderId: string, paymentData: PaymentData): Promise<void> => {
     if (!currentUser) {
       throw new Error('User not authenticated');
     }
@@ -271,7 +274,7 @@ export const EnhancedOrderProvider: React.FC<EnhancedOrderProviderProps> = ({ ch
   }, [currentUser, clearError]);
 
   // Update order (Manager)
-  const updateOrder = useCallback(async (orderId: string, updatedOrder: any): Promise<void> => {
+  const updateOrder = useCallback(async (orderId: string, updatedOrder: Partial<Order>): Promise<void> => {
     if (!currentUser) {
       throw new Error('User not authenticated');
     }

@@ -110,7 +110,7 @@ const FinalReceiptModal: React.FC<FinalReceiptModalProps> = ({
   // Calculate totals properly
   const calculateSubtotal = () => {
     if (order.subtotal) return order.subtotal;
-    return order.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+    return (order.items || []).reduce((sum: number, item: any) => sum + ((item?.price ?? 0) * (item?.quantity ?? 0)), 0);
   };
 
   const calculateCGST = () => {

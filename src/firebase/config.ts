@@ -19,7 +19,10 @@ export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
-  })
+  }),
+  // Auto-detect long-polling. Avoids spurious QUIC_TOO_MANY_RTOS / WebChannel
+  // disconnect warnings on flaky networks, proxies, or restrictive firewalls.
+  experimentalAutoDetectLongPolling: true,
 });
 export const storage = getStorage(app);
 

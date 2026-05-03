@@ -332,7 +332,7 @@ const SalesReportPage: React.FC = () => {
     
     // Calculate total items sold
     const totalItems = filteredOrders.reduce((sum, order) => 
-      sum + order.items.reduce((itemSum: number, item: OrderItem) => itemSum + (item.quantity || 1), 0), 0);
+      sum + (order.items || []).reduce((itemSum: number, item: OrderItem) => itemSum + (item?.quantity || 1), 0), 0);
     
     // Average order value
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;

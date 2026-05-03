@@ -284,7 +284,9 @@ const OrdersPage: React.FC = () => {
     
     const matchesTab = order.orderType === selectedTab;
     
-    const orderDate = order.settledAt.toISOString().split('T')[0];
+    const settled = order?.settledAt instanceof Date ? order.settledAt : (order?.settledAt ? new Date(order.settledAt) : null);
+    if (!settled || isNaN(settled.getTime())) return false;
+    const orderDate = settled.toISOString().split('T')[0];
     const matchesDateRange = orderDate >= startDate && orderDate <= endDate;
     
     return matchesSearch && matchesTab && matchesDateRange;
@@ -293,7 +295,9 @@ const OrdersPage: React.FC = () => {
   // Get order statistics
   const getStats = () => {
     const dateRangeOrders = orders.filter(order => {
-      const orderDate = order.settledAt.toISOString().split('T')[0];
+      const settled = order?.settledAt instanceof Date ? order.settledAt : (order?.settledAt ? new Date(order.settledAt) : null);
+      if (!settled || isNaN(settled.getTime())) return false;
+      const orderDate = settled.toISOString().split('T')[0];
       return orderDate >= startDate && orderDate <= endDate;
     });
     

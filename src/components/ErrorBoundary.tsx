@@ -63,6 +63,10 @@ class ErrorBoundary extends Component<Props, State> {
               Reload page
             </button>
           </div>
+          {/* Always show the error message so prod issues can be diagnosed */}
+          <p style={{ color: '#7a1a1a', fontFamily: 'monospace', fontSize: '12px', background: '#fff', padding: '8px', borderRadius: '4px', border: '1px solid #fcc', wordBreak: 'break-word' }}>
+            {this.state.error.message || this.state.error.toString()}
+          </p>
           {isDev && (
             <details style={{ whiteSpace: 'pre-wrap' }}>
               <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>Error details (dev only)</summary>

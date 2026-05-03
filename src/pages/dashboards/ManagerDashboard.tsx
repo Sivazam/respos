@@ -235,7 +235,11 @@ const ManagerDashboard: React.FC = () => {
   // Filter orders based on date range and location
   const filteredCompletedOrders = useMemo(() => {
     return completedOrders.filter(order => {
-      const orderDate = new Date(order.settledAt).toISOString().split('T')[0];
+      const settledRaw = order?.settledAt;
+      if (!settledRaw) return false;
+      const settledDate = new Date(settledRaw);
+      if (isNaN(settledDate.getTime())) return false;
+      const orderDate = settledDate.toISOString().split('T')[0];
       const matchesDateRange = orderDate >= startDate && orderDate <= endDate;
       const matchesLocation = selectedLocationId === 'all' || order.locationId === selectedLocationId;
       return matchesDateRange && matchesLocation;
@@ -243,13 +247,12 @@ const ManagerDashboard: React.FC = () => {
   }, [completedOrders, startDate, endDate, selectedLocationId]);
 
   const todaysOrders = useMemo(() => {
-    return orders.filter(order => {
+    return (orders || []).filter(order => {
+      if (!order?.createdAt) return false;
       const orderDate = new Date(order.createdAt);
+      if (isNaN(orderDate.getTime())) return false;
       const isToday = orderDate >= today.start && orderDate <= today.end;
-      
-      // Filter by location if specified
       const matchesLocation = selectedLocationId === 'all' || order.locationId === selectedLocationId;
-      
       return isToday && matchesLocation;
     });
   }, [orders, today, selectedLocationId]);

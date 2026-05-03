@@ -62,7 +62,7 @@ const SettleBillModal: React.FC<SettleBillModalProps> = ({
   if (!isOpen || !order) return null;
 
   const calculateSubtotal = () => {
-    return order.items.reduce((sum: number, item: OrderItem) => sum + (item.price * item.quantity), 0);
+    return (order.items || []).reduce((sum: number, item: OrderItem) => sum + ((item?.price ?? 0) * (item?.quantity ?? 0)), 0);
   };
 
   const calculateGST = () => {

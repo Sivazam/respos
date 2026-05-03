@@ -138,7 +138,7 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
                 </div>
                 <div class="info-row">
                   <span><strong>Date:</strong></span>
-                  <span>${new Date(order.createdAt).toLocaleString()}</span>
+                  <span>${(() => { const raw = order.createdAt?.toDate?.() ?? order.createdAt; const d = raw ? new Date(raw) : new Date(); return isNaN(d.getTime()) ? '' : d.toLocaleString(); })()}</span>
                 </div>
                 <div class="info-row">
                   <span><strong>Customer:</strong></span>
@@ -148,7 +148,7 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
                   <span><strong>Type:</strong></span>
                   <span>${order.orderType === 'dine_in' ? 'Dine In' : 'Takeaway'}</span>
                 </div>
-                ${order.tableNames ? `
+                ${Array.isArray(order.tableNames) && order.tableNames.length ? `
                 <div class="info-row">
                   <span><strong>Table:</strong></span>
                   <span>${order.tableNames.join(', ')}</span>
@@ -158,13 +158,13 @@ const PrintAndPayModal: React.FC<PrintAndPayModalProps> = ({
               
               <div class="items">
                 <h3 style="margin-bottom: 10px;">Order Items</h3>
-                ${order.items?.map((item: any) => `
+                ${(order.items || []).map((item: any) => `
                   <div class="item">
                     <div class="item-name">
-                      ${item.name}
-                      <span class="item-quantity">x${item.quantity}</span>
+                      ${item?.name ?? ''}
+                      <span class="item-quantity">x${item?.quantity ?? 0}</span>
                     </div>
-                    <div class="item-price">₹${(item.price * item.quantity).toFixed(2)}</div>
+                    <div class="item-price">₹${(((item?.price ?? 0) * (item?.quantity ?? 0)) || 0).toFixed(2)}</div>
                   </div>
                 `).join('')}
               </div>

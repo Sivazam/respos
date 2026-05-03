@@ -188,10 +188,11 @@ const EnhancedManagerPendingOrdersPage: React.FC = () => {
   // Filter orders
   const filteredOrders = displayOrders.filter(order => {
     try {
+      const term = (searchTerm || '').toLowerCase();
       const matchesSearch = 
-        order.order?.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.order?.tableNames?.some(name => name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (order.order?.customerName && order.order.customerName.toLowerCase().includes(searchTerm.toLowerCase()));
+        order.order?.orderNumber?.toLowerCase().includes(term) ||
+        order.order?.tableNames?.some((name: string) => (name || '').toLowerCase().includes(term)) ||
+        (order.order?.customerName && order.order.customerName.toLowerCase().includes(term));
       
       const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
       

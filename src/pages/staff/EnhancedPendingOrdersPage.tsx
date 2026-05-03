@@ -93,18 +93,19 @@ const EnhancedStaffPendingOrdersPage: React.FC = () => {
 
   // Filter orders while preserving sort order
   const filteredOrders = pendingOrders.filter(order => {
+    const term = (searchTerm || '').toLowerCase();
     const matchesSearch = 
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.tableNames.some(name => name.toLowerCase().includes(searchTerm.toLowerCase()));
+      (order.orderNumber || '').toLowerCase().includes(term) ||
+      (order.tableNames || []).some((name: string) => (name || '').toLowerCase().includes(term));
     
     const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
     
     return matchesSearch && matchesStatus;
   }).sort((a, b) => {
     // Ensure most recent orders are on top
-    const dateA = new Date(a.createdAt).getTime();
-    const dateB = new Date(b.createdAt).getTime();
-    return dateB - dateA; // descending (newest first)
+    const dateA = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA); // descending (newest first)
   });
 
   // Debug output

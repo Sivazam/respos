@@ -89,7 +89,16 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           collection(db, 'sales'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let allSnapshot;
+        try {
+          if (!navigator.onLine) {
+            allSnapshot = await getDocsFromCache(q);
+          } else {
+            allSnapshot = await getDocs(q);
+          }
+        } catch (err) {
+          allSnapshot = await getDocsFromCache(q);
+        }
 
         const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.data().locationId === currentUser.locationId
@@ -100,12 +109,22 @@ export const SalesProvider: React.FC<SalesProviderProps> = ({ children }) => {
           collection(db, 'sales'),
           orderBy('createdAt', 'desc')
         );
-        const allSnapshot = await getDocs(q);
+        let allSnapshot;
+        try {
+          if (!navigator.onLine) {
+            allSnapshot = await getDocsFromCache(q);
+          } else {
+            allSnapshot = await getDocs(q);
+          }
+        } catch (err) {
+          allSnapshot = await getDocsFromCache(q);
+        }
 
         const filteredDocs = allSnapshot.docs.filter(doc =>
           doc.data().locationId === currentUser.locationId
         );
         querySnapshot = { docs: filteredDocs };
+
       } else if (currentUser?.role === 'admin') {
         if (currentUser?.franchiseId) {
           const q = query(

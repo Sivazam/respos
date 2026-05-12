@@ -18,7 +18,8 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager()
+    tabManager: persistentMultipleTabManager(),
+    cacheSizeBytes: 100 * 1024 * 1024  // 100 MB limit – triggers GC of old cached docs
   }),
   // Auto-detect long-polling. Avoids spurious QUIC_TOO_MANY_RTOS / WebChannel
   // disconnect warnings on flaky networks, proxies, or restrictive firewalls.

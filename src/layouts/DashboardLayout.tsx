@@ -16,7 +16,8 @@ import {
   MapPin,
   Settings,
   Clock,
-  Database
+  Database,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatures } from '../hooks/useFeatures';
@@ -165,6 +166,51 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
       navigate('/login');
     } catch (error) {
       console.error('Logout failed', error);
+    }
+  };
+
+  const handleClearDataAndLogout = async () => {
+    const confirmed = window.confirm(
+      'This will clear all cached data and log you out. You will need to log in again and data will be re-downloaded.\n\nUse this if the app is showing storage errors or behaving unexpectedly.\n\nContinue?'
+    );
+    if (!confirmed) return;
+
+    try {
+      // 1. Delete all IndexedDB databases
+      if (window.indexedDB && typeof window.indexedDB.databases === 'function') {
+        const databases = await window.indexedDB.databases();
+        for (const db of databases) {
+          if (db.name) {
+            window.indexedDB.deleteDatabase(db.name);
+          }
+        }
+      }
+
+      // 2. Clear Cache Storage (Service Worker caches)
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+
+      // 3. Unregister Service Workers
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+      }
+
+      // 4. Clear localStorage and sessionStorage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // 5. Sign out from Firebase
+      await logout();
+
+      // 6. Hard reload to ensure a clean state
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Clear data failed:', error);
+      // Force navigate even if something fails
+      window.location.href = '/login';
     }
   };
 
@@ -381,7 +427,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
           </div>
           
           {/* Mobile logout */}
-          <div className="border-t border-gray-200 p-4">
+          <div className="border-t border-gray-200 p-4 space-y-1">
+            <button
+              onClick={handleClearDataAndLogout}
+              className="w-full flex items-center px-2 py-2 text-base font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors duration-200"
+            >
+              <Trash2 className="mr-3 h-5 w-5 text-red-500" />
+              Clear Cache & Logout
+            </button>
             <button
               onClick={handleLogout}
               className="w-full flex items-center px-2 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors duration-200"
@@ -430,7 +483,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
                 ))}
               </nav>
             </div>
-            <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
+            <div className="flex-shrink-0 border-t border-gray-200 p-4 space-y-2">
+              <button
+                onClick={handleClearDataAndLogout}
+                className={`
+                  flex-shrink-0 group flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition-colors duration-200
+                  ${sidebarCollapsed ? 'justify-center w-full' : ''}
+                `}
+                title={sidebarCollapsed ? 'Clear Cache & Logout' : ''}
+              >
+                <Trash2 className={`h-5 w-5 text-red-500 ${sidebarCollapsed ? 'mr-0' : 'mr-3'}`} />
+                {!sidebarCollapsed && <span>Clear Cache</span>}
+              </button>
               <button
                 onClick={handleLogout}
                 className={`

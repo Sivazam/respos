@@ -35,10 +35,32 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [storageWarning, setStorageWarning] = useState(false);
   const { currentUser, logout } = useAuth();
   const { features } = useFeatures();
   const { currentLocation, locations, loading } = useLocations();
   const navigate = useNavigate();
+
+  // Check if storage usage is high (>80% of quota)
+  useEffect(() => {
+    const checkStorage = async () => {
+      try {
+        if (navigator.storage && navigator.storage.estimate) {
+          const { usage, quota } = await navigator.storage.estimate();
+          if (usage && quota) {
+            const usagePercent = (usage / quota) * 100;
+            setStorageWarning(usagePercent > 80);
+          }
+        }
+      } catch (e) {
+        // Silently ignore — API not available
+      }
+    };
+
+    checkStorage();
+    const interval = setInterval(checkStorage, 60000); // Re-check every 60s
+    return () => clearInterval(interval);
+  }, []);
 
   // Load sidebar preference from localStorage on mount
   useEffect(() => {
@@ -428,13 +450,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
           
           {/* Mobile logout */}
           <div className="border-t border-gray-200 p-4 space-y-1">
-            <button
-              onClick={handleClearDataAndLogout}
-              className="w-full flex items-center px-2 py-2 text-base font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors duration-200"
-            >
-              <Trash2 className="mr-3 h-5 w-5 text-red-500" />
-              Clear Cache & Logout
-            </button>
+            {storageWarning && (
+              <button
+                onClick={handleClearDataAndLogout}
+                className="w-full flex items-center px-2 py-2 text-base font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors duration-200"
+              >
+                <Trash2 className="mr-3 h-5 w-5 text-red-500" />
+                Clear Cache & Logout
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="w-full flex items-center px-2 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors duration-200"
@@ -484,17 +508,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title }) =>
               </nav>
             </div>
             <div className="flex-shrink-0 border-t border-gray-200 p-4 space-y-2">
-              <button
-                onClick={handleClearDataAndLogout}
-                className={`
-                  flex-shrink-0 group flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition-colors duration-200
-                  ${sidebarCollapsed ? 'justify-center w-full' : ''}
-                `}
-                title={sidebarCollapsed ? 'Clear Cache & Logout' : ''}
-              >
-                <Trash2 className={`h-5 w-5 text-red-500 ${sidebarCollapsed ? 'mr-0' : 'mr-3'}`} />
-                {!sidebarCollapsed && <span>Clear Cache</span>}
-              </button>
+              {storageWarning && (
+                <button
+                  onClick={handleClearDataAndLogout}
+                  className={`
+                    flex-shrink-0 group flex items-center text-sm font-medium text-red-600 hover:text-red-800 transition-colors duration-200
+                    ${sidebarCollapsed ? 'justify-center w-full' : ''}
+                  `}
+                  title={sidebarCollapsed ? 'Clear Cache & Logout' : ''}
+                >
+                  <Trash2 className={`h-5 w-5 text-red-500 ${sidebarCollapsed ? 'mr-0' : 'mr-3'}`} />
+                  {!sidebarCollapsed && <span>Clear Cache</span>}
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 className={`
